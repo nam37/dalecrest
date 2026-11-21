@@ -461,6 +461,25 @@ function finishShift(actor, world, emit, sky) {
   if (actor.action.commitmentId) settleHelp(actor, world, stockDelta, emit);
 }
 
+function arrival(state) {
+  const { world, actors } = state;
+  const resident = newcomer(state, () => random(world));
+  resident.desires = inferDesires(resident);
+  actors.push(resident);
+  world.lastArrival = world.minute;
+  world.arrivals = (world.arrivals ?? 0) + 1;
+  return { type: 'arrival', minute: world.minute, actorIds: [resident.id],
+    text: resident.name + ', a ' + resident.role.toLowerCase() + ', came up the road looking for work and will lodge at the hall.' };
+}
+
+export function welcomeResidents(state, minimum) {
+  const events = [];
+  if (state.actors.length >= minimum) return events;
+  const beds = 2 - state.actors.filter(actor => civic.isLodger(actor, state.map)).length;
+  for (let i = 0; i < beds && state.actors.length < minimum; i++) events.push(arrival(state));
+  return events;
+}
+
 function stepMinute(state, events, externalActions, records, pilot) {
   const { world, actors, map } = state;
   const minute = ++world.minute;
@@ -484,12 +503,7 @@ function stepMinute(state, events, externalActions, records, pilot) {
     }
   }
   if (minute % 1440 === 540 && wantsNewcomer(state) && random(world) < 0.7) {
-    const arrival = newcomer(state, () => random(world));
-    arrival.desires = inferDesires(arrival);
-    actors.push(arrival);
-    world.lastArrival = minute;
-    world.arrivals++;
-    emit('arrival', arrival.name + ', a ' + arrival.role.toLowerCase() + ', came up the road looking for work and will lodge at the hall.', [arrival.id]);
+    events.push(arrival(state));
   }
   civic.tick(state, emit, () => random(world), actor => {
     endShiftEarly(actor, minute, emit, 'interrupted', 'the village moot was about to begin');

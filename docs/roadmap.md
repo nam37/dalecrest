@@ -29,7 +29,7 @@ Each figure is marked with where it came from. "Local rules" means the scoring i
 | Activities that repeat the one before, in the same place | 55% | Measured, same runs |
 | Separate choices that make up one night's sleep | 4.9 | Measured, same runs |
 | Tokens per action request | 589 | Historical production observation used in the original cost estimate |
-| Action budget | 7,000 tokens per real hour by default, about 168,000 a real day | Configuration |
+| Action budget | 7,000 tokens per real hour in the original eight-person pilot, about 168,000 a real day | Historical configuration |
 | Previous clock | 49 seconds until the next tick, which advanced one village minute. The planner reported "waiting for token budget". | One public snapshot before the fixed-clock release on 21 November 2026 |
 | Wood store | Never below 10 of 32. Never below 20 while a building site was open. No minute with flour and no wood. | Measured, local rules, same runs |
 | Daytime | 56% idling, 17% at a trade, 10% walking, 8% visiting | Measured, local rules, seed 26111 |
@@ -283,7 +283,7 @@ More than one village with a road between them. This multiplies everything above
 
 - A resident reaches about 23 activity boundaries per village day. Eight residents reach roughly 184.
 - The historical production sample used 589 tokens per action request.
-- The default budget is about 168,000 tokens a real day, which funds about 285 requests of that size.
+- The original pilot budget was about 168,000 tokens a real day, which funds about 285 requests of that size.
 - Under the former one-request-per-boundary design, those assumptions imply about 108,000 tokens per village day for eight residents. Spending limited the pace to roughly 1.5 village days per real day.
 
 **What can be avoided.** These follow from the measured mix, which is a local-rule mix and will differ in production.

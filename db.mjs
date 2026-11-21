@@ -1,10 +1,15 @@
 import pg from 'pg';
 import { reserveAction, startChosenAction } from './action-turns.mjs';
-import { createVillage, stepVillage, adoptVillage, FOCUSES, DEFAULT_SEED } from './sim.mjs';
+import { createVillage, stepVillage, adoptVillage, welcomeResidents, FOCUSES, DEFAULT_SEED } from './sim.mjs';
+import { POPULATION_LIMIT } from './engine/people.mjs';
 import { DECISIONS_MODEL, DECISIONS_URL, interpretDecision } from './decisions.mjs';
 import { initializeTraces, advanceWithTraces, writeSteps, writeActivities, residentState } from './decision-trace.mjs';
 
 if (!process.env.DATABASE_URL) throw new Error('Set DATABASE_URL in .env to a PostgreSQL database before starting Dalecrest.');
+const minimumResidents = Number(process.env.VILLAGE_MIN_RESIDENTS ?? 8);
+if (!Number.isInteger(minimumResidents) || minimumResidents < 0 || minimumResidents > POPULATION_LIMIT) {
+  throw new Error('VILLAGE_MIN_RESIDENTS must be an integer between 0 and ' + POPULATION_LIMIT);
+}
 export const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 5, connectionTimeoutMillis: 5000 });
 pool.on('error', () => console.error('A database connection closed. The pool will reconnect.'));
 
@@ -163,14 +168,16 @@ async function tick(db) {
   const direct = process.env.PLANNER_PROVIDER === 'openai';
   const { minutes, seconds } = clockPace(direct);
   const records = [];
-  const { events, steps } = advanceWithTraces({ world, actors, map }, minutes, traces, direct, records);
+  const village = { world, actors, map };
+  const arrivals = welcomeResidents(village, minimumResidents);
+  const { events, steps } = advanceWithTraces(village, minutes, traces, direct, records);
   // The right-hand sides read the row as it was, so lateness is measured against the tick that was due.
   await db.query(`UPDATE dalecrest.world SET state=$1, ticks=ticks+1,
     late_ms_max=greatest(late_ms_max, least(extract(epoch FROM now()-next_tick)*1000, 2000000000)::int),
     next_tick=now()+make_interval(secs=>$2) WHERE id=1`, [world, seconds]);
   await saveActors(db, actors);
   if (map.revision !== before) await saveMap(db, map);
-  const chronicle = await recordEvents(db, events);
+  const chronicle = await recordEvents(db, [...arrivals, ...events]);
   await writeSteps(db, steps, chronicle, traces, world.minute);
   await writeActivities(db, records);
 }

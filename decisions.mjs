@@ -32,7 +32,7 @@ export function actionBody(actor, world, menu, names = {}, weather) {
     time: villageTime(world.minute), ...socialContext(actor, world.minute),
     ...(weather && { weather }),
     ...(hearth && world.minute - hearth.minute < 1440 && !hearth.lit && { ownHearth: 'Cold since this morning: there was no firewood left in the common store.' }),
-    lastOvenCheck: recalledOvenStores(actor, world.minute), recentMemories: actor.memories.slice(-2).map(m => m.text)
+    lastOvenCheck: recalledOvenStores(actor, world.minute), recentMemories: actor.memories.slice(-5).map(m => m.text)
   };
   const options = Array.from(menu, ([value, action]) => ({
     value, description: actionDescription(action, names)

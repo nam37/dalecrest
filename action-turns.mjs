@@ -3,7 +3,9 @@ import { availableActions, startChosen, locationsOf } from './sim.mjs';
 import { residentState, writeActivities } from './decision-trace.mjs';
 import { weatherAt } from './engine/seasons.mjs';
 
-export const hourlyActionBudget = Number(process.env.OPENAI_ACTION_TOKENS_PER_HOUR || 7000);
+const villageHourlyCeiling = 480000;
+export const hourlyActionBudget = Math.min(villageHourlyCeiling, Number(process.env.OPENAI_ACTION_TOKENS_PER_HOUR || villageHourlyCeiling));
+const residentHourlyBudget = 48000;
 
 // Both reservation and application run under the same world-row lock used by ticks.
 export async function reserveAction(db, village, hourlyBudget) {
@@ -27,23 +29,37 @@ export async function reserveAction(db, village, hourlyBudget) {
   }).sort((a,b) => pressing(b) - pressing(a) || turn(a) - turn(b));
   if (!eligible.length) return;
   // A rolling hour limits total use. A smaller burst allowance spreads decisions across the hour.
-  const { rows: [usage] } = await db.query(`SELECT coalesce(max(charged),0)::int AS spent,
+  const { rows: [usage] } = await db.query(`WITH recent AS (
+      SELECT actor_id, token_charge, requested_at, id FROM dalecrest.decision_traces
+      WHERE token_charge IS NOT NULL AND requested_at > now()-interval '1 hour')
+    SELECT coalesce(max(charged),0)::int AS spent,
+      (SELECT coalesce(jsonb_object_agg(actor_id, tokens), '{}'::jsonb)
+       FROM (SELECT actor_id, sum(token_charge) AS tokens FROM recent GROUP BY actor_id) residents) AS by_actor,
       greatest(0, max(charged - elapsed * $1::numeric / 3600))::float8 AS debt
     FROM (SELECT sum(token_charge) OVER (ORDER BY requested_at DESC,id DESC) AS charged,
-      extract(epoch FROM now()-requested_at) AS elapsed FROM dalecrest.decision_traces
-      WHERE token_charge IS NOT NULL AND requested_at > now()-interval '1 hour') recent`, [hourlyBudget]);
-  const actor = eligible[0];
-  const menu = availableActions(actor, village);
-  if (!menu.size) return;
-  const body = actionBody(actor, village.world, menu, locationsOf(village.map, village.actors), weatherAt(village.world.minute, village.map.seed).text);
-  // Reserve before sending. The provider's reported total replaces this estimate when available.
-  const estimate = Math.ceil(Buffer.byteLength(body) / 3) + 80;
-  if (usage.spent + estimate > hourlyBudget || usage.debt + estimate > Math.max(estimate, hourlyBudget / 4)) return { budgetLimited: true };
-  const result = await db.query(`INSERT INTO dalecrest.decision_traces
-    (actor_id,observed_minute,model,endpoint,request_body,decision_since,token_charge)
-    VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-    [actor.id, village.world.minute, DECISIONS_MODEL, DECISIONS_URL, body, actor.action.since, estimate]);
-  return { id: result.rows[0].id, body };
+      extract(epoch FROM now()-requested_at) AS elapsed FROM recent) rolling`, [hourlyBudget]);
+  if (usage.spent >= hourlyBudget) return { budgetLimited: true };
+  const names = locationsOf(village.map, village.actors);
+  const weather = weatherAt(village.world.minute, village.map.seed).text;
+  let limited = false;
+  for (const actor of eligible) {
+    const menu = availableActions(actor, village);
+    if (!menu.size) continue;
+    const body = actionBody(actor, village.world, menu, names, weather);
+    // Reserve before sending. The provider's reported total replaces this estimate when available.
+    const estimate = Math.ceil(Buffer.byteLength(body) / 3) + 80;
+    if ((usage.by_actor[actor.id] || 0) + estimate > residentHourlyBudget || usage.spent + estimate > hourlyBudget ||
+        usage.debt + estimate > Math.max(estimate, hourlyBudget / 4)) {
+      limited = true;
+      continue;
+    }
+    const result = await db.query(`INSERT INTO dalecrest.decision_traces
+      (actor_id,observed_minute,model,endpoint,request_body,decision_since,token_charge)
+      VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+      [actor.id, village.world.minute, DECISIONS_MODEL, DECISIONS_URL, body, actor.action.since, estimate]);
+    return { id: result.rows[0].id, body };
+  }
+  if (limited) return { budgetLimited: true };
 }
 
 export async function startChosenAction(db, trace, choice, village, recordEvents) {
