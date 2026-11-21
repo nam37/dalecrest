@@ -144,11 +144,11 @@ function stocked(world, job) {
   return Object.entries(job.takes || {}).every(([k, n]) => world.supplies[k] >= n)
     && Object.entries(job.makes).every(([k, n]) => world.supplies[k] <= world.capacity[k] - n);
 }
-function jobChoice(actor, state) {
+function jobOptions(actor, state) {
   const { world } = state;
   // When stores run low, anyone can lend a hand in the fields or coppice.
   const list = [...new Set([actor.trade, 'harvest', 'cut', 'draw'])];
-  let best = null;
+  const options = [];
   for (const key of list) {
     const job = jobs[key];
     if (!stocked(world, job)) continue;
@@ -159,9 +159,9 @@ function jobChoice(actor, state) {
     if (!site) continue;
     const pledged = shortage > 0.5 && actor.memories.some(m => m.shortage === material && world.minute - m.minute < 480);
     const score = 22 + 33 * shortage + (actor.trade === key ? 13 : 0) + (pledged ? 12 : 0);
-    if (!best || best.score < score) best = { key, score, site };
+    options.push({ key, score, site });
   }
-  return best;
+  return options.sort((a, b) => b.score - a.score);
 }
 function nearest(actor, map, kind) {
   let best, gap = Infinity;
@@ -173,15 +173,20 @@ function nearest(actor, map, kind) {
   return best;
 }
 
-function choose(actor, state) {
+function choose(actor, state, menu) {
   const { world, actors, map } = state;
   const choices = [];
   const dayTime = world.minute % 1440;
   const night = dayTime >= 1260 || dayTime < 340;
   const { hunger, fatigue, loneliness } = actor.needs;
-  if (actor.plan && (!FOCUSES.includes(actor.plan.focus) || !Number.isFinite(actor.plan.until) || actor.plan.until <= world.minute)) actor.plan = null;
+  if (!menu && actor.plan && (!FOCUSES.includes(actor.plan.focus) || !Number.isFinite(actor.plan.until) || actor.plan.until <= world.minute)) actor.plan = null;
   if (!place(map, actor.home)) actor.home = 'hall';
   function offer(kind, label, target, duration, score, reason, extra = {}) {
+    if (menu) {
+      const id = [kind, extra.job || extra.friendId, target].filter(Boolean).join(':');
+      menu.set(id, { kind, label, target, remaining: duration, ...extra });
+      return;
+    }
     score += desireWeight(actor, kind, extra.friendId || extra.job || target);
     if (actor.plan?.focus === kind) {
       score += 15;
@@ -189,10 +194,10 @@ function choose(actor, state) {
     }
     choices.push({ score: score + 4 * random(world), kind, label, reason, target, remaining: duration, ...extra });
   }
-  const job = jobChoice(actor, state);
+  const jobsHere = jobOptions(actor, state);
   const duty = actor.traits.includes('steadfast') ? 5 : 0;
   const weary = (night ? 48 : 0) + Math.max(0, fatigue - 65);
-  if (job) {
+  for (const job of (menu ? jobsHere : jobsHere.slice(0, 1))) {
     const spec = jobs[job.key];
     const material = Object.keys(spec.makes)[0];
     const reason = 'The village has ' + world.supplies[material] + ' of ' + world.capacity[material] + ' units of ' + material + ' in reserve.';
@@ -213,7 +218,11 @@ function choose(actor, state) {
   for (const other of actors) {
     if (other === actor || other.action.kind === 'rest' || other.action.kind === 'arrive') continue;
     const site = place(map, other.action.target);
-    if (!site) continue;
+    if (!site || (menu && other.action.kind === 'waiting')) continue;
+    if (menu) {
+      offer('social', 'Visiting ' + other.name, other.action.target, 28, 0, '', { friendId: other.id });
+      continue;
+    }
     const recent = actor.memories.slice(-5).some(m => m.kind === 'social' && m.actorIds.includes(other.id));
     const appeal = (actor.relationships[other.id] || 0) * 0.35 + desireWeight(actor, 'social', other.id) + (recent ? 6 : 0)
       - Math.hypot(site.at[0] - actor.position.x, site.at[1] - actor.position.y) * 0.17 + random(world) * 16;
@@ -223,6 +232,7 @@ function choose(actor, state) {
   const alehouse = dayTime >= 960 && nearest(actor, map, 'alehouse');
   if (alehouse) offer('leisure', 'Sitting in ' + alehouse.name, alehouse.id, 50, 26 + loneliness * 0.4 + (actor.traits.includes('gregarious') ? 8 : 0) - (night ? 12 : 0), 'The day’s work is done and there will be company at ' + alehouse.name + '.');
   offer('leisure', 'Walking on the green', 'green', 44, 30 + (actor.traits.includes('restless') ? 6 : 0) - (night ? 17 : 0), 'A walk on the green will ease my fatigue.');
+  if (menu) return;
   choices.sort((a, b) => b.score - a.score);
   const { score, ...chosen } = choices[0];
   chosen.phase = 'travelling';
@@ -261,7 +271,26 @@ function travel(actor, state, emit) {
   return true;
 }
 
-function stepMinute(state, events) {
+export function availableActions(actor, state) {
+  const menu = new Map();
+  choose(actor, state, menu);
+  const reachable = new Map();
+  for (const [id, action] of menu) {
+    if (!reachable.has(action.target)) reachable.set(action.target, Boolean(route(state.map, [actor.position.x, actor.position.y], action.target)));
+    if (!reachable.get(action.target)) menu.delete(id);
+  }
+  return menu;
+}
+
+function waitForDecision(actor, minute) {
+  if (actor.action.kind === 'waiting') return;
+  const { kind, label, target } = actor.action;
+  actor.action = { kind: 'waiting', phase: 'waiting', label: 'Choosing the next activity', target, remaining: 0,
+    since: minute, previous: { kind, label, target }, reason: 'Waiting for a decision from gpt-6-luna.' };
+  actor.plan = null;
+}
+
+function stepMinute(state, events, externalActions) {
   const { world, actors, map } = state;
   const minute = ++world.minute;
   const emit = (type, text, actorIds = []) => events.push({ type, minute, text, actorIds });
@@ -286,7 +315,11 @@ function stepMinute(state, events) {
     n.hunger = clamp(n.hunger + 0.042);
     n.fatigue = clamp(n.fatigue + (resting ? -0.24 : action.kind === 'work' ? 0.074 : 0.043));
     n.loneliness = clamp(n.loneliness + (resting ? 0.006 : 0.043));
-    if (action.remaining <= 0) { choose(actor, state); continue; }
+    if (action.remaining <= 0) {
+      if (externalActions) waitForDecision(actor, minute);
+      else choose(actor, state);
+      continue;
+    }
     if (action.phase === 'travelling' && !travel(actor, state, emit)) continue;
     if (--action.remaining > 0) continue;
     if (action.kind === 'work' && action.job === 'build') {
@@ -362,13 +395,16 @@ function stepMinute(state, events) {
     }
     emit(type, text, ids);
   }
+  if (externalActions) {
+    for (const actor of actors) if (actor.action.remaining <= 0) waitForDecision(actor, minute);
+  }
 }
 
-export function stepVillage(state, { minutes = 5 } = {}) {
+export function stepVillage(state, { minutes = 5, externalActions = false } = {}) {
   if (!Number.isSafeInteger(minutes) || minutes < 0) throw new RangeError('minutes must be a nonnegative integer');
   normalize(state);
   const events = [];
-  for (let i = 0; i < minutes; i++) stepMinute(state, events);
+  for (let i = 0; i < minutes; i++) stepMinute(state, events, externalActions);
   state.world.mapRevision = state.map.revision;
   return events;
 }

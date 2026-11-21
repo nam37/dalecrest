@@ -83,6 +83,56 @@ test('PostgreSQL preserves the trace, resumes a received reply, and links actual
     assert.equal((await db.applyRecordedDecision(bad)).status,'http_error');
     const err = (await db.pool.query('SELECT response_body,confidence FROM dalecrest.decision_traces WHERE id=$1',[bad])).rows[0];
     assert.deepEqual(err,{response_body:'bad gateway',confidence:null});
+
+    // A night-time meal beats the old sleep heuristic when Luna explicitly selects it.
+    process.env.PLANNER_PROVIDER = 'openai';
+    const alice = snapshot.actors.find(a => a.id === 'alice');
+    const sleep = {kind:'rest', label:'Sleeping at home', target:alice.home, phase:'working', remaining:1};
+    await db.pool.query("UPDATE dalecrest.actors SET state=jsonb_set(state,'{action,remaining}','999')");
+    await db.pool.query("UPDATE dalecrest.actors SET state=jsonb_set(jsonb_set(state,'{action}',$1),'{needs,hunger}','4') WHERE id='alice'",[sleep]);
+    await db.pool.query("UPDATE dalecrest.world SET state=jsonb_set(state,'{minute}','1320'),next_tick=now()");
+    assert.equal(await db.claimAction(7000),undefined);
+    await db.advance();
+    assert.equal((await db.snapshot()).actors.find(a => a.id==='alice').action.kind,'waiting');
+    assert.deepEqual(await db.claimAction(0),{budgetLimited:true});
+    const tickets2 = await Promise.all([db.claimAction(7000),db.claimAction(7000)]);
+    const [first] = tickets2.filter(Boolean);
+    assert.equal(tickets2.filter(Boolean).length,1);
+    const question = JSON.parse(first.body).questions[0];
+    assert.equal(question.name,'next_action');
+    const meal = question.choices.find(c => c.value.startsWith('food:')).value;
+    const reply = value => ({status:200,requestId:'req-action',redacted:false,body:JSON.stringify({
+      answers:[{type:'choice',name:'next_action',choice:value,confidence:0.91}],usage:{total_tokens:275}})});
+    await db.recordReply(first.id,reply(meal));
+    await db.pool.query("UPDATE dalecrest.world SET state=jsonb_set(state,'{supplies,bread}','0')");
+    assert.equal((await db.applyRecordedDecision(first.id)).status,'unavailable');
+    assert.equal((await db.snapshot()).actors.find(a => a.id==='alice').action.kind,'waiting');
+    await db.pool.query("UPDATE dalecrest.decision_traces SET requested_at=now()-interval '2 minutes' WHERE id=$1",[first.id]);
+    const empty = await db.claimAction(7000);
+    assert.ok(!JSON.parse(empty.body).questions[0].choices.some(c => c.value.startsWith('food:')));
+    await db.recordReply(empty.id,reply(meal));
+    assert.equal((await db.applyRecordedDecision(empty.id)).status,'invalid_response');
+    await db.pool.query("UPDATE dalecrest.decision_traces SET requested_at=now()-interval '2 minutes' WHERE id=$1",[empty.id]);
+    await db.pool.query("UPDATE dalecrest.world SET state=jsonb_set(state,'{supplies,bread}','10')");
+    const fresh = await db.claimAction(7000);
+    await db.recordReply(fresh.id,reply(meal));
+    assert.equal(await db.pendingDecision(),fresh.id);
+    assert.equal((await db.applyRecordedDecision(fresh.id)).status,'applied');
+    assert.equal(await db.applyRecordedDecision(fresh.id),undefined);
+    const started = (await db.snapshot()).actors.find(a=>a.id==='alice').action;
+    assert.equal(started.choiceId,meal);
+    assert.equal(started.decisionTraceId,fresh.id);
+    for (let i=0;i<90;i++) {
+      await db.pool.query('UPDATE dalecrest.world SET next_tick=now()');
+      await db.advance();
+      if ((await db.snapshot()).actors.find(a=>a.id==='alice').action.kind==='waiting') break;
+    }
+    const history = (await db.pool.query(`SELECT s.kind,e.kind AS event FROM dalecrest.decision_steps s
+      LEFT JOIN dalecrest.events e ON s.event_id=e.id WHERE s.trace_id=$1 ORDER BY s.minute,s.id`,[fresh.id])).rows;
+    assert.deepEqual(history.map(s=>s.kind),['selected','arrived','activity_ended','chronicle']);
+    assert.equal(history.at(-1).event,'meal');
+    const saved = (await db.pool.query('SELECT token_charge,choice,confidence,end_reason FROM dalecrest.decision_traces WHERE id=$1',[fresh.id])).rows[0];
+    assert.deepEqual(saved,{token_charge:275,choice:meal,confidence:0.91,end_reason:'activity_ended'});
   } finally {
     if (db) await db.pool.end();
     if (created) await admin.query('DROP DATABASE ' + name);

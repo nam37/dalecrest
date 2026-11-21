@@ -1,7 +1,7 @@
 import http from 'node:http';
 import { readFile, readdir } from 'node:fs/promises';
 import { initialize, advance, snapshot, currentMap, pool } from './db.mjs';
-import { planOnce, plannerStatus } from './planner.mjs';
+import { planOnce, plannerStatus, plannerPollMs } from './planner.mjs';
 import { locationsOf } from './sim.mjs';
 import { affairs } from './engine/civic.mjs';
 
@@ -44,7 +44,7 @@ const clock = setInterval(async () => {
   catch { console.error('Village tick could not be committed. Retrying on next tick.'); }
   finally { advancing = false; }
 }, 1000);
-const planner = setInterval(planOnce, 20000);
+const planner = setInterval(planOnce, plannerPollMs);
 server.listen(port, host, () => {
   console.log('Dalecrest is listening at http://' + host + ':' + port);
   planOnce();
