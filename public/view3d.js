@@ -5,12 +5,11 @@ import { heightAt, isWater, WATER_LEVEL } from '/engine/terrain.mjs';
 import { hash2, rng, fbm, TAU } from '/engine/geom.mjs';
 import { createMotion } from '/motion.js';
 import { villageColors, chains } from '/map.js';
+import { makeFigure, poseFigure } from '/figure.js';
 import { light, hearths, indoors, yearLook, skyOver, blend } from '/ambient.js';
 
 const roofs = ['#a57456', '#a88c5d', '#aa7352', '#90907a', '#9c8259', '#b19769', '#a17c58', '#a96e50'];
 const fieldTones = ['#c4b77e', '#cbbd87', '#c4b07c', '#b9b18a', '#c7bc8c', '#c9b67c'];
-const skins = ['#c99873', '#bb9270', '#ce9d78', '#bc8e6c', '#bf926d', '#aa7a55', '#d6a77d', '#c59a70'];
-const hairs = ['#62503c', '#65594b', '#6b4733', '#584d3c', '#765c4a', '#67492e', '#524633', '#795b3c'];
 const WIDTH = { road: 0.98, bridge: 0.98, lane: 0.66, path: 0.34, track: 0.22 };
 const tag = id => { let h = 0; for (const ch of id) h = (Math.imul(h, 31) + ch.charCodeAt(0)) >>> 0; return h; };
 const mix = (a, b, t) => a + (b - a) * t;
@@ -68,36 +67,6 @@ function dispose(group) {
 
 const contactGeo = new THREE.CircleGeometry(0.115, 14);
 const contactMat = new THREE.MeshBasicMaterial({ color: '#2b2618', transparent: true, opacity: 0.3, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
-
-function figure(index) {
-  const g = new THREE.Group(), cloth = villageColors[index % 8], skin = skins[index % 8], hair = hairs[index % 8];
-  const limb = (w, h, d, color, x, y, z) => {
-    const pivot = new THREE.Group(); pivot.position.set(x, y, z);
-    pivot.add(box(w, h, d, color, 0, -h / 2, 0));
-    g.add(pivot);
-    return pivot;
-  };
-  const legs = [limb(0.05, 0.2, 0.055, '#5b4d3c', 0, 0.2, 0.034), limb(0.05, 0.2, 0.055, '#5b4d3c', 0, 0.2, -0.034)];
-  const tunic = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.082, 0.26, 7), mat(cloth));
-  tunic.position.y = 0.24; tunic.castShadow = true; g.add(tunic);
-  // The sun's shadow is too coarse to reach the feet from far off, so a soft patch marks where they stand.
-  const patch = new THREE.Mesh(contactGeo, contactMat);
-  patch.rotation.x = -Math.PI / 2; patch.position.y = 0.006; patch.renderOrder = 1; g.add(patch);
-  const arms = [limb(0.03, 0.15, 0.03, cloth, 0, 0.355, 0.068), limb(0.03, 0.15, 0.03, cloth, 0, 0.355, -0.068)];
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.043, 8, 6), mat(skin));
-  head.position.y = 0.415; head.castShadow = true; g.add(head);
-  if (index % 3 === 0) {
-    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.08, 0.012, 9), mat('#c3a467')); brim.position.y = 0.445; g.add(brim);
-    const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.045, 0.04, 8), mat('#bc985a')); crown.position.y = 0.465; g.add(crown);
-  } else if (index % 3 === 1) {
-    const hood = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6, 0, TAU, 0, 1.9), mat(cloth)); hood.position.set(-0.006, 0.42, 0); g.add(hood);
-  } else {
-    const coif = new THREE.Mesh(new THREE.SphereGeometry(0.048, 8, 6, 0, TAU, 0, 1.75), mat('#e9e2cb')); coif.position.set(-0.004, 0.42, 0); g.add(coif);
-    const braid = new THREE.Mesh(new THREE.SphereGeometry(0.03, 6, 5), mat(hair)); braid.position.set(-0.04, 0.4, 0); g.add(braid);
-  }
-  g.userData = { legs, arms };
-  return g;
-}
 
 function buildPlace(p, map, glow) {
   const g = new THREE.Group(), h = tag(p.id);
@@ -600,7 +569,10 @@ export function createWalk(container, onSelect) {
       if (!p) return;
       let f = figures.get(actor.id);
       if (!f) {
-        f = figure(index);
+        f = makeFigure(actor, index);
+        // The sun's shadow is too coarse to reach the feet from far off, so a soft patch marks where they stand.
+        const patch = new THREE.Mesh(contactGeo, contactMat);
+        patch.rotation.x = -Math.PI / 2; patch.position.y = 0.006; patch.renderOrder = 1; f.add(patch);
         f.userData.id = actor.id;
         f.userData.label = textSprite(actor.name, false);
         f.userData.label.userData.reach = 14; f.userData.label.userData.size = 0.105;
@@ -621,10 +593,8 @@ export function createWalk(container, onSelect) {
       let turn = -p.heading - f.rotation.y;
       turn = Math.atan2(Math.sin(turn), Math.cos(turn));
       f.rotation.y += turn * Math.min(1, dt * 8);
-      const swing = p.moving ? Math.sin(p.gone * 9) * 0.65 : 0, working = !p.moving && actor.action.phase === 'working' && actor.action.kind === 'work';
-      f.userData.legs[0].rotation.z = swing; f.userData.legs[1].rotation.z = -swing;
-      f.userData.arms[0].rotation.z = working ? -0.9 + Math.sin(now / 260 + index) * 0.5 : -swing * 0.7;
-      f.userData.arms[1].rotation.z = working ? -0.9 + Math.sin(now / 260 + index + 1.3) * 0.5 : swing * 0.7;
+      const working = !p.moving && actor.action.phase === 'working' && actor.action.kind === 'work';
+      poseFigure(f, { moving: p.moving, gone: p.gone, now, dt, kind: actor.action.kind, job: actor.action.job, working });
       f.userData.label.position.set(x, y + 0.56 + (crowd.size % 2) * 0, z);
       f.userData.label.userData.always = actor.id === selectedId;
       if (actor.id === selectedId) followed = { x, y, z, heading: p.heading, moving: p.moving, at: p.moving ? null : actor.action.target };
@@ -642,6 +612,22 @@ export function createWalk(container, onSelect) {
       }
       ringMark.visible = true; ringMark.position.set(followed.x, followed.y + 0.02, followed.z);
     } else ringMark.visible = false;
+    // A resident at a door has that building at their back. If the camera would sit behind its
+    // wall, it swings round to the open side unless the visitor is steering.
+    const own = followed?.at && solids.find(b => b.id === followed.at);
+    if (own && !drag) {
+      const flat = Math.cos(look.pitch);
+      let behind = false;
+      for (let s = 0.4; s < Math.min(look.dist, 4) && !behind; s += 0.2) {
+        const dx = look.target.x + flat * Math.cos(look.yaw) * s - own.x, dz = look.target.z + flat * Math.sin(look.yaw) * s - own.y;
+        behind = look.target.y + Math.sin(look.pitch) * s < own.top && Math.abs(dx * own.c + dz * own.s) < own.hw && Math.abs(-dx * own.s + dz * own.c) < own.hd;
+      }
+      if (behind) {
+        let turn = Math.atan2(look.target.z - own.y, look.target.x - own.x) - look.yaw;
+        turn = Math.atan2(Math.sin(turn), Math.cos(turn));
+        look.yaw += turn * Math.min(1, dt * 2.5);
+      }
+    }
     const cp = Math.cos(look.pitch), dir = [cp * Math.cos(look.yaw), Math.sin(look.pitch), cp * Math.sin(look.yaw)];
     // Pull the camera in rather than let a wall or roof come between it and the resident.
     let reach = look.dist;
