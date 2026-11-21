@@ -3,6 +3,7 @@
 import { heightAt } from '/engine/terrain.mjs';
 import { rectPoly, rng, hash2, TAU } from '/engine/geom.mjs';
 import { createMotion } from '/motion.js';
+import { light, hearths, indoors } from '/ambient.js';
 
 const ink = '#524d3b', ground = '#e8e0bf';
 export const villageColors = ['#976048', '#65785a', '#b27a4b', '#537470', '#797291', '#856144', '#527997', '#957050'];
@@ -167,6 +168,19 @@ function paintPaper(c, map, look, scale) {
     }
     c.restore();
   });
+  // A kitchen garden behind each finished cottage, on the side away from its door.
+  for (const p of places) {
+    if (p.kind !== 'cottage' || p.stage !== 2) continue;
+    const side = (p.at[0] - p.x) * -Math.sin(p.a) + (p.at[1] - p.y) * Math.cos(p.a) > 0 ? 1 : -1;
+    c.save(); c.translate(p.x, p.y); c.rotate(p.a);
+    const y0 = -side * p.d / 2, deep = -side * 1.5, x0 = -p.w / 2 - 0.1, wide = p.w + 0.2;
+    c.fillStyle = tag(p.id) % 2 ? '#cfd29b88' : '#c8c58d88'; c.fillRect(x0, y0, wide, deep);
+    c.strokeStyle = '#8f8a5c88'; c.lineWidth = line * 0.7; c.beginPath();
+    for (let x = x0 + 0.3; x < x0 + wide; x += 0.42) { c.moveTo(x, y0 + deep * 0.15); c.lineTo(x, y0 + deep * 0.9); }
+    c.stroke();
+    c.setLineDash([0.16, 0.16]); c.strokeStyle = '#7b6d50aa'; c.lineWidth = line; c.strokeRect(x0, y0, wide, deep); c.setLineDash([]);
+    c.restore();
+  }
   // Ways, narrowest first so the road lies over the lanes that join it.
   for (const kind of ['track', 'path', 'lane', 'road']) {
     const [width, fill] = WAYS[kind];
@@ -195,8 +209,8 @@ function paintPaper(c, map, look, scale) {
     c.restore();
   }
   // Shadows first, then buildings, then the trees that overhang them.
-  c.fillStyle = '#5a53392e';
-  for (const p of places) if (p.w && p.kind !== 'field' && p.stage === 2) { trace(c, rectPoly({ ...p, x: p.x + 0.3, y: p.y + 0.36 }), true); c.fill(); }
+  c.fillStyle = '#4a43293a';
+  for (const p of places) if (p.w && p.kind !== 'field' && p.stage === 2) { trace(c, rectPoly({ ...p, x: p.x + 0.42, y: p.y + 0.5 }), true); c.fill(); }
   for (const p of places) {
     if (p.kind === 'well') {
       if (p.stage < 2) { c.setLineDash([0.25, 0.22]); disc(c, p.x, p.y, 0.6, p.stage ? '#cbbf9c' : null, '#7b6d50', line); c.setLineDash([]); continue; }
@@ -217,8 +231,12 @@ function paintPaper(c, map, look, scale) {
       c.closePath(); c.fillStyle = needle[Math.floor(k * 3)]; c.fill(); c.strokeStyle = '#566247'; c.lineWidth = line * 0.9; c.stroke();
       disc(c, x, y, r * 0.16, '#55603f');
     } else {
-      c.beginPath();
-      for (let i = 0; i <= 7; i++) { const a = i * TAU / 7 + k * 6, rr = r * (0.86 + 0.16 * Math.sin(i * 2.3 + k * 9)); c.quadraticCurveTo(x + Math.cos(a - 0.45) * rr * 1.13, y + Math.sin(a - 0.45) * rr * 1.13, x + Math.cos(a) * rr, y + Math.sin(a) * rr); }
+      // Seven lobes of uneven size. The outline starts on the first lobe and ends there, so the
+      // crown closes on itself with no straight edge left over.
+      const lobe = i => { const a = (i % 7) * TAU / 7 + k * 6, rr = r * (0.86 + 0.16 * Math.sin((i % 7) * 2.3 + k * 9)); return [a, rr]; };
+      const [a0, r0] = lobe(0);
+      c.beginPath(); c.moveTo(x + Math.cos(a0) * r0, y + Math.sin(a0) * r0);
+      for (let i = 1; i <= 7; i++) { const [a, rr] = lobe(i); c.quadraticCurveTo(x + Math.cos(a - 0.45) * rr * 1.13, y + Math.sin(a - 0.45) * rr * 1.13, x + Math.cos(a) * rr, y + Math.sin(a) * rr); }
       c.closePath(); c.fillStyle = leaf[Math.floor(k * 4)]; c.fill(); c.strokeStyle = '#687051'; c.lineWidth = line * 0.9; c.stroke();
       c.beginPath(); c.arc(x - r * 0.15, y - r * 0.15, r * 0.45, 3.5, 5.2); c.strokeStyle = '#b4b78e99'; c.stroke();
     }
@@ -247,7 +265,8 @@ export function createMap(canvas, onSelect) {
   const c = canvas.getContext('2d');
   const paper = document.createElement('canvas');
   const motion = createMotion();
-  let map = null, look = null, locations = {}, actors = [], selectedId = null, frame = 0, stale = true, moved = false;
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+  let map = null, look = null, locations = {}, actors = [], selectedId = null, frame = 0, stale = true, moved = false, clock = 720;
   let w = 0, h = 0, dpr = 1, hits = [], hover = null;
   const view = { x: 80, y: 60, scale: 6 };
   const pointers = new Map();
@@ -276,17 +295,143 @@ export function createMap(canvas, onSelect) {
   const toScreen = (x, y) => [(x - view.x) * view.scale + w / 2, (y - view.y) * view.scale + h / 2];
   const toWorld = (sx, sy) => [(sx - w / 2) / view.scale + view.x, (sy - h / 2) / view.scale + view.y];
 
+  const face = '"IM Fell English", Georgia, serif';
   function label(text, x, y, size, italic = true, angle = 0) {
     c.save(); c.translate(x, y); c.rotate(angle);
-    c.font = (italic ? 'italic ' : '') + size + 'px Georgia, serif';
-    c.lineWidth = 3.4; c.strokeStyle = '#e8e0bfe6'; c.lineJoin = 'round'; c.strokeText(text, 0, 0);
-    c.fillStyle = '#474636'; c.fillText(text, 0, 0);
+    c.font = (italic ? 'italic ' : '') + size + 'px ' + face;
+    c.lineWidth = 3.6; c.strokeStyle = '#efe6cde6'; c.lineJoin = 'round'; c.strokeText(text, 0, 0);
+    c.fillStyle = '#37331f'; c.fillText(text, 0, 0);
     c.restore();
   }
 
+  // A small standing figure: tunic in the resident's colour, a head, and a hat, hood or coif.
+  const skins = ['#c99873', '#bb9270', '#ce9d78', '#bc8e6c', '#bf926d', '#aa7a55', '#d6a77d', '#c59a70'];
+  function figure(x, y, s, index, stride, facing) {
+    const cloth = villageColors[index % villageColors.length], bob = Math.abs(Math.sin(stride)) * s * 0.07;
+    c.fillStyle = 'rgba(40,34,20,.3)'; c.beginPath(); c.ellipse(x + s * 0.06, y + s * 0.03, s * 0.34, s * 0.11, 0, 0, TAU); c.fill();
+    // Legs show a stride when walking.
+    const step = Math.sin(stride) * s * 0.11;
+    c.strokeStyle = '#4b3f30'; c.lineWidth = Math.max(1.2, s * 0.1); c.lineCap = 'round';
+    c.beginPath(); c.moveTo(x - s * 0.08, y - s * 0.22); c.lineTo(x - s * 0.08 + step, y); c.moveTo(x + s * 0.08, y - s * 0.22); c.lineTo(x + s * 0.08 - step, y); c.stroke();
+    const t = y - bob;
+    c.beginPath();
+    c.moveTo(x - s * 0.25, t - s * 0.16);
+    c.quadraticCurveTo(x - s * 0.24, t - s * 0.58, x - s * 0.11, t - s * 0.64);
+    c.lineTo(x + s * 0.11, t - s * 0.64);
+    c.quadraticCurveTo(x + s * 0.24, t - s * 0.58, x + s * 0.25, t - s * 0.16);
+    c.closePath();
+    c.fillStyle = cloth; c.fill(); c.strokeStyle = '#3a3324'; c.lineWidth = 1; c.stroke();
+    c.fillStyle = 'rgba(255,245,215,.22)'; c.fillRect(x - s * 0.19, t - s * 0.6, s * 0.12, s * 0.4);
+    const hx = x + facing * s * 0.03, hy = t - s * 0.8;
+    disc(c, hx, hy, s * 0.17, skins[index % 8], '#3a3324', 0.9);
+    if (index % 3 === 0) { c.fillStyle = '#c3a467'; c.beginPath(); c.ellipse(hx, hy - s * 0.1, s * 0.27, s * 0.09, 0, 0, TAU); c.fill(); c.strokeStyle = '#6d5a34'; c.lineWidth = 0.8; c.stroke(); disc(c, hx, hy - s * 0.15, s * 0.12, '#bc985a'); }
+    else if (index % 3 === 1) { c.fillStyle = cloth; c.beginPath(); c.arc(hx, hy, s * 0.19, Math.PI * 1.05, Math.PI * 1.95); c.lineTo(hx + s * 0.2, hy + s * 0.08); c.lineTo(hx - s * 0.2, hy + s * 0.08); c.closePath(); c.fill(); c.strokeStyle = '#3a3324'; c.lineWidth = 0.7; c.stroke(); }
+    else { c.fillStyle = '#ece5cd'; c.beginPath(); c.arc(hx, hy - s * 0.02, s * 0.18, Math.PI, 0); c.closePath(); c.fill(); c.strokeStyle = '#8b8266'; c.lineWidth = 0.7; c.stroke(); }
+  }
+
+  // A point a given fraction of the way down the river.
+  function alongRiver(f) {
+    const pts = map.terrain.river, at = Math.max(0, Math.min(0.9999, f)) * (pts.length - 1), i = Math.floor(at), k = at - i;
+    return [pts[i][0] + (pts[i + 1][0] - pts[i][0]) * k, pts[i][1] + (pts[i + 1][1] - pts[i][1]) * k];
+  }
+
+  // Everything that moves or changes with the hour, drawn over the paper and under the residents.
+  function ambient(time, sky, lit) {
+    const k = view.scale;
+    if (sky.bright > 0.05) {
+      // Cloud shadows cross the parish from the west.
+      for (let i = 0; i < 3; i++) {
+        const wx = ((i * 71 + time * 0.0016 * (1 + i * 0.3)) % (map.w + 90)) - 45, wy = 18 + i * 37 + Math.sin(time * 0.00004 + i * 2) * 8;
+        const [x, y] = toScreen(wx, wy), r = (24 + i * 5) * k;
+        const g = c.createRadialGradient(x, y, 0, x, y, r);
+        g.addColorStop(0, 'rgba(58,52,34,' + (0.13 * sky.bright).toFixed(3) + ')'); g.addColorStop(1, 'rgba(58,52,34,0)');
+        c.save(); c.translate(x, y); c.scale(1, 0.55); c.translate(-x, -y); c.fillStyle = g; c.fillRect(x - r, y - r, r * 2, r * 2); c.restore();
+      }
+    }
+    // Light catching the river as it runs south.
+    c.lineCap = 'round';
+    for (let i = 0; i < 16; i++) {
+      const f = (i / 16 + time * 0.000022) % 1, [wx, wy] = alongRiver(f);
+      const [x, y] = toScreen(wx + Math.sin(i * 7.3) * map.terrain.riverWidth * 0.28, wy);
+      if (x < -20 || y < -20 || x > w + 20 || y > h + 20) continue;
+      c.strokeStyle = 'rgba(240,248,240,' + (0.25 + 0.3 * Math.abs(Math.sin(time * 0.0016 + i * 1.9))).toFixed(3) + ')';
+      c.lineWidth = Math.max(1, k * 0.11);
+      c.beginPath(); c.moveTo(x, y - k * 0.5); c.quadraticCurveTo(x + k * 0.22, y, x, y + k * 0.5); c.stroke();
+    }
+    // Smoke from every hearth with someone at it.
+    for (const p of lit) {
+      const cx = p.x + Math.cos(p.a) * p.w * 0.32, cy = p.y + Math.sin(p.a) * p.w * 0.32;
+      for (let i = 0; i < 5; i++) {
+        const f = (time * 0.00016 + i / 5 + (tag(p.id) % 10) / 10) % 1;
+        const [x, y] = toScreen(cx + f * 2.6 + Math.sin(f * 6 + i) * 0.25, cy - f * 2.1);
+        c.fillStyle = 'rgba(246,240,224,' + ((1 - f) * 0.5).toFixed(3) + ')';
+        c.beginPath(); c.arc(x, y, (0.22 + f * 0.75) * k, 0, TAU); c.fill();
+      }
+    }
+  }
+
+  // Night falls as a wash over the whole sheet. Lit windows are added back on top of it.
+  function nightfall(sky, lit) {
+    if (sky.dark <= 0.01 && sky.dusk <= 0.01) return;
+    c.save();
+    c.globalCompositeOperation = 'multiply';
+    const d = Math.pow(sky.dark, 1.15) * 0.9, mix = (a, b) => Math.round(a + (b - a) * d);
+    c.fillStyle = 'rgb(' + mix(255, 84) + ',' + mix(255, 104) + ',' + mix(255, 164) + ')';
+    c.fillRect(0, 0, w, h);
+    if (sky.dusk > 0.01) { c.fillStyle = 'rgba(255,170,104,' + (sky.dusk * 0.32).toFixed(3) + ')'; c.fillRect(0, 0, w, h); }
+    c.globalCompositeOperation = 'lighter';
+    if (sky.dark > 0.25) {
+      for (const p of lit) {
+        const [x, y] = toScreen(p.x, p.y), r = 3.4 * view.scale, a = Math.min(1, (sky.dark - 0.25) * 1.6);
+        const g = c.createRadialGradient(x, y, 0, x, y, r);
+        g.addColorStop(0, 'rgba(255,196,104,' + (0.62 * a).toFixed(3) + ')'); g.addColorStop(0.35, 'rgba(255,170,80,' + (0.2 * a).toFixed(3) + ')'); g.addColorStop(1, 'rgba(255,160,70,0)');
+        c.fillStyle = g; c.fillRect(x - r, y - r, r * 2, r * 2);
+        c.fillStyle = 'rgba(255,232,170,' + (0.9 * a).toFixed(3) + ')';
+        const side = (p.at[0] - p.x) * -Math.sin(p.a) + (p.at[1] - p.y) * Math.cos(p.a) > 0 ? 1 : -1;
+        const [wx, wy] = toScreen(p.x - Math.sin(p.a) * side * p.d * 0.5, p.y + Math.cos(p.a) * side * p.d * 0.5);
+        c.beginPath(); c.arc(wx, wy, Math.max(1.4, view.scale * 0.16), 0, TAU); c.fill();
+      }
+    }
+    c.restore();
+  }
+
+  function birds(time, sky) {
+    const cycle = Math.floor(time / 47000), f = (time % 47000) / 47000;
+    if (sky.bright < 0.5 || f > 0.42) return;
+    const y0 = h * (0.16 + 0.5 * hash2(map.seed, cycle, 5)), x0 = -40 + (w + 80) * (f / 0.42), dir = cycle % 2 ? -1 : 1;
+    c.strokeStyle = 'rgba(52,47,32,.62)'; c.lineWidth = 1.3; c.lineCap = 'round';
+    for (let i = 0; i < 5; i++) {
+      const x = (dir > 0 ? x0 : w - x0) - dir * Math.abs(i - 2) * 13, y = y0 + (i - 2) * 8 + Math.sin(time * 0.002 + i) * 2, flap = 2.2 + Math.sin(time * 0.012 + i * 1.3) * 2.4;
+      c.beginPath(); c.moveTo(x - 4.5, y - flap); c.quadraticCurveTo(x - 1.5, y - flap * 0.2, x, y + 1); c.quadraticCurveTo(x + 1.5, y - flap * 0.2, x + 4.5, y - flap); c.stroke();
+    }
+  }
+
+  // A compass rose in the corner of the plate.
+  function rose() {
+    const x = w - 54, y = h - 58, R = 25;
+    c.save(); c.translate(x, y);
+    c.strokeStyle = '#4d4631'; c.fillStyle = '#efe6cdcc'; c.lineWidth = 1;
+    c.beginPath(); c.arc(0, 0, R * 0.62, 0, TAU); c.fill(); c.stroke();
+    c.beginPath(); c.arc(0, 0, R * 0.74, 0, TAU); c.setLineDash([1.5, 2.5]); c.stroke(); c.setLineDash([]);
+    for (let i = 0; i < 8; i++) {
+      const a = i * TAU / 8, long = i % 2 === 0, len = long ? R : R * 0.55, wd = long ? R * 0.17 : R * 0.12;
+      c.save(); c.rotate(a);
+      c.beginPath(); c.moveTo(0, -len); c.lineTo(wd, 0); c.lineTo(0, 0); c.closePath(); c.fillStyle = '#4d4631'; c.fill();
+      c.beginPath(); c.moveTo(0, -len); c.lineTo(-wd, 0); c.lineTo(0, 0); c.closePath(); c.fillStyle = '#f3ead0'; c.fill(); c.stroke();
+      c.restore();
+    }
+    c.font = '13px "IM Fell English SC", Georgia, serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.lineWidth = 3; c.strokeStyle = '#efe6cde6'; c.strokeText('N', 0, -R - 9); c.fillStyle = '#37331f'; c.fillText('N', 0, -R - 9);
+    c.restore();
+  }
+
+  let lastPaint = 0;
   function paint(time) {
     frame = 0;
-    if (!map || !w) return;
+    if (!map || !w || canvas.offsetParent === null) return;
+    // The scene moves gently, so about twenty frames a second is plenty.
+    if (!stale && time - lastPaint < 46 && !reduced.matches) { schedule(); return; }
+    lastPaint = time;
     if (stale) {
       stale = false;
       const p = paper.getContext('2d');
@@ -296,8 +441,10 @@ export function createMap(canvas, onSelect) {
       p.setTransform(k, 0, 0, k, dpr * (w / 2 - view.x * view.scale), dpr * (h / 2 - view.y * view.scale));
       paintPaper(p, map, look, view.scale);
     }
+    const sky = light(clock), lit = hearths(map, actors), still = reduced.matches ? 0 : time;
     c.setTransform(dpr, 0, 0, dpr, 0, 0);
     c.drawImage(paper, 0, 0, w, h);
+    ambient(still, sky, lit);
     c.textAlign = 'center'; c.textBaseline = 'middle';
     if (view.scale > 6.5) {
       for (const way of look.chains) {
@@ -306,15 +453,18 @@ export function createMap(canvas, onSelect) {
         let angle = Math.atan2(b[1] - a[1], b[0] - a[0]);
         if (angle > Math.PI / 2 || angle < -Math.PI / 2) angle += Math.PI;
         const [x, y] = toScreen(way.pts[i][0], way.pts[i][1]);
-        c.globalAlpha = 0.72; label(way.name, x, y - 9, 10.5, true, angle); c.globalAlpha = 1;
+        c.globalAlpha = 0.72; label(way.name, x, y - 9, 11.5, true, angle); c.globalAlpha = 1;
       }
     }
     for (const p of map.places) {
       if (p.kind === 'cottage' || !p.name || (p.kind === 'well' && view.scale < 11)) continue;
       const [x, y] = toScreen(p.x, p.y);
       const drop = p.kind === 'field' ? 0 : p.kind === 'well' ? -1.3 * view.scale - 4 : p.kind === 'green' ? (p.ry + 1) * view.scale + 3 : ((p.d || 2.4) / 2 + 0.9) * view.scale + 4;
-      label(p.stage < 2 && p.kind !== 'field' ? p.name + ' (building)' : p.name, x, y + drop, Math.max(11, Math.min(17, view.scale * 1.7)));
+      label(p.stage < 2 && p.kind !== 'field' ? p.name + ' (building)' : p.name, x, y + drop, Math.max(13, Math.min(20, view.scale * 1.9)));
     }
+    if (w > 560) rose();
+    nightfall(sky, lit);
+    if (!reduced.matches) birds(time, sky);
     hits = [];
     const crowd = new Map(), markers = [];
     for (const [index, actor] of actors.entries()) {
@@ -323,31 +473,37 @@ export function createMap(canvas, onSelect) {
       const key = Math.round(p.x * 2) + ',' + Math.round(p.y * 2);
       const count = crowd.get(key) || 0;
       crowd.set(key, count + 1);
-      const a = count * 2.4, spread = count ? 10 * Math.sqrt(count) : 0;
+      const a = count * 2.4, spread = count ? 11 * Math.sqrt(count) : 0;
       const [sx, sy] = toScreen(p.x, p.y);
-      markers.push({ actor, index, x: sx + Math.cos(a) * spread, y: sy + Math.sin(a) * spread });
+      markers.push({ actor, index, x: sx + Math.cos(a) * spread, y: sy + Math.sin(a) * spread * 0.7, p });
     }
-    markers.sort((a, b) => Number(a.actor.id === selectedId) - Number(b.actor.id === selectedId));
-    for (const { actor, index, x, y } of markers) {
-      const r = Math.max(4.2, Math.min(7.5, view.scale * 0.72));
-      if (actor.id === selectedId) disc(c, x, y, r + 4, '#f3e4b1bb', '#594e38', 1.35);
-      disc(c, x, y + 1, r + 1, '#483d3445');
-      disc(c, x, y, r, actor.color || villageColors[index % villageColors.length], '#fff5d9', 1.8);
-      disc(c, x, y, r + 1, null, '#5d5341', 0.85);
-      // A resident making up their mind carries a small question mark.
-      if (actor.action?.kind === 'waiting') {
-        disc(c, x + r, y - r, 5.2, '#fffdf2', '#5d5341', 0.9);
-        c.font = '700 8px Georgia, serif'; c.fillStyle = '#5d5341'; c.textAlign = 'center'; c.fillText('?', x + r, y - r + 0.5);
+    // Nearer figures overlap those behind them. The selected resident is drawn last of all.
+    markers.sort((a, b) => Number(a.actor.id === selectedId) - Number(b.actor.id === selectedId) || a.y - b.y);
+    const s = Math.max(11, Math.min(22, view.scale * 1.55));
+    for (const { actor, index, x, y, p } of markers) {
+      const chosen = actor.id === selectedId, inside = indoors(actor);
+      if (chosen) {
+        c.strokeStyle = '#9a4a2e'; c.fillStyle = 'rgba(246,231,180,.6)'; c.lineWidth = 1.6;
+        c.beginPath(); c.ellipse(x, y + s * 0.02, s * 0.52, s * 0.2, 0, 0, TAU); c.fill(); c.stroke();
       }
-      hits.push({ id: actor.id, name: actor.name, x, y });
-      if (actor.id === selectedId) { c.textAlign = 'center'; label(actor.name.split(' ')[0], x, y - r - 11, 12.5, false); }
+      // Someone at home is out of sight. Their lit window stands in for them.
+      if (!inside) {
+        figure(x, y, s, index, p.moving ? p.gone * 3.1 : 0, Math.cos(p.heading) >= 0 ? 1 : -1);
+        if (actor.action?.kind === 'waiting') {
+          const bx = x + s * 0.42, by = y - s * 1.06;
+          disc(c, bx, by, Math.max(5.2, s * 0.3), '#fffdf2', '#5d5341', 0.9);
+          c.font = '700 ' + Math.max(8, s * 0.42) + 'px Georgia, serif'; c.fillStyle = '#5d5341'; c.textAlign = 'center'; c.fillText('?', bx, by + 0.5);
+        }
+        hits.push({ id: actor.id, name: actor.name, x, y: y - s * 0.45 });
+      }
+      if (chosen) { c.textAlign = 'center'; label(actor.name.split(' ')[0] + (inside ? ' · indoors' : ''), x, y - (inside ? 14 : s + 9), 14, false); }
     }
     if (hover) {
       c.textAlign = 'left';
       const width = c.measureText(hover.text).width;
-      label(hover.text, Math.min(w - width - 8, hover.x + 12), Math.max(12, hover.y - 12), 13, false);
+      label(hover.text, Math.min(w - width - 8, hover.x + 12), Math.max(12, hover.y - 12), 14, false);
     }
-    if (motion.busy) schedule();
+    if (!reduced.matches || motion.busy) schedule();
   }
   function schedule() { if (!frame) frame = requestAnimationFrame(paint); }
   function redraw() { stale = true; schedule(); }
@@ -440,6 +596,8 @@ export function createMap(canvas, onSelect) {
   const observer = new ResizeObserver(resize);
   observer.observe(canvas);
   resize();
+  // Labels are set in a face that may still be loading when the map is first drawn.
+  document.fonts?.ready.then(redraw);
   return {
     setMap(next, names = {}) {
       const grew = !map || next.places.length !== map.places.length;
@@ -449,7 +607,8 @@ export function createMap(canvas, onSelect) {
       if (grew && !moved) fit();
       redraw();
     },
-    update(rows, id, names, motionMs) {
+    update(rows, id, names, motionMs, minute) {
+      if (Number.isFinite(minute)) clock = minute;
       actors = (rows || []).filter(a => Number.isFinite(a.position?.x));
       if (names) locations = names;
       const lodgers = actors.some(a => a.home === 'hall');

@@ -7,12 +7,20 @@ import { affairs } from './engine/civic.mjs';
 
 const host = process.env.HOST || '127.0.0.1';
 const port = Number(process.env.PORT || 4173);
-const types = { html: 'text/html', js: 'text/javascript', mjs: 'text/javascript', css: 'text/css', svg: 'image/svg+xml' };
+const types = { html: 'text/html', js: 'text/javascript', mjs: 'text/javascript', css: 'text/css', svg: 'image/svg+xml', woff2: 'font/woff2' };
 // Everything the browser may fetch, listed once at startup. The engine modules are shared with the page.
 const files = new Map([['/', new URL('./public/index.html', import.meta.url)], ['/sim.mjs', new URL('./sim.mjs', import.meta.url)]]);
 for (const name of await readdir(new URL('./public/', import.meta.url))) files.set('/' + name, new URL('./public/' + name, import.meta.url));
 for (const name of await readdir(new URL('./engine/', import.meta.url))) files.set('/engine/' + name, new URL('./engine/' + name, import.meta.url));
 for (const name of ['three.module.min.js', 'three.core.min.js']) files.set('/vendor/' + name, new URL('./node_modules/three/build/' + name, import.meta.url));
+// The typefaces are npm dependencies too, so the page still loads nothing from another host.
+const faces = { 'im-fell-english': ['400-normal', '400-italic'], 'im-fell-english-sc': ['400-normal'], alegreya: ['400-normal', '400-italic', '600-normal'] };
+for (const [family, cuts] of Object.entries(faces)) {
+  for (const cut of cuts) {
+    const name = family + '-latin-' + cut + '.woff2';
+    files.set('/vendor/fonts/' + name, new URL('./node_modules/@fontsource/' + family + '/files/' + name, import.meta.url));
+  }
+}
 
 await initialize();
 const server = http.createServer(async (req, res) => {

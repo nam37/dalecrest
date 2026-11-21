@@ -29,7 +29,7 @@ async function show(mode) {
   viewMode = mode;
   for (const b of document.querySelectorAll('[data-view]')) b.setAttribute('aria-pressed', String(b.dataset.view === mode));
   $('map').hidden = mode !== 'plan'; $('walk').hidden = mode !== 'walk';
-  document.querySelector('.map-zoom').hidden = document.querySelector('.map-compass').hidden = mode !== 'plan';
+  document.querySelector('.map-zoom').hidden = mode !== 'plan';
   $('walk-caption').hidden = mode !== 'walk';
   for (const item of document.querySelectorAll('.plan-only')) item.hidden = mode !== 'plan';
   $('map-hint').textContent = mode === 'plan' ? 'Drag to pan · click, then scroll to zoom' : 'Drag to look around · click, then scroll to move closer · click a resident to follow';
@@ -238,11 +238,15 @@ function render() {
   $('title').textContent=names[route];
   $('summary').textContent={village:actors.length+' residents living and working in a medieval parish.',residents:'The people, trades, and households of Dalecrest.',chronicle:'What has happened lately, from the latest 100 entries in the village records.'}[route];
   $('day').textContent=date(world.minute); $('time').textContent=time(world.minute);
+  const hour=world.minute%1440, night=hour>=1260||hour<340;
+  $('clock').classList.toggle('night',night); $('orb').textContent=night?'☾':'☼';
+  // In the village the map is the page. Its title gives way and the clock moves onto the plate.
+  $('page-title').hidden=route==='village';
   $('planner-status').textContent=planner.configured?'Planner · '+planner.model+' · '+planner.state:'Planner · local decision rules';
   if(route==='village'){
     const actor=actors.find(a=>a.id===selected)||actors[0]; selected=actor.id;
     const motionMs = frozen ? 0 : Math.max(250, Math.min(60000, state.nextTickInMs));
-    map.update(actors,selected,state.locations,motionMs);
+    map.update(actors,selected,state.locations,motionMs,world.minute);
     if(walk&&viewMode==='walk'){
       walk.update(actors,selected,world.minute,motionMs);
       $('walk-caption').textContent='Following '+actor.name+' · '+doing(actor);
@@ -269,6 +273,8 @@ function navigate(){
     if(link.hash==='#'+route)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');
   }
   walk?.setActive(route==='village' && viewMode==='walk');
+  (route==='village' ? $('plate-clock') : $('title-clock')).append($('clock'));
+  $('page-title').hidden=route==='village' && Boolean(state);
   render();
 }
 async function refresh(){
@@ -289,7 +295,7 @@ async function refresh(){
 $('freeze').addEventListener('click',()=>{
   if(!state)return;
   frozen=!frozen;
-  $('freeze').setAttribute('aria-pressed',String(frozen));$('freeze').textContent=frozen?'Resume live view':'Pause view';
+  $('freeze').setAttribute('aria-pressed',String(frozen));$('freeze').textContent=frozen?'Resume':'Pause';
   $('connection').title=frozen?'The view is paused. The village clock continues to run.':'';
   if(frozen) render(); else displayLatest();
 });

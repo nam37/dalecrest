@@ -10,21 +10,23 @@
     <span id="connection" class="connection"><i></i> Connecting</span>
   </div></header>
   <main>
-    <div class="page-title"><div><h1 id="title">Village observatory</h1><p id="summary">Opening the village records…</p></div>
-      <div class="clock"><span class="sun" aria-hidden="true">☼</span><div><span id="day">Day —</span><strong id="time">—</strong></div></div>
+    <div class="page-title" id="page-title"><div><h1 id="title">Village observatory</h1><p id="summary">Opening the village records…</p></div>
+      <div id="title-clock"><div class="clock" id="clock"><span class="sun" id="orb" aria-hidden="true">☼</span><div><span id="day">Day —</span><strong id="time">—</strong></div></div></div>
     </div>
     <section id="village" class="view">
       <div class="village-layout">
-        <article class="map-panel"><div class="panel-head"><h2>Village map</h2>
-            <div class="view-switch" role="group" aria-label="How to view the village"><button type="button" data-view="plan" aria-pressed="true">Map</button><button type="button" data-view="walk" aria-pressed="false">Walk</button></div>
-            <button class="view-toggle" id="freeze" type="button" aria-pressed="false">Pause view</button></div>
+        <article class="map-panel">
           <div class="map-area"><canvas id="map" aria-label="Map of Dalecrest. Select a villager on the map or in the village register."></canvas>
             <div id="walk" hidden aria-label="Dalecrest at eye level, following the selected resident."></div>
-            <div class="map-compass" aria-hidden="true"><b>N</b><span>✧</span></div>
+            <div class="plate-clock" id="plate-clock"></div>
+            <div class="plate-tools">
+              <div class="view-switch" role="group" aria-label="How to view the village"><button type="button" data-view="plan" aria-pressed="true">Map</button><button type="button" data-view="walk" aria-pressed="false">Walk</button></div>
+              <button class="view-toggle" id="freeze" type="button" aria-pressed="false" title="Hold this view still. The village carries on.">Pause</button>
+            </div>
             <div class="map-zoom"><button type="button" id="zoom-in" aria-label="Zoom in">+</button><button type="button" id="zoom-out" aria-label="Zoom out">−</button><button type="button" id="zoom-home" aria-label="Show the whole village">⌂</button></div>
             <p id="walk-caption" class="walk-caption" hidden></p>
+          <div class="map-key plan-only"><span class="plan-only"><i class="key-resident"></i> Resident</span><span class="plan-only"><i class="key-follow"></i> Selected</span><span class="plan-only"><i class="key-deciding">?</i> Deciding</span><span id="map-hint">Drag to pan · click, then scroll to zoom</span><span id="map-count"></span></div>
           </div>
-          <div class="map-key"><span class="plan-only"><i class="key-resident"></i> Resident</span><span class="plan-only"><i class="key-follow"></i> Selected</span><span class="plan-only"><i class="key-deciding">?</i> Deciding</span><span id="map-hint">Drag to pan · click, then scroll to zoom</span><span id="map-count"></span></div>
         </article>
         <aside class="resident-panel"><div class="panel-head"><h2>Resident</h2><select id="pick-resident" aria-label="Inspect resident"></select></div>
           <div id="profile"></div>

@@ -22,7 +22,7 @@ function show() {
   }
   if (!actors.some(a => a.id === selected)) selected = actors[0].id;
   const snapshot = structuredClone(actors);
-  map.update(snapshot, selected, names);
+  map.update(snapshot, selected, names, undefined, world.minute);
   if (mode === 'walk') walk?.update(snapshot, selected, world.minute);
   $('day').textContent = time(world.minute);
   $('people').textContent = actors.length + ' residents';
@@ -52,7 +52,7 @@ async function view(next) {
   mode = next;
   for (const b of document.querySelectorAll('[data-view]')) b.setAttribute('aria-pressed', String(b.dataset.view === mode));
   $('map').hidden = mode !== 'plan'; $('walk').hidden = mode !== 'walk';
-  document.querySelector('.map-zoom').hidden = mode !== 'plan';
+  document.querySelector('.map-zoom').hidden = document.querySelector('.map-key').hidden = mode !== 'plan';
   if (mode === 'walk' && !walk) {
     const { createWalk } = await import('/view3d.js');
     walk = createWalk($('walk'), id => { selected = id; show(); });
