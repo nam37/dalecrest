@@ -8,25 +8,22 @@ const el = (tag, cls, value) => {
   return node;
 };
 const names = { village: 'Village observatory', residents: 'Village residents', chronicle: 'Village chronicle' };
-const kinds = { village: 'Village', work: 'Work', meal: 'Meal', social: 'Encounter', plan: 'Intention', civic: 'Affairs', build: 'Building', arrival: 'Arrival' };
+const kinds = { village: 'Village', work: 'Work', meal: 'Meal', social: 'Encounter', plan: 'Decision', civic: 'Affairs', build: 'Building', arrival: 'Arrival' };
 const stores = { grain:'Barley', flour:'Flour', bread:'Bread', wood:'Firewood', cloth:'Linen', water:'Water', repair:'Building repairs' };
 const colors = ['#946344','#68764f','#a8654c','#456d65','#827892','#7c6043','#567895','#946e46'];
 let state, latest, frozen=false, selected='agnes', tab='life', route='village', rosterSignature='';
-let ground=null, groundRevision=null, fetching=false, viewMode='plan', walk=null;
+let ground=null, viewMode='plan', walk=null, loadingWalk=false;
 const map = createMap($('map'), choose);
 const capacity = { grain:44, flour:34, bread:32, wood:32, cloth:12, repair:14, water:28 };
 
-// The map only changes when the village builds something, so it is fetched apart from the snapshot.
-async function loadGround(revision) {
-  if (fetching || revision === groundRevision) return;
-  fetching = true;
-  try {
-    const res = await fetch('/api/map', { signal: AbortSignal.timeout(9000) });
-    if (!res.ok) throw new Error();
-    ground = await res.json(); groundRevision = revision;
-    map.setMap(ground, state?.locations);
+function displayLatest() {
+  state = latest;
+  if (ground !== state.map) {
+    ground = state.map;
+    map.setMap(ground, state.locations);
     walk?.setMap(ground);
-  } catch {} finally { fetching = false; }
+  }
+  render();
 }
 async function show(mode) {
   viewMode = mode;
@@ -35,16 +32,18 @@ async function show(mode) {
   document.querySelector('.map-zoom').hidden = document.querySelector('.map-compass').hidden = mode !== 'plan';
   $('walk-caption').hidden = mode !== 'walk';
   $('map-hint').textContent = mode === 'plan' ? 'Drag to pan · click, then scroll to zoom' : 'Drag to look around · click, then scroll to move closer · click a resident to follow';
-  if (mode === 'walk' && !walk) {
+  if (mode === 'walk' && !walk && !loadingWalk) {
+    loadingWalk = true;
     $('walk-caption').textContent = 'Opening the village at eye level…';
     try {
       const { createWalk } = await import('/view3d.js');
       walk = createWalk($('walk'), choose);
       if (ground) walk.setMap(ground);
     } catch { $('walk-caption').textContent = 'This browser could not open the walking view.'; return; }
+    finally { loadingWalk = false; }
   }
-  walk?.setActive(mode === 'walk');
-  if (mode === 'plan') map.redraw();
+  walk?.setActive(viewMode === 'walk' && route === 'village');
+  if (viewMode === 'plan') map.redraw();
   render();
 }
 
@@ -125,8 +124,18 @@ function renderProfile(actor) {
   }
   const activity=actor.action;
   const at=state.locations[activity.target]?.name || activity.target;
-  detail.append(block(activity.phase==='travelling'?'Walking to '+at:'At '+at,el('strong','activity',activity.label),el('p','reason',activity.reason)));
-  if(actor.plan)detail.append(block(actor.plan.method==='choice'?'Model priority · '+actor.plan.focus:'Model intention',el('p','goal',actor.plan.reason)));
+  if (activity.kind === 'waiting') {
+    const waiting = block('Next decision', el('strong','activity','Waiting for gpt-6-luna'));
+    if (activity.previous) waiting.append(el('p','reason','Last activity · '+activity.previous.label));
+    if (Number.isFinite(activity.since)) waiting.append(el('p','goal','Queued '+date(activity.since)+' at '+time(activity.since)));
+    detail.append(waiting);
+  } else {
+    detail.append(block(activity.phase==='travelling'?'Walking to '+at:'At '+at,el('strong','activity',activity.label),el('p','reason',activity.reason)));
+    if(actor.plan)detail.append(block(actor.plan.method==='choice'?'Model priority · '+actor.plan.focus:'Model intention',el('p','goal',actor.plan.reason)));
+  }
+  const event = state.events.find(e => e.type !== 'plan' && e.actorIds.includes(actor.id));
+  if (event) detail.append(block('Latest chronicle event', el('p','memory-text',event.text),
+    el('time','goal',date(event.minute)+' · '+time(event.minute))));
   detail.append(block('Desires',...(actor.desires||[]).map(d=>el('p','goal',d.label))));
   const needs=block('Current needs');
   for(const [key,val] of Object.entries(actor.needs)){
@@ -185,10 +194,14 @@ function render() {
   $('planner-status').textContent=planner.configured?'Planner · '+planner.model+' · '+planner.state:'Planner · local decision rules';
   if(route==='village'){
     const actor=actors.find(a=>a.id===selected)||actors[0]; selected=actor.id;
-    map.update(actors,selected,state.locations);
+    const motionMs = frozen ? 0 : Math.max(250, Math.min(60000, state.nextTickInMs));
+    map.update(actors,selected,state.locations,motionMs);
     if(walk&&viewMode==='walk'){
-      walk.update(actors,selected,world.minute);
-      $('walk-caption').textContent='Following '+actor.name+' · '+actor.action.label;
+      walk.update(actors,selected,world.minute,motionMs);
+      const activity = actor.action;
+      const caption = activity.phase === 'travelling' ? 'Walking to '+(state.locations[activity.target]?.name || activity.target)
+        : activity.kind === 'waiting' ? 'Waiting for gpt-6-luna' : activity.label;
+      $('walk-caption').textContent='Following '+actor.name+' · '+caption;
     }
     renderProfile(actor);renderAffairs();
     $('map-count').textContent=actors.length+' residents';
@@ -208,16 +221,19 @@ function navigate(){
   for(const link of document.querySelectorAll('nav a')){
     if(link.hash==='#'+route)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');
   }
+  walk?.setActive(route==='village' && viewMode==='walk');
   render();
 }
 async function refresh(){
   try{
-    const res=await fetch('/api/village',{signal:AbortSignal.timeout(9000)});
+    const res=await fetch('/api/village?mapRevision='+(latest?.map.revision ?? -1),{signal:AbortSignal.timeout(9000)});
     if(!res.ok)throw new Error();
-    latest=await res.json();
+    const next=await res.json();
+    next.map ??= latest?.map;
+    if (!next.map || next.map.revision !== next.world.mapRevision) throw new Error('Village map revision mismatch');
+    latest=next;
     $('connection').className='connection online';$('connection').replaceChildren(el('i'),document.createTextNode('World online'));
-    if(!frozen){state=latest;render();}
-    loadGround(latest.world.mapRevision);
+    if(!frozen) displayLatest();
   }catch{
     $('connection').className='connection';$('connection').replaceChildren(el('i'),document.createTextNode('Reconnecting'));
     if(!state)$('summary').textContent='Waiting for the village server. Reconnecting automatically…';
@@ -228,7 +244,7 @@ $('freeze').addEventListener('click',()=>{
   frozen=!frozen;
   $('freeze').setAttribute('aria-pressed',String(frozen));$('freeze').textContent=frozen?'Resume live view':'Pause view';
   $('connection').title=frozen?'The view is paused. The village clock continues to run.':'';
-  if(!frozen&&latest){state=latest;render();}
+  if(frozen) render(); else displayLatest();
 });
 for(const btn of document.querySelectorAll('[data-tab]'))btn.addEventListener('click',()=>{tab=btn.dataset.tab;render();});
 for(const btn of document.querySelectorAll('[data-view]'))btn.addEventListener('click',()=>show(btn.dataset.view));

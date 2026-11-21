@@ -39,9 +39,11 @@ test('PostgreSQL moves an old village onto a map, then stores a newcomer and the
     db = await import('./db.mjs');
     await db.initialize();
     let snapshot = await db.snapshot();
-    // The server holds one live copy of the map, so note its revision rather than keep the object.
-    const first = (await db.currentMap(snapshot.world.mapRevision)).revision;
+    const initialObserver = await db.snapshot({ withMap:true });
+    const first = initialObserver.map.revision;
     assert.equal(first, snapshot.world.mapRevision);
+    assert.ok(Number.isFinite(initialObserver.nextTickInMs));
+    assert.equal((await db.snapshot({ withMap:true })).map,initialObserver.map);
     assert.ok(snapshot.actors.every(a => /^cottage-\d$/.test(a.home) && a.action.target === a.home));
     assert.equal(snapshot.world.minute, world.minute);
     await db.initialize();
@@ -62,6 +64,10 @@ test('PostgreSQL moves an old village onto a map, then stores a newcomer and the
     assert.equal(Number(stored.revision), snapshot.world.mapRevision);
     assert.notEqual(stored.state.revision, first);
     assert.equal(stored.state.revision, snapshot.world.mapRevision);
+    const latestObserver = await db.snapshot({ withMap:true });
+    assert.equal(latestObserver.world.mapRevision,latestObserver.map.revision);
+    assert.deepEqual(latestObserver.map,stored.state);
+    assert.equal(initialObserver.map.revision,first);
     assert.ok((await db.pool.query("SELECT 1 FROM dalecrest.events WHERE kind = 'arrival'")).rowCount);
   } finally {
     if (db) await db.pool.end();

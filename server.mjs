@@ -17,17 +17,19 @@ for (const name of ['three.module.min.js', 'three.core.min.js']) files.set('/ven
 await initialize();
 const server = http.createServer(async (req, res) => {
   try {
-    const path = new URL(req.url, 'http://localhost').pathname;
+    const url = new URL(req.url, 'http://localhost');
+    const path = url.pathname;
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Cache-Control', 'no-store');
     if (!['GET', 'HEAD'].includes(req.method)) { res.writeHead(405, { Allow: 'GET, HEAD' }).end(); return; }
     if (path === '/api/village') {
-      const state = await snapshot();
-      const map = await currentMap(state.world.mapRevision);
-      res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ...state, locations: locationsOf(map, state.actors), affairs: affairs({ ...state, map }), planner: plannerStatus }));
+      const { map, ...state } = await snapshot({ withMap: true });
+      const knownRevision = url.searchParams.get('mapRevision');
+      const includeMap = knownRevision !== null && knownRevision !== String(map.revision);
+      res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ...state, map: includeMap ? map : undefined,
+        locations: locationsOf(map, state.actors), affairs: affairs({ ...state, map }), planner: plannerStatus }));
     } else if (path === '/api/map') {
-      const { world } = await snapshot();
-      res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(await currentMap(world.mapRevision)));
+      res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(await currentMap()));
     } else if (files.has(path)) {
       const file = files.get(path);
       const body = await readFile(file);

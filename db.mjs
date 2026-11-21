@@ -40,7 +40,9 @@ async function saveActors(db, actors) {
     FROM jsonb_array_elements($1::jsonb) WITH ORDINALITY AS payload(actor, n)
     ON CONFLICT (id) DO UPDATE SET state = excluded.state`, [JSON.stringify(actors)]);
 }
-export async function currentMap(revision) { return loadMap(pool, revision); }
+export async function currentMap() {
+  return (await pool.query('SELECT state FROM dalecrest.map WHERE id=1')).rows[0].state;
+}
 
 async function recordEvents(db, events) {
   if (!events.length) return [];
@@ -156,15 +158,25 @@ async function tick(db) {
   await writeSteps(db, steps, chronicle, traces, world.minute);
 }
 
-export async function snapshot() {
+// Observers only see committed maps. Capture one map and its residents in the same database snapshot.
+let observerMap = null;
+export async function snapshot({ withMap = false } = {}) {
+  const cached = observerMap;
   const result = await pool.query(`
     SELECT w.state AS world,
+      ${withMap ? `greatest(0, extract(epoch FROM w.next_tick - statement_timestamp()) * 1000)::int AS "nextTickInMs",
+        (SELECT m.state FROM dalecrest.map m WHERE m.id=w.id AND m.revision IS DISTINCT FROM $1::bigint) AS map,` : ''}
       (SELECT jsonb_agg(state ORDER BY ordinal) FROM dalecrest.actors) AS actors,
       COALESCE((SELECT jsonb_agg(to_jsonb(recent) ORDER BY recent.id DESC) FROM
         (SELECT id, minute, kind AS type, actor_ids AS "actorIds", description AS text
          FROM dalecrest.events ORDER BY id DESC LIMIT 100) recent),'[]'::jsonb) AS events
-    FROM dalecrest.world w WHERE w.id=1`);
-  return result.rows[0];
+    FROM dalecrest.world w WHERE w.id=1`, withMap ? [cached?.revision ?? null] : []);
+  const state = result.rows[0];
+  if (withMap) {
+    state.map ??= cached;
+    observerMap = state.map;
+  }
+  return state;
 }
 
 async function persistPlan(db, minute, actorId, basedOn, focus, reason, model, method) {

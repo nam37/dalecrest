@@ -56,11 +56,14 @@ function textSprite(text, italic = true) {
 }
 function dispose(group) {
   group.traverse(o => {
-    o.geometry?.dispose();
+    if (o.geometry !== contactGeo) o.geometry?.dispose();
     if (o.isSprite) { o.material.map?.dispose(); o.material.dispose(); }
   });
   group.clear();
 }
+
+const contactGeo = new THREE.CircleGeometry(0.115, 14);
+const contactMat = new THREE.MeshBasicMaterial({ color: '#2b2618', transparent: true, opacity: 0.3, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
 
 function figure(index) {
   const g = new THREE.Group(), cloth = villageColors[index % 8], skin = skins[index % 8], hair = hairs[index % 8];
@@ -70,9 +73,12 @@ function figure(index) {
     g.add(pivot);
     return pivot;
   };
-  const legs = [limb(0.04, 0.2, 0.04, '#5b4d3c', 0, 0.2, 0.032), limb(0.04, 0.2, 0.04, '#5b4d3c', 0, 0.2, -0.032)];
-  const tunic = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.075, 0.2, 7), mat(cloth));
-  tunic.position.y = 0.27; tunic.castShadow = true; g.add(tunic);
+  const legs = [limb(0.05, 0.2, 0.055, '#5b4d3c', 0, 0.2, 0.034), limb(0.05, 0.2, 0.055, '#5b4d3c', 0, 0.2, -0.034)];
+  const tunic = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.082, 0.26, 7), mat(cloth));
+  tunic.position.y = 0.24; tunic.castShadow = true; g.add(tunic);
+  // The sun's shadow is too coarse to reach the feet from far off, so a soft patch marks where they stand.
+  const patch = new THREE.Mesh(contactGeo, contactMat);
+  patch.rotation.x = -Math.PI / 2; patch.position.y = 0.006; patch.renderOrder = 1; g.add(patch);
   const arms = [limb(0.03, 0.15, 0.03, cloth, 0, 0.355, 0.068), limb(0.03, 0.15, 0.03, cloth, 0, 0.355, -0.068)];
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.043, 8, 6), mat(skin));
   head.position.y = 0.415; head.castShadow = true; g.add(head);
@@ -179,7 +185,7 @@ export function createWalk(container, onSelect) {
   const camera = new THREE.PerspectiveCamera(52, 1, 0.05, 420);
   const hemi = new THREE.HemisphereLight('#f3f1e4', '#8f8a66', 1.4);
   const sun = new THREE.DirectionalLight('#fff3d6', 2.6);
-  sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.03;
+  sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.0004;
   Object.assign(sun.shadow.camera, { left: -42, right: 42, top: 42, bottom: -42, near: 1, far: 320 });
   scene.add(hemi, sun, sun.target);
   const glow = new THREE.MeshLambertMaterial({ color: '#4b4234', emissive: '#ffcf70', emissiveIntensity: 0 });
@@ -190,19 +196,33 @@ export function createWalk(container, onSelect) {
 
   const motion = createMotion();
   const figures = new Map(), wheels = [];
-  let solids = [];
-  let map = null, terrainSeed = null, actors = [], selectedId = null, active = false, frame = 0, last = 0, clock = 600, clockAt = 0;
+  let solids = [], grid = null, shadowSpan = 0;
+  let map = null, terrainSeed = null, actors = [], selectedId = null, active = false, frame = 0, last = 0, clock = 600;
   const look = { yaw: 2.2, pitch: 0.3, dist: 4.4, target: new THREE.Vector3(80, 0, 60), ready: false, touched: -1e9 };
+
+  // Height of the drawn ground. The mesh is flat between its vertices, so the exact height function can sit
+  // above or below it by a hand's breadth on a slope: enough to leave a figure hovering or wading.
+  function ground(x, z) {
+    if (!grid) return heightAt(map, x, z);
+    const fi = (x + grid.margin) / grid.cell, fj = (z + grid.margin) / grid.cell;
+    const i = Math.floor(fi), j = Math.floor(fj);
+    if (i < 0 || j < 0 || i >= grid.nx || j >= grid.nz) return heightAt(map, x, z);
+    const u = fi - i, v = fj - j, row = grid.nx + 1, a = j * row + i;
+    const ha = grid.y[a], hb = grid.y[a + 1], hd = grid.y[a + row], he = grid.y[a + row + 1];
+    return u + v <= 1 ? ha + u * (hb - ha) + v * (hd - ha) : he + (1 - u) * (hd - he) + (1 - v) * (hb - he);
+  }
 
   function buildLand() {
     dispose(land);
     const margin = 64, cell = 1.5, nx = Math.ceil((map.w + margin * 2) / cell), nz = Math.ceil((map.h + margin * 2) / cell);
+    grid = { margin, cell, nx, nz, y: new Float32Array((nx + 1) * (nz + 1)) };
     const pos = new Float32Array((nx + 1) * (nz + 1) * 3), col = new Float32Array(pos.length), index = [];
     const grass = new THREE.Color('#aab37b'), dry = new THREE.Color('#c6c391'), lush = new THREE.Color('#8f9f69'), mud = new THREE.Color('#b9ad88'), bed = new THREE.Color('#8d9a84'), c = new THREE.Color();
     for (let j = 0, k = 0; j <= nz; j++) {
       for (let i = 0; i <= nx; i++, k += 3) {
         const x = -margin + i * cell, z = -margin + j * cell, y = heightAt(map, x, z);
         pos[k] = x; pos[k + 1] = y; pos[k + 2] = z;
+        grid.y[k / 3] = y;
         const tone = fbm(map.seed + 19, x / 17, z / 17);
         c.copy(grass).lerp(tone > 0.5 ? dry : lush, Math.abs(tone - 0.5) * 1.5);
         if (y < 0.14) c.lerp(mud, Math.min(1, (0.14 - y) * 6));
@@ -247,7 +267,7 @@ export function createWalk(container, onSelect) {
       const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, nx = -(b[1] - a[1]) / len * width / 2, nz = (b[0] - a[0]) / len * width / 2;
       for (const s of [1, -1]) {
         const x = p[0] + nx * s, z = p[1] + nz * s;
-        pos.push(x, deck ? lift : Math.max(heightAt(map, x, z), WATER_LEVEL) + lift, z);
+        pos.push(x, deck ? lift : Math.max(ground(x, z), WATER_LEVEL) + lift, z);
       }
       if (i) { const k = i * 2; index.push(k - 2, k, k - 1, k, k + 1, k - 1); }
     });
@@ -264,7 +284,7 @@ export function createWalk(container, onSelect) {
     const c = Math.cos(p.a), s = Math.sin(p.a);
     for (let i = 0; i < pos.count; i++) {
       const u = pos.getX(i), v = -pos.getY(i), x = p.x + u * c - v * s, z = p.y + u * s + v * c;
-      pos.setXYZ(i, x, heightAt(map, x, z) + lift, z);
+      pos.setXYZ(i, x, ground(x, z) + lift, z);
     }
     g.computeVertexNormals();
     const m = new THREE.Mesh(g, texture ? new THREE.MeshLambertMaterial({ map: texture, color, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 })
@@ -290,7 +310,7 @@ export function createWalk(container, onSelect) {
     }));
     for (const way of chains(map)) {
       const pts = way.pts;
-      built.add(ribbon(pts, WIDTH[way.kind], way.kind === 'road' ? '#dccaa2' : way.kind === 'lane' ? '#d6c39b' : '#cbbb92', way.kind === 'road' ? 0.05 : way.kind === 'lane' ? 0.045 : 0.035));
+      built.add(ribbon(pts, WIDTH[way.kind], way.kind === 'road' ? '#dccaa2' : way.kind === 'lane' ? '#d6c39b' : '#cbbb92', way.kind === 'road' ? 0.022 : way.kind === 'lane' ? 0.02 : 0.016));
     }
     for (const [a, b, kind] of map.edges) {
       if (kind !== 'bridge') continue;
@@ -304,19 +324,19 @@ export function createWalk(container, onSelect) {
     for (const p of map.places) {
       if (p.kind === 'green') {
         const disc = { x: p.x, y: p.y, w: p.rx * 2, d: p.ry * 2, a: p.a };
-        const m = draped(disc, '#b3c08a', 0.03);
+        const m = draped(disc, '#b3c08a', 0.012);
         const pos = m.geometry.attributes.position, c = Math.cos(p.a), s = Math.sin(p.a);
         // Pull the corners of the draped sheet in to an ellipse.
         for (let i = 0; i < pos.count; i++) {
           const dx = pos.getX(i) - p.x, dz = pos.getZ(i) - p.y, u = (dx * c + dz * s) / p.rx, v = (-dx * s + dz * c) / p.ry, r = Math.hypot(u, v);
-          if (r > 1) { const x = p.x + (u / r * p.rx) * c - (v / r * p.ry) * s, z = p.y + (u / r * p.rx) * s + (v / r * p.ry) * c; pos.setXYZ(i, x, heightAt(map, x, z) + 0.03, z); }
+          if (r > 1) { const x = p.x + (u / r * p.rx) * c - (v / r * p.ry) * s, z = p.y + (u / r * p.rx) * s + (v / r * p.ry) * c; pos.setXYZ(i, x, ground(x, z) + 0.012, z); }
         }
         built.add(m);
       } else if (p.kind === 'field') {
         if (p.stage === 0) {
           const c = Math.cos(p.a), s = Math.sin(p.a);
-          for (const [u, v] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { const x = p.x + u * p.w / 2 * c - v * p.d / 2 * s, z = p.y + u * p.w / 2 * s + v * p.d / 2 * c; built.add(box(0.06, 0.4, 0.06, '#7a6548', x, heightAt(map, x, z) + 0.2, z)); }
-        } else built.add(draped(p, p.stage === 1 ? '#b9a67c' : fieldTones[tag(p.id) % fieldTones.length], 0.04, p.stage === 2 ? furrowTexture() : null));
+          for (const [u, v] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { const x = p.x + u * p.w / 2 * c - v * p.d / 2 * s, z = p.y + u * p.w / 2 * s + v * p.d / 2 * c; built.add(box(0.06, 0.4, 0.06, '#7a6548', x, ground(x, z) + 0.2, z)); }
+        } else built.add(draped(p, p.stage === 1 ? '#b9a67c' : fieldTones[tag(p.id) % fieldTones.length], 0.016, p.stage === 2 ? furrowTexture() : null));
       } else if (p.kind !== 'wood') {
         const g = buildPlace(p, map, glow);
         if (g.userData.wheel) wheels.push(g.userData.wheel);
@@ -346,7 +366,7 @@ export function createWalk(container, onSelect) {
     const up = new THREE.Vector3(0, 1, 0);
     let li = 0, pi = 0;
     trees.forEach(([x, z, r, pine], i) => {
-      const y = heightAt(map, x, z), k = hash2(map.seed, x * 10, z * 10);
+      const y = ground(x, z), k = hash2(map.seed, x * 10, z * 10);
       q.setFromAxisAngle(up, k * TAU);
       m4.compose(v.set(x, y + 0.3 * r, z), q, sc.set(r, r, r)); trunks.setMatrixAt(i, m4);
       if (pine) {
@@ -361,7 +381,7 @@ export function createWalk(container, onSelect) {
   }
 
   function sky() {
-    const m = ((clock + (performance.now() - clockAt) / 1000) % 1440 + 1440) % 1440;
+    const m = clock % 1440;
     const p = (m - 300) / 930, day = p > 0 && p < 1 ? Math.sin(Math.PI * p) : 0;
     const bright = Math.min(1, day * 2.2), low = 1 - Math.min(1, day * 1.6);
     const skyColor = new THREE.Color('#1c2636').lerp(new THREE.Color('#eac9a2'), Math.min(1, bright * 2)).lerp(new THREE.Color('#d7e3e0'), Math.max(0, bright * 2 - 1));
@@ -375,6 +395,14 @@ export function createWalk(container, onSelect) {
     glow.emissiveIntensity = 1.6 * (1 - Math.min(1, bright * 1.5));
     sun.position.normalize().multiplyScalar(140).add(look.target);
     sun.target.position.copy(look.target);
+    const span = Math.min(44, Math.max(9, (look.reach || look.dist) * 3.2));
+    if (Math.abs(span - shadowSpan) > shadowSpan * 0.08) {
+      shadowSpan = span;
+      Object.assign(sun.shadow.camera, { left: -span, right: span, top: span, bottom: -span });
+      sun.shadow.camera.updateProjectionMatrix();
+      // One texel of the shadow map, which is as far as a shadow may be pushed off its caster.
+      sun.shadow.normalBias = span * 2 / 2048 * 0.7;
+    }
   }
 
   function inside(x, y, z) {
@@ -410,12 +438,12 @@ export function createWalk(container, onSelect) {
         crowd.set(key, n + 1);
         if (n) { x += Math.cos(n * 2.4) * 0.3 * Math.sqrt(n); z += Math.sin(n * 2.4) * 0.3 * Math.sqrt(n); }
       }
-      const y = isWater(map, x, z, 0.5) ? 0.25 : heightAt(map, x, z);
+      const y = isWater(map, x, z, 0.5) ? 0.25 : ground(x, z) + 0.012;
       f.position.set(x, y, z);
       let turn = -p.heading - f.rotation.y;
       turn = Math.atan2(Math.sin(turn), Math.cos(turn));
       f.rotation.y += turn * Math.min(1, dt * 8);
-      const swing = p.moving ? Math.sin(p.gone * 9) * 0.65 : 0, working = !p.moving && actor.action.kind === 'work';
+      const swing = p.moving ? Math.sin(p.gone * 9) * 0.65 : 0, working = !p.moving && actor.action.phase === 'working' && actor.action.kind === 'work';
       f.userData.legs[0].rotation.z = swing; f.userData.legs[1].rotation.z = -swing;
       f.userData.arms[0].rotation.z = working ? -0.9 + Math.sin(now / 260 + index) * 0.5 : -swing * 0.7;
       f.userData.arms[1].rotation.z = working ? -0.9 + Math.sin(now / 260 + index + 1.3) * 0.5 : swing * 0.7;
@@ -434,7 +462,7 @@ export function createWalk(container, onSelect) {
         d = Math.atan2(Math.sin(d), Math.cos(d));
         look.yaw += d * Math.min(1, dt * 0.9);
       }
-      ringMark.visible = true; ringMark.position.set(followed.x, followed.y + 0.03, followed.z);
+      ringMark.visible = true; ringMark.position.set(followed.x, followed.y + 0.02, followed.z);
     } else ringMark.visible = false;
     const cp = Math.cos(look.pitch), dir = [cp * Math.cos(look.yaw), Math.sin(look.pitch), cp * Math.sin(look.yaw)];
     // Pull the camera in rather than let a wall or roof come between it and the resident.
@@ -444,12 +472,13 @@ export function createWalk(container, onSelect) {
     }
     look.reach = look.reach === undefined ? reach : reach < look.reach ? reach : mix(look.reach, reach, Math.min(1, dt * 3));
     camera.position.set(look.target.x + look.reach * dir[0], look.target.y + look.reach * dir[1], look.target.z + look.reach * dir[2]);
-    camera.position.y = Math.max(camera.position.y, heightAt(map, camera.position.x, camera.position.z) + 0.16);
+    camera.position.y = Math.max(camera.position.y, ground(camera.position.x, camera.position.z) + 0.16);
     camera.lookAt(look.target);
     for (const s of names.children) {
       const d = s.position.distanceTo(camera.position);
       s.visible = s.userData.always || d < s.userData.reach;
-      const size = s.userData.size * Math.max(1, d / (s.userData.reach > 20 ? 11 : 5));
+      // Names keep a steady size on screen: they shrink as the camera closes in and grow as it pulls away.
+      const size = s.userData.size * (s.userData.reach > 20 ? Math.max(1, d / 11) : Math.max(0.3, d / 5));
       s.scale.set(size * s.userData.aspect, size, 1);
     }
     for (const wheel of wheels) wheel.rotation.z += dt * 0.7 * wheel.userData.spin;
@@ -526,12 +555,12 @@ export function createWalk(container, onSelect) {
       buildVillage();
       start();
     },
-    update(rows, id, minute) {
+    update(rows, id, minute, motionMs) {
       actors = (rows || []).filter(a => Number.isFinite(a.position?.x));
-      motion.update(actors);
+      motion.update(actors, performance.now(), motionMs);
       if (id !== selectedId) look.touched = -1e9;
       selectedId = id;
-      if (Number.isFinite(minute)) { clock = minute; clockAt = performance.now(); }
+      if (Number.isFinite(minute)) clock = minute;
     },
     setActive(on) { active = on; if (on) { resize(); start(); } },
     scene,

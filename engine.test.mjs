@@ -83,7 +83,12 @@ test('a village stored before the map existed is moved onto one', () => {
     a.position = { x: 40 + i, y: 30 };
   });
   actors[4].workplace = 'cottages';
+  actors[1].action = { kind: 'waiting', phase: 'waiting', since: 90208, target: 'oven', remaining: 0,
+    label: 'Choosing the next activity', previous: { kind: 'food', label: 'Taking a loaf at the oven', target: 'oven' } };
   const map = adoptVillage(legacy);
+  const [x, y] = place(map, 'oven').at;
+  assert.deepEqual(actors[1].position, { x, y });
+  assert.equal(actors[1].action.since, 90208);
   const village = { ...legacy, map };
   stepVillage(village, { minutes: 600 });
   for (const a of actors) assert.equal(place(map, a.home).kind, 'cottage');

@@ -41,6 +41,8 @@ The first map was a drawing: coordinates typed into the page, with a second copy
 
 The seed is used once. After founding, the stored document is the truth and the generator is never run again for that village, so improving the generator cannot reshuffle a village people are watching. `VILLAGE_SEED` chooses the seed for a new database. A database from before the map existed is given one at startup: residents keep their records, each household receives a cottage, and legacy site names are mapped to places.
 
+During that first migration, residents working or waiting move to the corresponding place on the new map. Residents already travelling start from their new home and continue toward their chosen destination. A rollback to a release predating the generated map requires a compatible village database. Restore the matching pre-release dump into a separate database and verify it before switching the app.
+
 Residents walk the road graph. A route is stored with the action as a list of waypoints, which keeps the simulation resumable from JSON alone and lets the page animate walking along the lanes between snapshots. Where open ground is clearly shorter, residents cut across it. Twelve crossings between the same two places wear a path into the map.
 
 The map changes rarely and is larger than a resident record, so it has its own table and revision. The world row carries the current revision. The server holds one copy per process and reloads it when the revisions differ. The page fetches `/api/map` only when the revision in the snapshot changes.
@@ -58,3 +60,5 @@ The rules live in `engine/civic.mjs`, `engine/people.mjs` and `engine/sites.mjs`
 The plan view in `public/map.js` draws the map in ink on parchment, in the manner of Watabou's village generator. The walking view in `public/view3d.js` raises the same footprints into low-poly buildings with three.js and follows the selected resident at eye level. Neither view holds layout of its own, so anything the village builds appears in both. A site shows as stakes, then a frame, then the finished building.
 
 three.js is an npm dependency served from `/vendor/`, so the page loads nothing from another host. The engine modules are served to the browser unchanged. `/atlas.html` uses them to found a village from any seed in the page and run it forward by days, which is the quickest way to judge the look of a grown village without waiting for one or touching a database.
+
+In the live observatory, Map and Walk follow the same selected resident and published clock. A waiting resident shows their finished activity and the village time they entered the decision queue. Movement follows recorded positions and the time until the next tick. Pausing holds both the displayed village and its map revision. The Atlas uses browser-local rules and spends no model tokens.

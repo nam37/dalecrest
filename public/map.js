@@ -443,12 +443,12 @@ export function createMap(canvas, onSelect) {
       if (grew && !moved) fit();
       redraw();
     },
-    update(rows, id, names) {
+    update(rows, id, names, motionMs) {
       actors = (rows || []).filter(a => Number.isFinite(a.position?.x));
       if (names) locations = names;
       const lodgers = actors.some(a => a.home === 'hall');
       if (look && look.lodgers !== lodgers) { look.lodgers = lodgers; stale = true; }
-      motion.update(actors);
+      motion.update(actors, performance.now(), motionMs);
       selectedId = id; schedule();
     },
     zoom, home, redraw,

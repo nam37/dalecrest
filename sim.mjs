@@ -117,7 +117,7 @@ export function adoptVillage({ world, actors }, seed = DEFAULT_SEED) {
     if (actor.workplace === 'cottages') actor.workplace = actor.home;
     if (!place(map, actor.action.target)) actor.action.target = actor.home;
     delete actor.action.path;
-    const here = place(map, actor.action.phase === 'working' ? actor.action.target : actor.home);
+    const here = place(map, actor.action.phase === 'travelling' ? actor.home : actor.action.target);
     actor.position = { x: here.at[0], y: here.at[1] };
   });
   normalize({ world, actors, map });
