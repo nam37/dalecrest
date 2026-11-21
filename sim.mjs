@@ -6,7 +6,7 @@ import * as civic from './engine/civic.mjs';
 import { newcomer, wantsNewcomer } from './engine/people.mjs';
 import * as standing from './engine/standing.mjs';
 import { atOven, inspectOven } from './engine/observations.mjs';
-import { conversationChoices, finishConversation, missedConversation, knownStores, noteWork, settleHelp, expireHelp } from './engine/exchanges.mjs';
+import { conversationChoices, finishConversation, missedConversation, recordPrivateReview, requestReviewMenu, knownStores, noteWork, settleHelp, expireHelp } from './engine/exchanges.mjs';
 
 export const FOCUSES = ['work', 'social', 'rest', 'food'];
 export const DEFAULT_SEED = 26111;
@@ -309,7 +309,7 @@ export function availableActions(actor, state) {
     if (!reachable.has(action.target)) reachable.set(action.target, Boolean(route(state.map, [actor.position.x, actor.position.y], action.target)));
     if (!reachable.get(action.target)) menu.delete(id);
   }
-  return menu;
+  return requestReviewMenu(actor, menu);
 }
 
 // A resident with a real choice to make waits for it where they stand. The clock and everyone else carry on.
@@ -352,6 +352,7 @@ export function startChosen(actor, state, id, trace, pilot = standing.PILOT) {
   const action = availableActions(actor, state).get(id);
   if (!action) return null;
   const minute = state.world.minute, { since, why, previous } = actor.action;
+  if (action.update) actor.helpBook[action.requestId].consideredFact = action.update.factId;
   actor.action = { ...action, phase: action.onSpot ? 'working' : 'travelling', choiceId: id, decisionTraceId: trace.id,
     basis: { kind: 'fresh', trace: trace.id, waited: minute - since, ...(why ? { why } : {}) },
     reason: 'Selected by ' + trace.model + ' after ' + previous.label + '.' };
@@ -455,7 +456,9 @@ function stepMinute(state, events, externalActions, records, pilot) {
       }
     }
     if (--action.remaining > 0) continue;
-    if (action.kind === 'conversation') {
+    if (action.kind === 'review') {
+      recordPrivateReview(actor, minute, emit);
+    } else if (action.kind === 'conversation') {
       finishConversation(actor, state, emit);
     } else if (action.kind === 'inspect') {
       inspectOven(actor, place(map, action.target), world, emit);

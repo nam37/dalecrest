@@ -14,6 +14,7 @@ export const DECISIONS_URL = 'https://api.openai.com/v1/decisions';
 
 // names maps a place ID to what residents call it, so a model never reads "cottage-3".
 export function actionDescription(action, names = {}) {
+  if (action.kind === 'review') return action.label + '.';
   if (action.onSpot) return action.label + ' here (' + action.remaining + ' village minutes).';
   return action.label + ' at ' + (names[action.target]?.name || action.target) + ' (' + action.remaining + ' village minutes).';
 }
@@ -32,10 +33,12 @@ export function actionBody(actor, world, menu, names = {}) {
   const options = Array.from(menu, ([value, action]) => ({
     value, description: actionDescription(action, names)
   }));
+  const review = options.some(o => o.value.startsWith('retain:'))
+    ? ' Reconsider whether you still need the help using the new information. Use only the offered choices. A reported delivery tells you how much was added. Supplies can be used afterward.' : '';
   return JSON.stringify({
     model: DECISIONS_MODEL, input: [{ role: 'user', content: [{ type: 'input_json', data: observation }] }],
     questions: [{ type: 'choice', name: 'next_action', choices: options,
-      instructions: 'Choose the activity this resident will begin now. Weigh goals, needs (100 is urgent), time and memories. The last oven check is what they personally counted then. Null means they have not checked. Stocks can change.' }]
+      instructions: 'Choose the activity this resident will begin now. Weigh goals, needs (100 is urgent), time and memories. The last oven check is what they personally counted then. Null means they have not checked. Stocks can change.' + review }]
   });
 }
 

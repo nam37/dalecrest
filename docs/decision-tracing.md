@@ -152,3 +152,24 @@ An actor's `reports` retains the latest account heard on each topic with the ori
 In an isolated rehearsal, Mabel counted nine measures of flour and no wood on 1 August 1312 at 07:04. Her fresh Luna choice was to visit Agnes (confidence 0.41). A scripted follow-up delivered the request to Oswin at 07:07. His own Luna choice was an ordinary woodcutting shift (confidence 0.51). He stacked three bundles at 10:14. His shift trace records the production, and the request trace still shows that Mabel was waiting for an answer.
 
 There is no automatic pruning of decision traces. The normal PostgreSQL backup includes the trace tables and the activity log. Treat database access and backups as access to the complete model exchanges.
+
+## Trace a reconsideration
+
+The latest review by Mabel can be followed from what she learned to what she chose and whether her message arrived. A count is the reserve at the time of the reading. An amount added is the output of a particular shift. Retellings preserve the original witness and observation time. Change the resident ID to investigate another villager.
+
+```sql
+SELECT e.minute, e.description, e.outcome->>'requestId' AS request_id,
+       e.outcome->'evidence' AS what_the_requester_knew,
+       t.id AS decision_trace, t.request_body, t.choice, t.confidence, t.response_body,
+       source.id AS learning_trace, source.choice AS how_the_news_arrived
+FROM dalecrest.events e
+LEFT JOIN dalecrest.decision_traces t ON t.id = (e.outcome->>'traceId')::bigint
+LEFT JOIN dalecrest.decision_traces source
+  ON source.id = (e.outcome #>> '{evidence,learnedTrace}')::bigint
+WHERE e.actor_ids[1] = 'mabel' AND e.outcome->>'verb' IN ('retain','release','defer')
+ORDER BY e.id DESC LIMIT 10;
+```
+
+The model sees the request's original count when available and the latest relevant evidence. A private decision to keep or defer changes only the requester's record. A delivered withdrawal closes an open request for both parties. A missed withdrawal leaves it open. Older saved villages can have an observation without a linked learning trace. A completed named shift retains its credit even if a withdrawal reaches the helper later.
+
+In a copy of the earlier rehearsal, Oswin's ordinary woodcutting and its repeat had added six bundles. Mabel's original reading was zero. On 1 August 1312 at 10:53 a staged inspection found six. The live model selected withdrawal (trace 6, confidence 0.27). Mabel reached Oswin at 11:26, delivered the message and closed the request. Her inspection established how much wood was there. It gave her no evidence of who supplied it.

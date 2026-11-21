@@ -1,5 +1,6 @@
 import { remember } from './civic.mjs';
 import { formatDate } from './calendar.mjs';
+import { currentUpdate, noticeForRequests, ovenFact, requestIsOpen } from './request-review.mjs';
 
 const supplies = {
   wood: { job: 'cut', terms: 'stack three bundles of firewood', low: 3, units: 3 },
@@ -28,15 +29,17 @@ export function noteWork(actor, world, text, delta) {
     }
   }
   const count = Object.entries(stock).map(([item, units]) => ' The ' + item + ' reserve then held ' + units + ' units.').join('');
+  const produced = Object.fromEntries(Object.entries(delta).filter(([item, change]) => supplies[item] && change > 0));
+  const fact = firsthand(actor, 'work', world.minute, text + count,
+    { stock, produced, ...(actor.action.commitmentId && { requestId: actor.action.commitmentId }) });
+  noticeForRequests(actor, fact, world.minute, null, actor.action.basis?.trace);
   actor.observations ??= {};
-  actor.observations.lastWork = firsthand(actor, 'work', world.minute, text + count,
-    { stock, ...(actor.action.commitmentId && { requestId: actor.action.commitmentId }) });
+  actor.observations.lastWork = fact;
 }
 
 function knownFacts(actor) {
   const seen = actor.observations?.ovenStores;
-  const ownOven = seen && firsthand(actor, 'oven', seen.minute,
-    seen.place + ' held ' + seen.flour + ' flour and ' + seen.wood + ' firewood.', { site: seen.site, flour: seen.flour, wood: seen.wood });
+  const ownOven = seen && ovenFact(actor, seen);
   return [newest(ownOven, actor.reports?.oven?.fact),
     newest(actor.observations?.lastWork, actor.reports?.work?.fact)].filter(Boolean);
 }
@@ -51,10 +54,18 @@ export function socialContext(actor, minute) {
   const heard = Object.values(actor.reports || {}).map(({ fact, from, heardAt }) => ({
     account: fact.text, witnessedBy: fact.observer, observed: villageTime(fact.minute), toldBy: from, heard: villageTime(heardAt)
   }));
-  const requests = Object.values(actor.helpBook || {}).filter(r => minute <= r.due).map(r => ({
-    requester: r.asker, helper: r.helper, terms: r.terms, status: r.status, due: villageTime(r.due),
-    relationship: actor.relationships[r.askerId === actor.id ? r.helperId : r.askerId] ?? 0
-  }));
+  const requests = Object.values(actor.helpBook || {}).filter(r => minute <= r.due).map(r => {
+    const news = currentUpdate(actor, r);
+    return { requester: r.asker, helper: r.helper, terms: r.terms, status: r.status, due: villageTime(r.due),
+      relationship: actor.relationships[r.askerId === actor.id ? r.helperId : r.askerId] ?? 0,
+      ...(news && { reasonToReconsider: {
+        item: r.item, ...(r.basedOn && { originalCount: r.basedOn.count, originalReading: villageTime(r.basedOn.minute) }),
+        account: news.account, witnessedBy: news.observer, witnessed: villageTime(news.observedAt),
+        ...(news.toldBy && { toldBy: news.toldBy, heard: villageTime(news.learnedAt) }),
+        ...(news.count != null && { observedReserve: news.count }), ...(news.added && { quantityAdded: news.added }),
+        ...(r.reviewedFact === news.factId && { keptOpenOnThisEvidence: true })
+      } }) };
+  });
   const last = actor.observations?.lastWork;
   return { ...(last && { lastWork: { account: last.text, witnessed: villageTime(last.minute) } }),
     ...(heard.length && { heard }), ...(requests.length && { helpRequests: requests }) };
@@ -62,7 +73,6 @@ export function socialContext(actor, minute) {
 
 const near = (a, b) => Math.hypot(a.position.x - b.position.x, a.position.y - b.position.y) <= 3;
 const awake = a => a.action.kind !== 'rest' && a.action.kind !== 'arrive';
-const open = r => r.status === 'asked' || r.status === 'accepted';
 
 // Visiting a more distant neighbour is possible. Delivery is checked in person at the destination.
 export function conversationChoices(actor, state, menu) {
@@ -91,8 +101,8 @@ export function conversationChoices(actor, state, menu) {
     }
     for (const { fact, item, spec } of shortages) {
       if ((!nearby && other.trade !== spec.job) || (spec.job === 'mill' && other.trade !== 'mill')) continue;
-      if (requests.some(r => r.askerId === actor.id && r.item === item && open(r)) ||
-          requests.some(r => r.askerId === other.id && r.helperId === actor.id && r.item === item && open(r)) ||
+      if (requests.some(r => r.askerId === actor.id && r.item === item && requestIsOpen(r)) ||
+          requests.some(r => r.askerId === other.id && r.helperId === actor.id && r.item === item && requestIsOpen(r)) ||
           actor.askedAbout?.[other.id]?.[item] === fact.id) continue;
       offer('ask', 'Ask ' + other.name + ' (' + other.role + ') to ' + spec.terms +
         (fact.topic === 'oven' ? ' for the oven' : ' for the village'), { item, fact }, item + '-' + fact.id);
@@ -104,12 +114,33 @@ export function conversationChoices(actor, state, menu) {
           { requestId: r.id }, r.id);
       }
     }
+    for (const r of requests.filter(r => r.askerId === actor.id && r.helperId === other.id)) {
+      const update = currentUpdate(actor, r);
+      if (!update || r.reviewedFact === update.factId) continue;
+      const key = [r.id, r.status, update.factId].join(':');
+      const review = { requestId: r.id, requestStatus: r.status, update };
+      const here = { kind: 'review', onSpot: true, target: actor.action.target, remaining: 1, ...review };
+      menu.set('retain:' + key, { ...here, verb: 'retain', label: 'Keep asking ' + other.name + ' to ' + r.terms });
+      if (r.consideredFact !== update.factId) {
+        menu.set('defer:' + key, { ...here, verb: 'defer', label: 'Set the request to ' + other.name + ' aside and decide about it later' });
+      }
+      offer('release', 'Tell ' + other.name + ' I no longer need help to ' + r.terms, review, key);
+    }
   }
   for (const r of requests.filter(r => r.helperId === actor.id && r.status === 'accepted')) {
     const shift = [...menu.values()].find(a => a.job === r.job && !a.commitmentId);
     if (shift) menu.set('help:' + r.id + ':' + shift.target, { ...shift, commitmentId: r.id,
       label: shift.label + ' for ' + r.asker + ' as promised' });
   }
+}
+
+// A new piece of evidence gets one explicit decision. Deferring returns the resident to their normal menu.
+export function requestReviewMenu(actor, menu) {
+  const pending = [...menu.values()].filter(a => a.verb === 'defer')
+    .sort((a, b) => actor.helpBook[a.requestId].due - actor.helpBook[b.requestId].due);
+  if (!pending.length) return menu;
+  const first = pending[0];
+  return new Map([...menu].filter(([, a]) => a.update && a.requestId === first.requestId));
 }
 
 function learn(actor, minute, why) {
@@ -123,6 +154,7 @@ function learn(actor, minute, why) {
 function receive(actor, speaker, fact, minute) {
   if (fact.observerId === actor.id) return;
   if (fact.kept && actor.helpBook?.[fact.requestId]) actor.helpBook[fact.requestId].status = 'kept';
+  noticeForRequests(actor, fact, minute, speaker.name, speaker.action.basis?.trace);
   const prior = actor.reports?.[fact.topic];
   if (prior && prior.fact.minute >= fact.minute) return;
   actor.reports ??= {};
@@ -132,7 +164,11 @@ function receive(actor, speaker, fact, minute) {
 
 function saveRequest(actor, request) {
   actor.helpBook ??= {};
-  actor.helpBook[request.id] = { ...request };
+  const prior = actor.helpBook[request.id];
+  actor.helpBook[request.id] = { ...request,
+    ...(requestIsOpen(request) && prior?.update && { update: prior.update }),
+    ...(requestIsOpen(request) && prior?.consideredFact && { consideredFact: prior.consideredFact }),
+    ...(requestIsOpen(request) && prior?.reviewedFact && { reviewedFact: prior.reviewedFact }) };
 }
 
 function markSpoken(actor, recipient, bucket, key, id) {
@@ -154,7 +190,8 @@ export function missedConversation(actor, minute, emit, cause) {
   const { verb, label, friendId, requestId, basis } = actor.action;
   const text = actor.name + ' could not ' + label.replace(/^./, c => c.toLowerCase()) + ' because ' + cause + '.';
   remember(actor, minute, text, [actor.id], 'social');
-  emit('social', text, [actor.id], { verb, delivered: false, to: friendId, cause, traceId: basis?.trace ?? null, ...(requestId && { requestId }) });
+  emit('social', text, [actor.id], { verb, delivered: false, to: friendId, cause, traceId: basis?.trace ?? null,
+    ...(requestId && { requestId }), ...(actor.action.update && { evidence: actor.action.update }) });
 }
 
 export function finishConversation(actor, state, emit) {
@@ -163,6 +200,26 @@ export function finishConversation(actor, state, emit) {
   const traceId = basis?.trace ?? null;
   const request = world.helpRequests?.[requestId];
   if (!other || !awake(other) || !near(actor, other)) return missedConversation(actor, minute, emit, 'they did not meet');
+  if (verb === 'release') {
+    const alreadyKept = !request && other.helpBook?.[requestId]?.status === 'kept';
+    if (!reviewStillApplies(actor, minute) || (!alreadyKept && request?.status !== actor.action.requestStatus)) {
+      return missedConversation(actor, minute, emit, 'the request or the information behind the decision had changed');
+    }
+    if (request) {
+      request.status = 'released';
+      saveRequest(actor, request);
+      saveRequest(other, request);
+      delete world.helpRequests[requestId];
+    } else {
+      // The helper finished before this visit. Deliver the message without changing the credited shift.
+      actor.helpBook[requestId].status = 'released';
+    }
+    learn(other, minute, 'was told that help was no longer needed');
+    const text = actor.name + ' told ' + other.name + ' that help was no longer needed to ' + actor.helpBook[requestId].terms + '.';
+    recordExchange(actor, other, minute, text, { verb, delivered: true, requestId, ...(request && { terms: { ...request } }),
+      closedOpenRequest: Boolean(request), traceId, evidence: actor.action.update }, emit);
+    return;
+  }
   if (requestId && (!request || request.status !== 'asked' || request.due < minute)) {
     return missedConversation(actor, minute, emit, 'the request had closed');
   }
@@ -178,7 +235,8 @@ export function finishConversation(actor, state, emit) {
     const id = [actor.id, other.id, item, minute].join('-');
     agreement = { id, askerId: actor.id, asker: actor.name, helperId: other.id, helper: other.name,
       item, job: supplies[item].job, quantity: supplies[item].units, terms: supplies[item].terms,
-      since: minute, due: minute + 1440, status: 'asked', evidence: fact.id };
+      since: minute, due: minute + 1440, status: 'asked', evidence: fact.id,
+      basedOn: { minute: fact.minute, count: fact.topic === 'oven' ? fact[item] : fact.stock[item] } };
     world.helpRequests ??= {};
     world.helpRequests[id] = agreement;
     markSpoken(actor, other, 'askedAbout', item, fact.id);
@@ -194,10 +252,28 @@ export function finishConversation(actor, state, emit) {
     saveRequest(actor, agreement);
     saveRequest(other, agreement);
     learn(other, minute, verb === 'ask' ? 'was asked for help' : 'heard a reply');
-    if (!open(agreement)) delete world.helpRequests[agreement.id];
+    if (!requestIsOpen(agreement)) delete world.helpRequests[agreement.id];
   }
   recordExchange(actor, other, minute, text, { verb, delivered: true, traceId, ...(fact && { fact }),
     ...(agreement && { requestId: agreement.id, terms: { ...agreement } }) }, emit);
+}
+
+function reviewStillApplies(actor, minute) {
+  const { requestId, requestStatus, update } = actor.action;
+  const r = actor.helpBook?.[requestId];
+  return r && r.status === requestStatus && minute <= r.due && currentUpdate(actor, r)?.factId === update.factId;
+}
+
+export function recordPrivateReview(actor, minute, emit) {
+  const { verb, requestId, update, basis } = actor.action;
+  if (!reviewStillApplies(actor, minute)) return;
+  const r = actor.helpBook[requestId];
+  r.update = update;
+  if (verb === 'retain') r.reviewedFact = update.factId;
+  const text = verb === 'retain' ? actor.name + ' decided to keep the request to ' + r.helper + ' to ' + r.terms + ' open.'
+    : actor.name + ' put off deciding whether help from ' + r.helper + ' was still needed.';
+  remember(actor, minute, text, [actor.id], 'social', { requestId });
+  emit('social', text, [actor.id], { verb, requestId, evidence: update, traceId: basis?.trace ?? null });
 }
 
 export function settleHelp(actor, world, delta, emit) {

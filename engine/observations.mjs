@@ -1,4 +1,5 @@
 import { remember } from './civic.mjs';
+import { noticeForRequests, ovenFact } from './request-review.mjs';
 
 export function atOven(actor, site) {
   return site?.kind === 'oven' && site.stage === 2 &&
@@ -12,12 +13,14 @@ export function inspectOven(actor, site, world, emit, source = 'oven inspection'
     source, site: site.id, place: site.name, minute: world.minute,
     flour: world.supplies.flour, wood: world.supplies.wood
   };
+  const traceId = actor.action.basis?.trace ?? actor.action.decisionTraceId ?? null;
+  noticeForRequests(actor, ovenFact(actor, observation), world.minute, null, traceId);
   actor.observations ??= {};
   actor.observations.ovenStores = observation;
   const text = actor.name + ' checked the stores at ' + site.name + ' and counted ' +
     observation.flour + ' measures of flour and ' + observation.wood + ' bundles of firewood.';
   remember(actor, world.minute, text, [actor.id], 'observation', { observation });
-  emit('observation', text, [actor.id], { ...observation, traceId: actor.action.basis?.trace ?? actor.action.decisionTraceId ?? null });
+  emit('observation', text, [actor.id], { ...observation, traceId });
 }
 
 export function recalledOvenStores(actor, minute) {

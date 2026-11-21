@@ -137,9 +137,9 @@ Done when: across a full pilot week the clock is never more than one tick late, 
 
 Build one promise that can survive a night's sleep, and let a viewer find out how it ended.
 
-**Implemented so far.** Residents can check the communal oven, share dated observations, ask a neighbour for supplies and choose how to answer a request. An accepted request offers a specific shift the resident can choose to keep their word. The engine records a missed visit, a refusal, an unanswered request, a kept promise or an expired one. Another worker's ordinary shift changes the stores without earning credit for the promise. Detecting when a third party has relieved the original need and letting the parties release an agreement are later parts of the pilot. [Trace an oven inspection](decision-tracing.md#trace-an-oven-inspection) · [Trace a request and its reply](decision-tracing.md#trace-a-request-and-its-reply)
+**Implemented so far.** Residents can check the communal oven, share dated observations, ask a neighbour for supplies and choose how to answer. An accepted request offers a specific shift the resident can choose to keep their word. A requester who learns of a later count or delivery can keep the request open, withdraw it in person or decide later. An ordinary shift changes the stores and earns its worker credit for that work alone. [Trace a request and its reply](decision-tracing.md#trace-a-request-and-its-reply) · [Trace a reconsideration](decision-tracing.md#trace-a-reconsideration)
 
-Mabel Ash needs wood for the oven. Oswin Holt cuts it. Mabel may ask Oswin for help, and he may accept, decline or leave it unanswered. If he accepts, the promise can be kept, broken or overtaken by events. Each of those is an ending the village records and a viewer can return to find.
+Mabel Ash needs wood for the oven. Oswin Holt cuts it. Mabel may ask Oswin for help, and he may accept, decline or leave it unanswered. An accepted promise can be kept, broken or released by Mabel. Each ending has a record a viewer can return to find.
 
 **Three kinds of knowledge, kept apart.**
 
@@ -155,14 +155,14 @@ The chronicle states a reason only when a record supports it. An action chosen a
 
 - **Outcomes.** For oven and woodcutting shifts, record the site, the participants, the actual change to the stores and any commitment the choice named, in the same transaction as the change. Record a fruitless or interrupted shift too.
 - **Observations.** A resident's knowledge of the stores comes from being there or being told. Away from the oven, Mabel's menu offers "Go and check the oven", and the trip has an outcome even when there is no fuel. Once there, the engine offers the jobs she can actually start.
-- **Requests and commitments.** One durable record for a two-party promise: both residents, the terms, the village minute it falls due, its status and the event that began it. Its statuses are asked, accepted, declined, unanswered, kept, broken, overtaken and released.
+- **Requests and commitments.** The record identifies both residents, the terms, the due time and the event that began the request. Its statuses are asked, accepted, declined, unanswered, kept, broken and released.
 - **Choices.** Asking, accepting and declining are actions on the menu, chosen by the Decisions API on the resident's own turn. The request to the action model includes the open commitment, the relevant observation and the standing with the other party.
-- **Credit.** The promise is kept when Oswin's own shift adds the wood before it falls due. If someone else fills the store first, the shortage is relieved, the promise is marked overtaken and Oswin earns no credit. If the hour passes with it open, it is broken, and Oswin knows.
+- **Credit.** Oswin keeps a promise when his chosen shift names the agreement and adds the wood on time. Someone else's delivery may relieve the shortage. Mabel can release Oswin if she learns enough to change her mind. An accepted agreement still open at its deadline expires as broken.
 - **A thread a viewer can follow.** A link to a resident and to a promise. The resident panel shows the open promise, its status and the last verified change. History can be read by participant or commitment beyond the latest 100 entries. A follow button kept in the browser, and "since your last visit". Mabel with a peel at the oven, Oswin working at the woodpile, a stack that changes with the store and an oven that is lit during a bake.
 
 The pilot uses the residents' existing goals. Goal reviews arrive in Stage 2.
 
-**First proof: a staged shortage in a test village.** In a disposable PostgreSQL village, set the store to flour and no wood and place Mabel at the oven. Use recorded or scripted choices to drive every branch: accepted and kept; accepted and broken; declined; left unanswered until it lapses; overtaken by another resident's wood; and a store that changes between choice and execution. Restart the server between a choice and its completion. Then run the same starting position with budgeted real turns to learn whether an open promise changes what the Decisions API chooses.
+**First proof in a test village.** Give Mabel flour and no wood. Exercise agreement, fulfilment, refusal, expiry and a withdrawal after a third party supplies wood. Change the stock between choice and execution and restart the server before an activity completes. Run the same starting position with budgeted model turns to see how residents respond to the information they receive.
 
 **Second proof: one ordinary pressure.** A staged shortage shows that the branches work. It does not show that the story will ever happen. In 60-day runs today the wood store never falls below 10, and never below 20 while a site is open. Choose one ordinary pressure, such as a building project that draws its timber when the footings are set instead of a bundle a shift, and test whether it produces a morning with flour and no wood without scripting. One pressure is enough for the pilot. Personal inventories, deliveries and prices wait until a second story needs them.
 
@@ -335,7 +335,7 @@ Thirty seconds per village minute is the deployed code's default in OpenAI mode.
 
 The central test: **can someone follow Mabel, return the next day, and tell whether Oswin kept his word, and can we trace the answer to choices the residents actually made?**
 
-1. **Every ending is reachable.** In a test village with scripted choices, the promise ends kept, broken, declined, unanswered and overtaken, and one run has the store change between choice and execution. Each ending agrees with the stores.
+1. **Every ending is reachable.** Exercise kept, broken, declined, unanswered and released in a test village. Change the store between choice and execution in one run. Each ending must agree with the work and conversations that actually took place.
 2. **It survives a restart.** Restarting between a choice and its completion yields each outcome exactly once. Earlier history still opens.
 3. **The promise reaches the model.** With the menu held fixed, changing an open promise or the standing between two residents changes the serialized action request.
 4. **Knowledge stays local.** A resident who did not see or hear of the shortage receives no trace of it in their request. Mabel's request shows the wood she last observed and when, and a test makes that differ from the true store.

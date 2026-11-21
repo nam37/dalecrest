@@ -169,6 +169,186 @@ test('only a chosen shift for the promise earns credit, and the requester can le
 });
 
 const adminUrl = process.env.DALECREST_TEST_ADMIN_URL;
+test('an ordinary shift leaves the request alone until a new count, then the requester decides', () => {
+  let v = start();
+  const id = ask(v), m = who(v, 'mabel'), o = who(v, 'oswin');
+  choose(v, o, 'work:cut:', '3');
+  o.instructions = {};
+  const cut = complete(v, o).find(e => e.outcome?.stockDelta?.wood);
+  assert.equal(cut.outcome.stockDelta.wood, 3);
+  assert.equal(cut.outcome.commitmentId, undefined);
+  assert.equal(m.helpBook[id].status, 'asked');
+  assert.equal(body(v, m).input[0].content[0].data.helpRequests[0].reasonToReconsider, undefined);
+  assert.ok(!options(v, m).some(k => k.startsWith('release:')));
+  inspect(v);
+  const news = body(v, m).input[0].content[0].data.helpRequests[0].reasonToReconsider;
+  assert.deepEqual([news.originalCount, news.observedReserve, news.witnessedBy], [0, 3, m.name]);
+  assert.equal(news.quantityAdded, undefined);
+  assert.ok(!JSON.stringify(news).includes('Oswin'));
+  const key = options(v, m).find(k => k.startsWith('release:oswin:'));
+  v.world.supplies.wood = 0;
+  assert.ok(options(v, m).includes(key), 'unseen consumption cannot change her options');
+  choose(v, m, 'retain:', '4');
+  const keep = complete(v, m).find(e => e.outcome?.verb === 'retain');
+  assert.deepEqual(keep.actorIds, ['mabel']);
+  assert.equal(keep.outcome.traceId, '4');
+  assert.equal(keep.outcome.evidence.count, 3);
+  assert.equal(v.world.helpRequests[id].status, 'asked');
+  assert.equal(o.helpBook[id].reviewedFact, undefined);
+  assert.equal(body(v, m).input[0].content[0].data.helpRequests[0].reasonToReconsider.keptOpenOnThisEvidence, true);
+  assert.ok(!options(v, m).some(k => k.startsWith('retain:')));
+  inspect(v);
+  v = JSON.parse(JSON.stringify(v));
+  const resumed = who(v, 'mabel');
+  choose(v, resumed, 'release:oswin:', '5');
+  const release = complete(v, resumed).find(e => e.outcome?.verb === 'release');
+  assert.equal(release.outcome.delivered, true);
+  assert.equal(release.outcome.evidence.count, 0, 'the actor may release even when the count is low');
+  assert.equal(release.outcome.terms.status, 'released');
+  assert.equal(who(v, 'oswin').helpBook[id].status, 'released');
+  assert.equal(v.world.helpRequests[id], undefined);
+});
+
+test('retelling a work outcome preserves who stacked wood and gives no secret reserve balance', () => {
+  const v = start(), id = ask(v), m = who(v, 'mabel'), o = who(v, 'oswin'), edith = who(v, 'edith');
+  // A different resident does the cutting, and Oswin relays the account to Mabel.
+  choose(v, edith, 'work:cut:', '3');
+  edith.instructions = {};
+  complete(v, edith);
+  at(v, o, 'wood');
+  choose(v, edith, 'share:oswin:work-', '4');
+  complete(v, edith);
+  assert.equal(m.helpBook[id].update, undefined);
+  choose(v, o, 'share:mabel:work-', '5');
+  complete(v, o);
+  const r = m.helpBook[id];
+  assert.deepEqual([r.update.observer, r.update.toldBy, r.update.added, r.update.learnedTrace], [edith.name, o.name, 3, '5']);
+  assert.equal(r.update.count, undefined);
+  assert.equal(m.observations.ovenStores.wood, 0);
+  assert.ok(options(v, m).some(k => k.startsWith('retain:')));
+  assert.equal(body(v, who(v, 'alice')).input[0].content[0].data.helpRequests, undefined);
+  const report = structuredClone(r.update);
+  choose(v, o, 'accept:mabel:', '6');
+  complete(v, o);
+  assert.deepEqual(m.helpBook[id].update, report);
+  choose(v, m, 'release:oswin:', '7');
+  at(v, o, 'hall');
+  const missed = complete(v, m).find(e => e.outcome?.verb === 'release');
+  assert.equal(missed.outcome.delivered, false);
+  assert.equal(v.world.helpRequests[id].status, 'accepted');
+  assert.equal(o.helpBook[id].status, 'accepted');
+});
+
+test('a wellkeeper can review a request from a personal water count', () => {
+  const v = start(), alice = who(v, 'alice'), robin = who(v, 'robin');
+  v.world.supplies.water = 0;
+  choose(v, alice, 'work:draw:', '1');
+  complete(v, alice);
+  at(v, robin, 'well');
+  choose(v, alice, 'ask:robin:water-', '2');
+  const id = complete(v, alice).find(e => e.outcome?.verb === 'ask').outcome.requestId;
+  choose(v, alice, 'work:draw:', '3');
+  complete(v, alice);
+  const review = alice.helpBook[id].update;
+  assert.deepEqual([review.count, review.added, review.observer], [8, 4, alice.name]);
+  choose(v, alice, 'release:robin:', '4');
+  complete(v, alice);
+  assert.equal(robin.helpBook[id].status, 'released');
+});
+
+test('deferring restores ordinary activities and an older account cannot reopen the same review', () => {
+  const v = start(), id = ask(v), m = who(v, 'mabel'), o = who(v, 'oswin');
+  choose(v, o, 'work:cut:', '3');
+  o.instructions = {};
+  complete(v, o);
+  // Historical work memories recorded this exact outcome without a structured amount.
+  delete o.observations.lastWork.produced;
+  choose(v, o, 'share:mabel:work-', '4');
+  complete(v, o);
+  assert.deepEqual(options(v, m).map(k => k.split(':')[0]).sort(), ['defer','release','retain']);
+  assert.equal(m.helpBook[id].update.added, 3);
+  choose(v, m, 'defer:', '5');
+  complete(v, m);
+  assert.equal(v.world.helpRequests[id].status, 'asked');
+  assert.ok(options(v, m).some(k => k.startsWith('inspect:')));
+  assert.ok(!options(v, m).some(k => k.startsWith('defer:')));
+  inspect(v);
+  const seen = structuredClone(m.helpBook[id].update);
+  choose(v, m, 'retain:', '6');
+  complete(v, m);
+  // Another messenger brings the older account after the new firsthand count.
+  const e = who(v, 'edith');
+  at(v, e, 'wood');
+  choose(v, o, 'share:edith:work-', '7');
+  complete(v, o);
+  choose(v, e, 'share:mabel:work-', '8');
+  complete(v, e);
+  assert.deepEqual(m.helpBook[id].update, seen);
+  assert.ok(!options(v, m).some(k => k.startsWith('retain:')));
+});
+
+test('PostgreSQL preserves a recheck and applies the withdrawal once across a failed delivery tick', { skip: !adminUrl }, async () => {
+  const admin = new pg.Client({ connectionString: adminUrl }), name = 'dalecrest_review_' + randomUUID().replaceAll('-', '');
+  let db, created;
+  await admin.connect();
+  try {
+    await admin.query('CREATE DATABASE ' + name);
+    created = true;
+    const url = new URL(adminUrl);
+    url.pathname = '/' + name;
+    // The other PostgreSQL case in this file imports db.mjs for its own isolated database.
+    process.env.DATABASE_URL = url.href;
+    process.env.PLANNER_PROVIDER = 'openai';
+    process.env.VILLAGE_SECONDS_PER_MINUTE = '30';
+    db = await import('./db.mjs?request-review-test');
+    await db.initialize();
+    const v = start(), id = ask(v), m = who(v, 'mabel');
+    v.world.supplies.wood = 3;
+    at(v, m, 'oven');
+    at(v, who(v, 'oswin'), 'oven');
+    for (const a of v.actors) {
+      if (a !== m) Object.assign(a.action, { remaining: 400, kind: 'leisure', phase: 'working' });
+      await db.pool.query('UPDATE dalecrest.actors SET state=$1 WHERE id=$2', [a, a.id]);
+    }
+    await db.pool.query('UPDATE dalecrest.world SET state=$1, next_tick=now()', [v.world]);
+    async function chooseInDb(prefix) {
+      const ticket = await db.claimAction(100000);
+      const menu = JSON.parse(ticket.body).questions[0].choices;
+      const choice = menu.find(c => c.value.startsWith(prefix)).value;
+      await db.recordReply(ticket.id, { status: 200, redacted: false, body: JSON.stringify({
+        answers: [{ name: 'next_action', type: 'choice', choice, confidence: 0.8 }], usage: { total_tokens: 40 }
+      }) });
+      assert.equal((await db.applyRecordedDecision(ticket.id)).status, 'applied');
+      return ticket;
+    }
+    async function tickDb() {
+      await db.pool.query('UPDATE dalecrest.world SET next_tick=now()');
+      await db.advance();
+    }
+    const inspection = await chooseInDb('inspect:');
+    for (let i = 0; i < 3; i++) await tickDb();
+    await db.initialize();
+    const release = await chooseInDb('release:oswin:');
+    assert.equal(JSON.parse(release.body).input[0].content[0].data.helpRequests[0].reasonToReconsider.observedReserve, 3);
+    await tickDb();
+    await db.pool.query("ALTER TABLE dalecrest.events ADD CONSTRAINT fail_release CHECK (outcome->>'verb' IS DISTINCT FROM 'release') NOT VALID");
+    await assert.rejects(tickDb(), { code: '23514' });
+    assert.equal((await db.snapshot()).world.helpRequests[id].status, 'asked');
+    await db.pool.query('ALTER TABLE dalecrest.events DROP CONSTRAINT fail_release');
+    await Promise.all([db.advance(), db.advance()]);
+    const after = await db.snapshot();
+    assert.equal(after.world.helpRequests[id], undefined);
+    assert.equal(who(after, 'oswin').helpBook[id].status, 'released');
+    const rows = await db.pool.query("SELECT outcome FROM dalecrest.events WHERE outcome->>'verb'='release'");
+    assert.equal(rows.rowCount, 1);
+    assert.deepEqual([rows.rows[0].outcome.traceId, rows.rows[0].outcome.evidence.learnedTrace], [release.id, inspection.id]);
+  } finally {
+    if (db) await db.pool.end();
+    if (created) await admin.query('DROP DATABASE ' + name);
+    await admin.end();
+  }
+});
+
 test('PostgreSQL delivers the request once and rejects a reply made before the recipient heard it', { skip: !adminUrl }, async () => {
   const admin = new pg.Client({ connectionString: adminUrl }), name = 'dalecrest_social_' + randomUUID().replaceAll('-', '');
   let db, created;

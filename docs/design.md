@@ -35,6 +35,8 @@ Residents can tell neighbours about an oven reading or a completed shift. A low 
 
 Each request asks for one shift's output within 24 village hours. The model can select an agreement, a refusal, an ordinary activity or, after agreeing, the shift naming the request. Only verified production on that named shift earns credit. Accepting, declining, reporting and fulfilling a request always require fresh choices. The current date and deadlines in model requests use the same calendar as the observatory. [Trace a request and its reply](decision-tracing.md#trace-a-request-and-its-reply)
 
+When a requester learns a newer fact about that supply, their next free turn asks whether to keep the request open, withdraw it in person or decide later. A store count records the balance at a particular time. A work report records how much was added. Either can change the resident's assessment. Keeping or deferring is private. A withdrawal reaches the helper only when they meet. The rule applies to firewood, flour, barley and water. [Trace a reconsideration](decision-tracing.md#trace-a-reconsideration)
+
 An actor’s current plan is overwritten by later plans. A chronicle entry alone cannot recover the exact prompt or the model’s confidence. Each OpenAI attempt therefore gets a durable trace ID before the HTTP call. The trace links the exact request and reply to the simulation’s subsequent activities and chronicle entries. Each direct action records its start and subsequent outcomes under the same trace ID. The trace is available through PostgreSQL and excluded from the public village snapshot. [Trace schema and queries](decision-tracing.md).
 
 ### 5. Deploy the application independently of the village data

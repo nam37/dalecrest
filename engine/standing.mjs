@@ -19,7 +19,7 @@ const goalsKey = actor => JSON.stringify(actor.goals || []);
 
 // The routine a chosen action answers, or null for something that is always a choice.
 export function routineOf(action, minute) {
-  if (!action || action.commitmentId || ['conversation', 'inspect', 'social', 'meeting', 'arrive', 'waiting', 'idle'].includes(action.kind)) return null;
+  if (!action || action.commitmentId || ['review', 'conversation', 'inspect', 'social', 'meeting', 'arrive', 'waiting', 'idle'].includes(action.kind)) return null;
   if (action.kind === 'rest' && isNight(minute)) return 'sleep';
   if (action.kind === 'food') return 'meal';
   return 'again:' + matchOf(action);
@@ -69,6 +69,8 @@ export function consider(actor, state, menu, finished, pilot = PILOT) {
   }
   const routine = candidates.find(r => book[r]);
   const result = fresh => ({ fresh, ended });
+  if ([...menu.values()].some(a => a.verb === 'defer')) return result('reconsidering a request for help');
+  if (actor.lastRequestNews > (actor.decidedAt ?? -1)) return result('learned more about an open request');
   if (actor.lastLowCount?.minute > (actor.decidedAt ?? -1)) return result('found the ' + actor.lastLowCount.item + ' reserve low');
   if (actor.lastSocialNews > (actor.decidedAt ?? -1)) return result('heard news from a neighbour');
   if (actor.observations?.ovenStores?.minute > (actor.decidedAt ?? -1)) return result('checked the oven stores');
