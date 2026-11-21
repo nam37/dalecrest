@@ -12,7 +12,9 @@ const isNight = minute => { const t = minute % 1440; return t >= 1260 || t < 340
 function sensible(actor, village, menu) {
   const ids = [...menu.keys()], pick = prefix => ids.find(id => id.startsWith(prefix));
   return pick('meeting:') || (actor.needs.hunger > 55 && pick('food:')) || (isNight(village.world.minute) && pick('rest:'))
-    || pick('work:build:') || pick('work:' + actor.trade + ':') || pick('leisure:');
+    || pick('work:build:') || pick('work:' + actor.trade + ':')
+    || (actor.trade === 'bake' && (!actor.observations?.ovenStores || village.world.minute - actor.observations.ovenStores.minute >= 180) && pick('inspect:'))
+    || pick('leisure:');
 }
 function run(village, minutes, policy, latency = 3) {
   const records = [], events = [];

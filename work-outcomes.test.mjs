@@ -69,31 +69,50 @@ test('PostgreSQL commits competing oven shifts and stock together, including aft
     const { pool } = db;
     const initial = await db.snapshot();
     const stocks = { ...initial.world.supplies, flour: 4, wood: 1, bread: 0 };
-    await pool.query("UPDATE dalecrest.world SET state=jsonb_set(state,'{supplies}',$1), next_tick=now()", [stocks]);
+    await pool.query("UPDATE dalecrest.world SET state=jsonb_set(state,'{supplies}',$1), next_tick=now()", [{ ...stocks, flour: 8, wood: 2 }]);
+    await pool.query("UPDATE dalecrest.actors SET state=jsonb_set(state,'{action,remaining}','100') WHERE id <> 'mabel'");
     const waiting = { kind: 'waiting', phase: 'waiting', label: 'Choosing the next activity', target: 'oven',
       remaining: 0, since: initial.world.minute, why: 'no instruction applies', previous: { kind: 'idle', label: 'Starting the day', target: 'oven' } };
     await pool.query("UPDATE dalecrest.actors SET state=jsonb_set(state,'{action}',$1) WHERE id='mabel'", [waiting]);
-    const ticket = await db.claimAction(7000);
-    const choice = 'work:bake:oven';
-    assert.ok(JSON.parse(ticket.body).questions[0].choices.some(option => option.value === choice));
-    await db.recordReply(ticket.id, { status: 200, requestId: 'test-bake', redacted: false, body: JSON.stringify({
-      answers: [{ name: 'next_action', type: 'choice', choice, confidence: 0.8 }], usage: { total_tokens: 300 } }) });
-    assert.equal((await db.applyRecordedDecision(ticket.id)).status, 'applied');
+    async function choose(choice) {
+      const ticket = await db.claimAction(7000);
+      assert.ok(JSON.parse(ticket.body).questions[0].choices.some(option => option.value === choice));
+      await db.recordReply(ticket.id, { status: 200, requestId: 'test-oven', redacted: false, body: JSON.stringify({
+        answers: [{ name: 'next_action', type: 'choice', choice, confidence: 0.8 }], usage: { total_tokens: 300 } }) });
+      assert.equal((await db.applyRecordedDecision(ticket.id)).status, 'applied');
+      return ticket;
+    }
+    const inspection = await choose('inspect:oven');
+    assert.equal(JSON.parse(inspection.body).input[0].content[0].data.lastOvenCheck, null);
+    for (let i = 0; i < 3; i++) {
+      await pool.query('UPDATE dalecrest.world SET next_tick=now()');
+      await db.advance();
+    }
+    const afterCheck = await db.snapshot();
+    const seen = afterCheck.actors.find(a => a.id === 'mabel').observations.ovenStores;
+    assert.equal(seen.minute, afterCheck.world.minute);
+    const observed = await pool.query("SELECT outcome FROM dalecrest.events WHERE kind='observation' AND actor_ids=ARRAY['mabel']");
+    assert.deepEqual(observed.rows, [{ outcome: { ...seen, traceId: inspection.id } }]);
+    await db.initialize();
+    await pool.query("UPDATE dalecrest.world SET state=jsonb_set(state,'{supplies}',$1), next_tick=now()", [stocks]);
+    const ticket = await choose('work:bake:oven');
+    const recalled = JSON.parse(ticket.body).input[0].content[0].data.lastOvenCheck;
+    assert.deepEqual([recalled.flour, recalled.wood, recalled.minute], [8, 2, seen.minute]);
     await pool.query("UPDATE dalecrest.actors SET state=jsonb_set(state,'{action,remaining}','1') WHERE id='mabel'");
     await pool.query("UPDATE dalecrest.actors SET state=jsonb_set(state,'{action}',$1) WHERE id='robin'", [shift('bake')]);
 
     // Fail at the event insert, after the tick has written the changed world and actors.
-    await pool.query('ALTER TABLE dalecrest.events ADD CONSTRAINT fail_test_tick CHECK (outcome IS NULL)');
+    await pool.query('ALTER TABLE dalecrest.events ADD CONSTRAINT fail_test_tick CHECK (outcome IS NULL) NOT VALID');
     await assert.rejects(db.advance(), { code: '23514' });
     const rolledBack = await db.snapshot();
-    assert.equal(rolledBack.world.minute, initial.world.minute);
+    assert.equal(rolledBack.world.minute, afterCheck.world.minute);
     assert.deepEqual(rolledBack.world.supplies, stocks);
     assert.equal(rolledBack.actors.find(a => a.id === 'mabel').action.remaining, 1);
     await pool.query('ALTER TABLE dalecrest.events DROP CONSTRAINT fail_test_tick');
     await Promise.all([db.advance(), db.advance()]);
     await db.initialize();
     await db.advance();
-    const { rows } = await pool.query('SELECT outcome FROM dalecrest.events WHERE outcome IS NOT NULL ORDER BY id');
+    const { rows } = await pool.query("SELECT outcome FROM dalecrest.events WHERE kind='work' AND outcome IS NOT NULL ORDER BY id");
     assert.equal(rows.length, 2);
     assert.equal(rows[0].outcome.workerId, 'mabel');
     assert.equal(rows[0].outcome.status, 'completed');

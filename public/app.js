@@ -8,7 +8,7 @@ const el = (tag, cls, value) => {
   return node;
 };
 const names = { village: 'Village observatory', residents: 'Village residents', chronicle: 'Village chronicle' };
-const kinds = { village: 'Village', work: 'Work', meal: 'Meal', social: 'Encounter', plan: 'Decision', civic: 'Affairs', build: 'Building', arrival: 'Arrival' };
+const kinds = { village: 'Village', work: 'Work', meal: 'Meal', social: 'Encounter', observation: 'Observation', plan: 'Decision', civic: 'Affairs', build: 'Building', arrival: 'Arrival' };
 const stores = { grain:'Barley', flour:'Flour', bread:'Bread', wood:'Firewood', cloth:'Linen', water:'Water', repair:'Building repairs' };
 const colors = ['#946344','#68764f','#a8654c','#456d65','#827892','#7c6043','#567895','#946e46'];
 let state, latest, frozen=false, selected='agnes', tab='life', route='village', rosterSignature='';

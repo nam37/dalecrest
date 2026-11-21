@@ -38,6 +38,7 @@ function choose(request) {
   const hour = Number(seen.time.slice(0, 2)), night = hour >= 21 || hour < 6;
   const turn = Number(seen.time.slice(3)) + seen.name.length;
   return pick('meeting:') || (seen.needs.hunger > 55 && pick('food:')) || (night && pick('rest:')) || pick('work:build:')
+    || (seen.role === 'Baker' && (pick('work:bake:') || ((!seen.lastOvenCheck || seen.lastOvenCheck.minutesAgo >= 180) && pick('inspect:'))))
     || (turn % 3 === 0 && seen.needs.loneliness > 30 && pick('social:')) || (turn % 3 !== 1 && pick('work:')) || pick('leisure:') || ids[0];
 }
 

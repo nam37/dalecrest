@@ -103,4 +103,24 @@ LIMIT 20;
 
 For a standing instruction the trace belongs to the earlier choice that authorized the repeat. A shift that predates activity-basis logging may have only a trace ID. A local-rule shift has no model trace. A plain woodcutting outcome establishes who supplied wood. Crediting it to a specific promise will require a choice that names that commitment.
 
+## Trace an oven inspection
+
+An `observation` event records the count when a resident finishes checking a built oven in person. The same tick saves their latest reading in `actors.state.observations.ovenStores`. Each subsequent action request carries `lastOvenCheck`, including the place, observation minute and age. It is null before the first check. Counts refer to the shared village supplies available at that oven. If a remembered stock has run out by the time a baker tries to use it, the failed start and a new on-site count appear in the chronicle. Other residents keep their own readings.
+
+This query pairs each reading with the first later request that actually included it. A pending next turn leaves the final two columns empty.
+
+```sql
+SELECT e.id, e.minute, e.outcome, next_turn.id AS next_trace, next_turn.choice
+FROM dalecrest.events e
+LEFT JOIN LATERAL (
+  SELECT t.id, t.choice FROM dalecrest.decision_traces t
+  WHERE t.actor_id = 'mabel' AND t.decision_since IS NOT NULL
+    AND t.observed_minute >= e.minute
+    AND (t.request_body::jsonb #>> '{input,0,content,0,data,lastOvenCheck,minute}')::bigint = e.minute
+  ORDER BY t.id LIMIT 1
+) next_turn ON true
+WHERE e.kind = 'observation' AND e.actor_ids = ARRAY['mabel']
+ORDER BY e.id DESC LIMIT 10;
+```
+
 There is no automatic pruning. The normal PostgreSQL backup includes the trace tables and the activity log. Treat database access and backups as access to the complete model exchanges.

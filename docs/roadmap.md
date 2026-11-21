@@ -137,7 +137,7 @@ Done when: across a full pilot week the clock is never more than one tick late, 
 
 Build one promise that can survive a night's sleep, and let a viewer find out how it ended.
 
-**First increment.** The oven and woodcutting tests now cover committed stock changes, help received during a shift, interruptions, and two bakers competing for the last wood. The PostgreSQL test also forces a failed tick and verifies that retrying records each result exactly once. Next comes the resident's own observation of the oven and store, which the request and promise choices will use. [Inspect a shift outcome](decision-tracing.md#inspect-an-oven-or-woodcutting-shift)
+**Implemented so far.** Shifts record their actual stock changes. Any resident can check the communal oven and carry a personal, dated count of flour and firewood into a later decision. A baker can go back to resolve uncertainty. A depleted store can also surprise someone acting on an older count. The next test is whether someone who learns the oven needs wood can choose to share that fact or ask a neighbour for help. [Inspect a shift outcome](decision-tracing.md#inspect-an-oven-or-woodcutting-shift) · [Trace an oven inspection](decision-tracing.md#trace-an-oven-inspection)
 
 Mabel Ash needs wood for the oven. Oswin Holt cuts it. Mabel may ask Oswin for help, and he may accept, decline or leave it unanswered. If he accepts, the promise can be kept, broken or overtaken by events. Each of those is an ending the village records and a viewer can return to find.
 

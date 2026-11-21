@@ -1,3 +1,5 @@
+import { recalledOvenStores } from './engine/observations.mjs';
+
 export const DECISIONS_MODEL = 'gpt-6-luna';
 
 const choices = [
@@ -23,7 +25,7 @@ export function actionBody(actor, world, menu, names = {}) {
     lastActivity: last && { kind: last.kind, label: last.label, place: names[last.target]?.name || last.target },
     whyThisIsAChoice: actor.action.why,
     time: [Math.floor(time / 60), time % 60].map(n => String(n).padStart(2, '0')).join(':'),
-    stores: world.supplies, recentMemories: actor.memories.slice(-2).map(m => m.text)
+    lastOvenCheck: recalledOvenStores(actor, world.minute), recentMemories: actor.memories.slice(-2).map(m => m.text)
   };
   const options = Array.from(menu, ([value, action]) => ({
     value, description: actionDescription(action, names)
@@ -31,7 +33,7 @@ export function actionBody(actor, world, menu, names = {}) {
   return JSON.stringify({
     model: DECISIONS_MODEL, input: [{ role: 'user', content: [{ type: 'input_json', data: observation }] }],
     questions: [{ type: 'choice', name: 'next_action', choices: options,
-      instructions: 'Choose the one activity this resident will actually begin now. Consider their goals, needs (100 is urgent), time, memories and stores.' }]
+      instructions: 'Choose the activity this resident will begin now. Weigh goals, needs (100 is urgent), time and memories. The last oven check is what they personally counted then. Null means they have not checked. Stocks can change.' }]
   });
 }
 

@@ -5,6 +5,7 @@ import { place, placesOf, route } from './engine/roads.mjs';
 import * as civic from './engine/civic.mjs';
 import { newcomer, wantsNewcomer } from './engine/people.mjs';
 import * as standing from './engine/standing.mjs';
+import { atOven, inspectOven } from './engine/observations.mjs';
 
 export const FOCUSES = ['work', 'social', 'rest', 'food'];
 export const DEFAULT_SEED = 26111;
@@ -141,29 +142,35 @@ function workSite(actor, key, { world, map }) {
   }
   return best;
 }
-function stockObstacle(world, job) {
+function stockObstacle(world, job, allowUnknown = false) {
   for (const [item, quantity] of Object.entries(job.takes || {})) {
+    if (allowUnknown && world.supplies[item] == null) continue;
     if (!(world.supplies[item] >= quantity)) return 'there was too little ' + item + ' in store';
   }
   for (const [item, quantity] of Object.entries(job.makes)) {
+    if (allowUnknown && world.supplies[item] == null) continue;
     if (!(world.supplies[item] <= world.capacity[item] - quantity)) return 'there was too little room in store for ' + item;
   }
   return null;
 }
-function jobOptions(actor, state, allFeasible) {
-  const { world } = state;
+function jobOptions(actor, state, perceived, allFeasible) {
   // When stores run low, anyone can lend a hand in the fields or coppice.
   const list = [...new Set([actor.trade, 'harvest', 'cut', 'draw'])];
   const options = [];
   for (const key of list) {
     const job = jobs[key];
-    if (stockObstacle(world, job)) continue;
+    if (stockObstacle(perceived, job, true)) continue;
     const material = Object.keys(job.makes)[0];
-    const shortage = 1 - world.supplies[material] / world.capacity[material];
+    const amount = perceived.supplies[material];
+    const shortage = amount == null ? 0.5 : 1 - amount / perceived.capacity[material];
     if (!allFeasible && key !== actor.trade && shortage < 0.67) continue;
     const site = workSite(actor, key, state);
     if (!site) continue;
-    const pledged = shortage > 0.5 && actor.memories.some(m => m.shortage === material && world.minute - m.minute < 480);
+    if (key === 'bake') {
+      const oven = place(state.map, site);
+      if (!atOven(actor, oven) || actor.observations?.ovenStores?.site !== site) continue;
+    }
+    const pledged = shortage > 0.5 && actor.memories.some(m => m.shortage === material && perceived.minute - m.minute < 480);
     const score = 22 + 33 * shortage + (actor.trade === key ? 13 : 0) + (pledged ? 12 : 0);
     options.push({ key, score, site });
   }
@@ -200,22 +207,30 @@ function choose(actor, state, menu) {
     }
     choices.push({ score: score + 4 * random(world), kind, label, reason, target, remaining: duration, ...extra });
   }
-  const jobsHere = jobOptions(actor, state, Boolean(menu));
+  const seen = actor.observations?.ovenStores;
+  const perceived = { ...world, supplies: { ...world.supplies, flour: seen?.flour, wood: seen?.wood } };
+  const jobsHere = jobOptions(actor, state, perceived, Boolean(menu));
   const duty = actor.traits.includes('steadfast') ? 5 : 0;
   const weary = (night ? 48 : 0) + Math.max(0, fatigue - 65);
   for (const job of (menu ? jobsHere : jobsHere.slice(0, 1))) {
     const spec = jobs[job.key];
     const material = Object.keys(spec.makes)[0];
-    const reason = 'The village has ' + world.supplies[material] + ' of ' + world.capacity[material] + ' units of ' + material + ' in reserve.';
+    const reason = perceived.supplies[material] == null ? 'I can put in a shift at the ' + spec.at + '.'
+      : 'The last known reserve of ' + material + ' was ' + perceived.supplies[material] + ' units.';
     offer('work', spec.label, job.site, spec.duration, job.score + duty - weary, reason, { job: job.key });
   }
-  const build = civic.buildChoice(actor, state);
+  const build = civic.buildChoice(actor, { ...state, world: perceived });
   if (build) offer('work', build.label, build.project.id, 70, build.score + duty - weary, build.reason, { job: 'build' });
   if (civic.mootOpen(world)) {
     const backs = world.proposals.some(p => p.supporters.includes(actor.id));
     offer('meeting', 'Attending the moot', 'hall', 75, 82 + (backs ? 10 : 0), 'The moot meets at the hall this evening to settle what the village should build.');
   }
   const oven = nearest(actor, map, 'oven');
+  if (oven) {
+    const needsCheck = !atOven(actor, oven) || seen?.site !== oven.id || world.minute - seen.minute >= 180;
+    const score = actor.trade === 'bake' && needsCheck ? 60 - weary : 6;
+    offer('inspect', 'Checking the oven for flour and firewood', oven.id, 3, score, 'I can go to the oven and count what is on hand.');
+  }
   if (world.supplies.bread > 0 && oven) offer('food', 'Taking a loaf at the ' + (oven.id === 'oven' ? 'oven' : 'bakehouse'), oven.id, 17, hunger * 1.35 - 16, 'There is bread to be had and my hunger is ' + Math.round(hunger) + ' out of 100.');
   const lodging = civic.isLodger(actor, map);
   offer('rest', (night ? 'Sleeping ' : 'Resting ') + (lodging ? 'at the hall' : 'at home'), actor.home, night ? 105 : 54, fatigue + (night ? 48 : -9), night ? 'It is time to sleep and recover for tomorrow.' : 'My fatigue has reached ' + Math.round(fatigue) + ' out of 100.');
@@ -415,9 +430,24 @@ function stepMinute(state, events, externalActions, records, pilot) {
       else choose(actor, state);
       continue;
     }
-    if (action.phase === 'travelling' && !travel(actor, state, emit)) continue;
+    if (action.phase === 'travelling') {
+      if (!travel(actor, state, emit)) continue;
+      // A remembered count can be out of date. Discover the obstacle at the oven,
+      // after the decision, so a change elsewhere cannot silently alter the offered menu.
+      if (action.job === 'bake') {
+        const obstacle = stockObstacle(world, jobs.bake);
+        if (obstacle) {
+          endShiftEarly(actor, minute, emit, 'blocked', obstacle);
+          inspectOven(actor, place(map, action.target), world, emit, 'checking a blocked baking shift');
+          action.remaining = 0;
+          continue;
+        }
+      }
+    }
     if (--action.remaining > 0) continue;
-    if (action.kind === 'work' && action.job === 'build') {
+    if (action.kind === 'inspect') {
+      inspectOven(actor, place(map, action.target), world, emit);
+    } else if (action.kind === 'work' && action.job === 'build') {
       civic.labour(actor, state, emit);
     } else if (action.kind === 'work') {
       finishShift(actor, world, emit);
@@ -444,7 +474,12 @@ function stepMinute(state, events, externalActions, records, pilot) {
     let text = speaker + ' exchanged news ' + where + '.';
     let bond = 3, type = 'social', raised;
     const details = {};
-    const shortage = Object.keys(world.capacity).find(k => world.supplies[k] < world.capacity[k] / 4);
+    const shortage = Object.keys(world.capacity).find(k => {
+      if (k === 'flour' || k === 'wood') {
+        return [actor, other].some(a => a.observations?.ovenStores?.[k] < world.capacity[k] / 4);
+      }
+      return world.supplies[k] < world.capacity[k] / 4;
+    });
     if (here?.kind === 'oven' && world.supplies.bread > 0 && Math.max(actor.needs.hunger, other.needs.hunger) > 40) {
       world.supplies.bread--;
       for (const a of [actor, other]) {
