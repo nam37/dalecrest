@@ -85,4 +85,22 @@ LIMIT 30;
 
 For the village as a whole, `node --env-file=.env tools/pilot-report.mjs 24` prints the share of activities by basis, fresh choices per resident per village day, why each was needed, real waiting time, spending, and how late the clock has ever run.
 
+## Inspect an oven or woodcutting shift
+
+Each new baking or woodcutting shift ends with a `work` chronicle entry. Its `outcome` JSONB records the job, intended site, worker, helpers recorded during that shift, and signed changes to common stores. A blocked or interrupted shift records its cause and an empty stock change. The tick commits this event with the inventory and resident state. Older entries have SQL NULL for `outcome`.
+
+```sql
+SELECT e.minute, e.description, e.outcome->>'status' AS status,
+       e.outcome->>'site' AS site, e.outcome->'helperIds' AS helpers,
+       e.outcome->'stockDelta' AS stock_delta, e.outcome->>'reason' AS cause,
+       e.outcome->>'basis' AS basis, t.id AS source_trace, t.choice
+FROM dalecrest.events e
+LEFT JOIN dalecrest.decision_traces t ON t.id = (e.outcome->>'traceId')::bigint
+WHERE e.outcome->>'workerId' IN ('mabel', 'oswin')
+ORDER BY e.id DESC
+LIMIT 20;
+```
+
+For a standing instruction the trace belongs to the earlier choice that authorized the repeat. A shift that predates activity-basis logging may have only a trace ID. A local-rule shift has no model trace. A plain woodcutting outcome establishes who supplied wood. Crediting it to a specific promise will require a choice that names that commitment.
+
 There is no automatic pruning. The normal PostgreSQL backup includes the trace tables and the activity log. Treat database access and backups as access to the complete model exchanges.

@@ -141,9 +141,14 @@ function workSite(actor, key, { world, map }) {
   }
   return best;
 }
-function stocked(world, job) {
-  return Object.entries(job.takes || {}).every(([k, n]) => world.supplies[k] >= n)
-    && Object.entries(job.makes).every(([k, n]) => world.supplies[k] <= world.capacity[k] - n);
+function stockObstacle(world, job) {
+  for (const [item, quantity] of Object.entries(job.takes || {})) {
+    if (!(world.supplies[item] >= quantity)) return 'there was too little ' + item + ' in store';
+  }
+  for (const [item, quantity] of Object.entries(job.makes)) {
+    if (!(world.supplies[item] <= world.capacity[item] - quantity)) return 'there was too little room in store for ' + item;
+  }
+  return null;
 }
 function jobOptions(actor, state, allFeasible) {
   const { world } = state;
@@ -152,7 +157,7 @@ function jobOptions(actor, state, allFeasible) {
   const options = [];
   for (const key of list) {
     const job = jobs[key];
-    if (!stocked(world, job)) continue;
+    if (stockObstacle(world, job)) continue;
     const material = Object.keys(job.makes)[0];
     const shortage = 1 - world.supplies[material] / world.capacity[material];
     if (!allFeasible && key !== actor.trade && shortage < 0.67) continue;
@@ -245,7 +250,11 @@ function travel(actor, state, emit) {
   const { map } = state, action = actor.action;
   if (!action.path) {
     const found = route(map, [actor.position.x, actor.position.y], action.target);
-    if (!found) { action.remaining = 0; return false; }
+    if (!found) {
+      endShiftEarly(actor, state.world.minute, emit, 'blocked', 'the worksite could not be reached');
+      action.remaining = 0;
+      return false;
+    }
     action.path = found.pts;
     if (found.direct && found.from && found.length >= 5 && found.byRoad > found.length * 1.25) action.across = found.from;
   }
@@ -332,10 +341,52 @@ export function startChosen(actor, state, id, trace, pilot = standing.PILOT) {
   return { action: actor.action, waited: minute - since, why, routine: kept ? standing.routineOf(action, minute) : null };
 }
 
+const tracksShift = action => action.kind === 'work' && (action.job === 'bake' || action.job === 'cut');
+
+function recordWork(actor, minute, emit, text, status, stockDelta, reason) {
+  const { action } = actor;
+  const outcome = tracksShift(action) ? {
+    job: action.job, site: action.target, workerId: actor.id, helperIds: action.helpers || [],
+    status, stockDelta, ...(reason && { reason }),
+    ...(action.basis && { basis: action.basis.kind }),
+    traceId: action.basis?.trace ?? action.decisionTraceId ?? null,
+    ...(action.commitmentId != null && { commitmentId: action.commitmentId })
+  } : undefined;
+  memory(actor, minute, text, [actor.id], 'work');
+  emit('work', text, [actor.id], outcome);
+}
+
+function endShiftEarly(actor, minute, emit, status, reason) {
+  if (!tracksShift(actor.action)) return;
+  const task = actor.action.job === 'bake' ? 'baking' : 'woodcutting';
+  recordWork(actor, minute, emit, actor.name + ' could not finish the ' + task + ' shift because ' + reason + '.', status, {}, reason);
+}
+
+function finishShift(actor, world, emit) {
+  const { job: key, target } = actor.action;
+  const job = jobs[key], minute = world.minute;
+  const obstacle = stockObstacle(world, job);
+  if (obstacle) {
+    endShiftEarly(actor, minute, emit, 'blocked', obstacle);
+    return;
+  }
+  if (key === 'harvest') {
+    if (!(world.fields[target] >= 3)) return;
+    world.fields[target] -= 3;
+  }
+  const stockDelta = {};
+  for (const [item, quantity] of Object.entries(job.takes || {})) stockDelta[item] = -quantity;
+  for (const [item, quantity] of Object.entries(job.makes)) stockDelta[item] = (stockDelta[item] || 0) + quantity;
+  for (const [item, change] of Object.entries(stockDelta)) world.supplies[item] += change;
+  actor.lastJob = minute;
+  if (actor.lastWorkDay !== Math.floor(minute / 1440)) { actor.daysWorked++; actor.lastWorkDay = Math.floor(minute / 1440); }
+  recordWork(actor, minute, emit, actor.name + ' ' + job.result + '.', 'completed', stockDelta);
+}
+
 function stepMinute(state, events, externalActions, records, pilot) {
   const { world, actors, map } = state;
   const minute = ++world.minute;
-  const emit = (type, text, actorIds = []) => events.push({ type, minute, text, actorIds });
+  const emit = (type, text, actorIds = [], outcome) => events.push({ type, minute, text, actorIds, ...(outcome && { outcome }) });
   if (minute % 1440 === 360) {
     civic.dawn(state);
     for (const [key, used] of Object.entries({ cloth: 1, repair: 2, water: actors.length })) world.supplies[key] = Math.max(0, world.supplies[key] - used);
@@ -349,7 +400,9 @@ function stepMinute(state, events, externalActions, records, pilot) {
     world.arrivals++;
     emit('arrival', arrival.name + ', a ' + arrival.role.toLowerCase() + ', came up the road looking for work and will lodge at the hall.', [arrival.id]);
   }
-  civic.tick(state, emit, () => random(world));
+  civic.tick(state, emit, () => random(world), actor => {
+    endShiftEarly(actor, minute, emit, 'interrupted', 'the village moot was about to begin');
+  });
   for (const actor of actors) {
     const n = actor.needs;
     const action = actor.action;
@@ -367,18 +420,7 @@ function stepMinute(state, events, externalActions, records, pilot) {
     if (action.kind === 'work' && action.job === 'build') {
       civic.labour(actor, state, emit);
     } else if (action.kind === 'work') {
-      const job = jobs[action.job];
-      const ripe = action.job !== 'harvest' || world.fields[action.target] >= 3;
-      if (stocked(world, job) && ripe) {
-        if (action.job === 'harvest') world.fields[action.target] -= 3;
-        for (const [key, qty] of Object.entries(job.takes || {})) world.supplies[key] -= qty;
-        for (const [key, qty] of Object.entries(job.makes)) world.supplies[key] += qty;
-        const text = actor.name + ' ' + job.result + '.';
-        actor.lastJob = minute;
-        if (actor.lastWorkDay !== Math.floor(minute / 1440)) { actor.daysWorked++; actor.lastWorkDay = Math.floor(minute / 1440); }
-        memory(actor, minute, text, [actor.id], 'work');
-        emit('work', text, [actor.id]);
-      }
+      finishShift(actor, world, emit);
     } else if (action.kind === 'food' && world.supplies.bread >= 1) {
       world.supplies.bread--;
       n.hunger = clamp(n.hunger - 53);
@@ -425,6 +467,10 @@ function stepMinute(state, events, externalActions, records, pilot) {
       if (worker.action.remaining > 4) {
         worker.action.remaining -= 4;
         helper.needs.fatigue = clamp(helper.needs.fatigue + 2);
+        if (tracksShift(worker.action)) {
+          worker.action.helpers ??= [];
+          if (!worker.action.helpers.includes(helper.id)) worker.action.helpers.push(helper.id);
+        }
         text = helper.name + ' lent ' + worker.name + ' a hand with ' + jobs[worker.action.job].label.toLowerCase() + '.';
         bond = 4;
       }

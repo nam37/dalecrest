@@ -218,7 +218,7 @@ export function affairs(state) {
 }
 
 // Called once a simulated minute.
-export function tick(state, emit, random) {
+export function tick(state, emit, random, onMootInterruption) {
   const { world, actors } = state, minute = world.minute, day = minute % 1440;
   if (minute % 20 === 0 && !world.moot) {
     world.proposals = world.proposals.filter(p => minute - p.since < 8640
@@ -232,7 +232,13 @@ export function tick(state, emit, random) {
   }
   if (!world.moot) return;
   // Shortly before the moot everyone awake reconsiders what they are doing.
-  if (minute === world.moot.at - 35) for (const a of actors) if (a.action.kind !== 'rest' || a.needs.fatigue < 60) a.action.remaining = 0;
+  if (minute === world.moot.at - 35) {
+    for (const actor of actors) {
+      if (actor.action.remaining <= 0 || (actor.action.kind === 'rest' && actor.needs.fatigue >= 60)) continue;
+      onMootInterruption?.(actor);
+      actor.action.remaining = 0;
+    }
+  }
   if (minute === world.moot.at + 40) resolve(state, emit, random);
 }
 
