@@ -1,0 +1,1027 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dalecrest roadmap</title>
+<meta name="description" content="The Dalecrest plan, with what is built marked off. Status as of 21 November 2026.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 52'%3E%3Cpath fill='%232d4439' d='M2 3 Q24 -1 46 3V28Q44 41 24 51Q4 42 2 28Z'/%3E%3Cg fill='none' stroke='%23f2e5bd' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M24 39V14m0 9-7-8m7 13 9-10m-9 15L12 23'/%3E%3Cpath fill='%23e1c98e' d='M24 19q-5-5 0-12 5 7 0 12Zm-5 1q-7 0-8-9 7 1 8 9Zm11 2q-1-8 8-12 0 8-8 12Zm-13 6q-8 1-11-7 8-1 11 7Zm11 5q2-8 12-10-2 9-12 10Z'/%3E%3C/g%3E%3C/svg%3E" type="image/svg+xml">
+<style>
+/* The typefaces are the observatory's own. They load from the repository's installed packages
+   and fall back to a bookish serif when this page is opened somewhere without them. */
+@font-face { font-family: "IM Fell English"; src: url("../node_modules/@fontsource/im-fell-english/files/im-fell-english-latin-400-normal.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "IM Fell English"; src: url("../node_modules/@fontsource/im-fell-english/files/im-fell-english-latin-400-italic.woff2") format("woff2"); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: "IM Fell English SC"; src: url("../node_modules/@fontsource/im-fell-english-sc/files/im-fell-english-sc-latin-400-normal.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Alegreya"; src: url("../node_modules/@fontsource/alegreya/files/alegreya-latin-400-normal.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Alegreya"; src: url("../node_modules/@fontsource/alegreya/files/alegreya-latin-400-italic.woff2") format("woff2"); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: "Alegreya"; src: url("../node_modules/@fontsource/alegreya/files/alegreya-latin-600-normal.woff2") format("woff2"); font-weight: 600; font-style: normal; font-display: swap; }
+
+:root {
+  --paper: #efe6cf;
+  --paper-deep: #e3d7b8;
+  --leaf: #fbf6e6;
+  --ink: #2b271d;
+  --ink-soft: #5e5746;
+  --muted: #6d6551;
+  --rule: #cfc3a2;
+  --rule-soft: #e2d8bd;
+  --pine: #2f4234;
+  --moss: #6f7d52;
+  --rust: #9a4a2e;
+  --ochre: #b3863c;
+  --display: "IM Fell English", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --caps: "IM Fell English SC", "IM Fell English", "Palatino Linotype", Georgia, serif;
+  --body: "Alegreya", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --mono: "Cascadia Mono", Consolas, "SF Mono", Menlo, monospace;
+  --done-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='3.5' y='6.5' width='14' height='14' rx='1.5' fill='%23fbf6e6' stroke='%232b271d' stroke-width='1.3'/%3E%3Cpath d='M6.6 13.2l3.9 4.3L21 4' fill='none' stroke='%232f4234' stroke-width='2.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --part-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='3.5' y='6.5' width='14' height='14' rx='1.5' fill='%23fbf6e6' stroke='%232b271d' stroke-width='1.3'/%3E%3Cpath d='M4.6 19.4V7.9l11.5 11.5z' fill='%23b3863c'/%3E%3C/svg%3E");
+  --todo-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='3.5' y='6.5' width='14' height='14' rx='1.5' fill='none' stroke='%23a29574' stroke-width='1.3' stroke-dasharray='2.4 2'/%3E%3C/svg%3E");
+}
+
+* { box-sizing: border-box; }
+html { background: var(--paper); scroll-behavior: smooth; scroll-padding-top: 20px; }
+body {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 18px;
+  line-height: 1.58;
+  /* Laid paper: a faint grain over a page that darkens toward its edges. */
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' seed='7'/%3E%3CfeColorMatrix values='0 0 0 0 .32 0 0 0 0 .27 0 0 0 0 .17 0 0 0 .09 0'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E"),
+    radial-gradient(120% 60% at 50% 0%, #f6efdb 0%, var(--paper) 55%, var(--paper-deep) 100%);
+  background-attachment: scroll, fixed;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--rust); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+a:hover { color: var(--pine); }
+code { font-family: var(--mono); font-size: .78em; background: rgba(179,134,60,.14); padding: .08em .34em; border-radius: 3px; overflow-wrap: anywhere; }
+strong { font-weight: 600; }
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* ---------- Frame ---------- */
+.frame { max-width: 1220px; margin: 0 auto; padding: 0 28px 96px; display: grid; grid-template-columns: 232px minmax(0, 1fr); gap: 56px; }
+.rail { position: sticky; top: 0; align-self: start; max-height: 100vh; overflow: auto; padding: 34px 0 28px; scrollbar-width: thin; }
+.rail .mark { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); margin-bottom: 22px; }
+.rail .mark img { width: 30px; }
+.rail .mark span { font-family: var(--caps); font-size: 1.12rem; letter-spacing: .08em; }
+.rail h2 { font: 400 .78rem/1 var(--caps); letter-spacing: .16em; color: var(--muted); margin: 22px 0 8px; border: 0; padding: 0; }
+.rail ol { list-style: none; margin: 0; padding: 0; border-left: 1px solid var(--rule); }
+.rail a { display: flex; gap: 8px; align-items: baseline; padding: 3px 0 3px 13px; margin-left: -1px; border-left: 2px solid transparent; color: var(--ink-soft); text-decoration: none; font-size: .9rem; line-height: 1.3; }
+.rail a:hover { color: var(--ink); }
+.rail a.here { color: var(--ink); border-left-color: var(--rust); }
+.rail a .n { font-family: var(--display); color: var(--muted); min-width: 1ch; }
+.rail a .pip { flex: none; width: 8px; height: 8px; border-radius: 50%; border: 1px solid var(--muted); margin-left: auto; align-self: center; }
+.pip.built { background: var(--pine); border-color: var(--pine); }
+.pip.hand { background: linear-gradient(90deg, var(--ochre) 50%, transparent 50%); border-color: var(--ochre); }
+.rail .new { font: 400 .62rem/1 var(--caps); letter-spacing: .12em; color: var(--leaf); background: var(--rust); padding: 3px 5px 2px; border-radius: 2px; margin-left: auto; align-self: center; }
+main { min-width: 0; padding-top: 44px; }
+
+/* ---------- Title leaf ---------- */
+.title { position: relative; padding-bottom: 30px; border-bottom: 3px double var(--ink); }
+.eyebrow { font: 400 .86rem/1 var(--caps); letter-spacing: .2em; color: var(--rust); margin: 0 0 14px; }
+h1 { font: 400 clamp(2.9rem, 7vw, 5.2rem)/.94 var(--display); letter-spacing: -.012em; margin: 0 0 20px; }
+h1 em { font-style: italic; color: var(--pine); }
+.lede { font-size: 1.16rem; line-height: 1.5; max-width: 40em; margin: 0 0 14px; }
+.title ul { margin: 14px 0 0; padding-left: 1.1em; max-width: 44em; color: var(--ink-soft); font-size: .97rem; }
+.title li { margin: .3em 0; }
+.title .crest { position: absolute; right: 0; top: -6px; width: 92px; opacity: .92; filter: drop-shadow(0 6px 10px rgba(43,39,29,.22)); }
+
+/* ---------- State of the plan ---------- */
+.state { margin: 34px 0 10px; padding: 26px 28px 24px; background: var(--leaf); border: 1px solid var(--rule); box-shadow: 0 1px 0 #fff inset, 0 18px 34px -24px rgba(43,39,29,.5); position: relative; }
+.state::before { content: ""; position: absolute; inset: 5px; border: 1px solid var(--rule-soft); pointer-events: none; }
+.state h2 { border: 0; margin: 0 0 4px; padding: 0; font-size: 1.6rem; }
+.state > p { margin: 0 0 18px; color: var(--ink-soft); font-size: .95rem; max-width: 46em; }
+.tally { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); margin-bottom: 22px; }
+.tally div { padding: 12px 14px 10px; border-left: 1px solid var(--rule); }
+.tally div:first-child { border-left: 0; padding-left: 0; }
+.tally b { display: block; font: 400 2.5rem/1 var(--display); }
+.tally .d b { color: var(--pine); } .tally .p b { color: var(--ochre); } .tally .t b { color: var(--muted); }
+.tally span { font: 400 .78rem/1.2 var(--caps); letter-spacing: .13em; color: var(--muted); }
+
+/* The lane of stages: one milestone per stage, joined by a dotted way. */
+.lane { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); position: relative; }
+.lane::before { content: ""; position: absolute; left: 5.5%; right: 5.5%; top: 21px; border-top: 2px dotted var(--ink-soft); opacity: .55; }
+.lane li { position: relative; text-align: center; padding: 0 3px; }
+.lane a { color: inherit; text-decoration: none; display: block; }
+.lane .stone { width: 44px; height: 44px; margin: 0 auto 8px; border-radius: 50%; display: grid; place-items: center; font: 400 1.35rem/1 var(--display); background: var(--leaf); border: 1.5px dashed #a29574; color: var(--muted); position: relative; transition: transform .2s ease; }
+.lane a:hover .stone { transform: translateY(-3px) rotate(-4deg); }
+.lane .built .stone { background: var(--pine); border: 1.5px solid var(--pine); color: #f2e5bd; }
+.lane .hand .stone { background: linear-gradient(135deg, var(--ochre) 50%, var(--leaf) 50%); border: 1.5px solid var(--ink); color: var(--ink); }
+.lane .begun .stone { background: linear-gradient(135deg, rgba(179,134,60,.55) 28%, var(--leaf) 28%); border: 1.5px solid var(--ink-soft); color: var(--ink); }
+.lane b { display: block; font: 400 .82rem/1.2 var(--body); font-weight: 600; }
+.lane small { display: block; font: 400 .66rem/1.25 var(--caps); letter-spacing: .1em; color: var(--muted); margin-top: 3px; }
+.lane .built small { color: var(--pine); } .lane .hand small, .lane .begun small { color: #8a6424; }
+.milestone { margin: 16px 0 0; font-size: .86rem; color: var(--ink-soft); display: flex; gap: 10px; align-items: center; }
+.milestone::before { content: ""; flex: none; width: 22.2%; height: 9px; border: 1.5px solid var(--rust); border-top: 0; margin-left: 0; }
+
+.key { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; margin: 22px 0 0; font-size: .88rem; color: var(--ink-soft); }
+.key button { font: inherit; color: var(--ink); background: transparent; border: 1px solid var(--rule); padding: 3px 11px 3px 8px; border-radius: 999px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+.key button i { width: 1.05em; height: 1.05em; background: center/contain no-repeat; }
+.key button[aria-pressed="true"] { background: var(--ink); color: var(--leaf); border-color: var(--ink); }
+.key button:focus-visible, a:focus-visible { outline: 2px solid var(--rust); outline-offset: 2px; }
+.i-done { background-image: var(--done-mark) !important; } .i-part { background-image: var(--part-mark) !important; } .i-todo { background-image: var(--todo-mark) !important; }
+
+/* ---------- Sections ---------- */
+section { margin-top: 68px; }
+h2 { font: 400 2.15rem/1.08 var(--display); margin: 0 0 18px; padding-bottom: 12px; border-bottom: 1px solid var(--ink); display: flex; align-items: baseline; gap: 14px; }
+h2 .sec { font: 400 .8rem/1 var(--caps); letter-spacing: .18em; color: var(--rust); white-space: nowrap; }
+h3 { font: 400 1.5rem/1.15 var(--display); margin: 34px 0 10px; }
+h4 { font: 600 1.02rem/1.3 var(--body); margin: 24px 0 6px; }
+p, ul, ol, table { max-width: 46em; }
+p { margin: 0 0 14px; }
+.wide { max-width: none; }
+.aside { font-size: .93rem; color: var(--ink-soft); border-left: 3px solid var(--ochre); padding: 2px 0 2px 14px; margin: 16px 0; }
+.aside b { font: 400 .74rem/1 var(--caps); letter-spacing: .14em; color: #8a6424; display: block; margin-bottom: 4px; }
+
+.scroll { overflow-x: auto; margin: 16px 0 20px; border-top: 2px solid var(--ink); border-bottom: 1px solid var(--ink); background: rgba(251,246,230,.6); }
+table { border-collapse: collapse; width: 100%; max-width: none; font-size: .92rem; line-height: 1.42; }
+th { font: 400 .76rem/1.2 var(--caps); letter-spacing: .13em; text-align: left; color: var(--muted); padding: 9px 12px 7px; border-bottom: 1px solid var(--ink); white-space: nowrap; }
+td { padding: 9px 12px; vertical-align: top; border-bottom: 1px solid var(--rule-soft); }
+tr:last-child td { border-bottom: 0; }
+td:first-child { font-weight: 600; }
+td.src { color: var(--muted); font-size: .86rem; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* ---------- Marked lists ---------- */
+.checks, .sub { list-style: none; margin: 14px 0; padding: 0; }
+.checks > li, .sub > li { position: relative; padding: 9px 0 9px 38px; border-bottom: 1px dotted var(--rule); transition: opacity .25s ease; }
+.checks > li:last-child { border-bottom: 0; }
+.checks > li::before, .sub > li::before { content: ""; position: absolute; left: 0; top: 8px; width: 28px; height: 28px; background: center/contain no-repeat; }
+.sub { margin: 8px 0 2px; }
+.sub > li { padding: 3px 0 3px 28px; border: 0; font-size: .95rem; }
+.sub > li::before { width: 20px; height: 20px; top: 4px; }
+.checks li[data-s="done"]::before { background-image: var(--done-mark); }
+.checks li[data-s="part"]::before { background-image: var(--part-mark); }
+.checks li[data-s="todo"]::before { background-image: var(--todo-mark); }
+ol.checks { counter-reset: item; }
+ol.checks > li { counter-increment: item; }
+ol.checks > li > .what::before { content: counter(item) ". "; font-family: var(--display); color: var(--muted); }
+.st { display: block; margin: 4px 0 0; font-size: .87rem; line-height: 1.4; font-style: italic; color: var(--ink-soft); max-width: 44em; }
+.st::before { font: 400 .68rem/1 var(--caps); font-style: normal; letter-spacing: .13em; margin-right: 7px; padding: 2px 5px 1px; border-radius: 2px; vertical-align: 1px; }
+[data-s="done"] > .st::before { content: "Done"; color: #f2e5bd; background: var(--pine); }
+[data-s="part"] > .st::before { content: "Under way"; color: var(--ink); background: rgba(179,134,60,.5); }
+[data-s="todo"] > .st::before { content: "Not begun"; color: var(--muted); box-shadow: inset 0 0 0 1px var(--rule); }
+[data-s="todo"] > .st.await::before { content: "Awaiting pilot"; }
+[data-s="part"] > .st.tested::before { content: "Has test cover"; }
+body[data-filter="done"] [data-s]:not([data-s="done"]),
+body[data-filter="part"] [data-s]:not([data-s="part"]),
+body[data-filter="todo"] [data-s]:not([data-s="todo"]) { opacity: .2; }
+body[data-filter] .sub [data-s], body[data-filter] li[data-s]:has(.sub) { opacity: 1; }
+body[data-filter="done"] .sub [data-s]:not([data-s="done"]),
+body[data-filter="part"] .sub [data-s]:not([data-s="part"]),
+body[data-filter="todo"] .sub [data-s]:not([data-s="todo"]) { opacity: .2; }
+
+/* ---------- Stage leaves ---------- */
+.stage { margin-top: 30px; background: var(--leaf); border: 1px solid var(--rule); padding: 26px 30px 24px; position: relative; box-shadow: 0 16px 30px -26px rgba(43,39,29,.6); }
+.stage > header { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 18px; align-items: center; border-bottom: 1px solid var(--rule); padding-bottom: 14px; margin-bottom: 16px; }
+.stage .numeral { grid-row: span 2; font: 400 4.4rem/.8 var(--display); color: var(--rust); min-width: .7em; text-align: center; }
+.stage h3 { margin: 0; font-size: 1.62rem; }
+.stage .meta { grid-column: 2; font: 400 .76rem/1.2 var(--caps); letter-spacing: .14em; color: var(--muted); }
+.stamp { grid-column: 3; grid-row: 1 / span 2; font: 400 .78rem/1.1 var(--caps); letter-spacing: .16em; text-align: center; padding: 8px 12px 6px; border: 3px double currentColor; border-radius: 4px; transform: rotate(-3deg); color: var(--muted); max-width: 9.5em; opacity: .9; }
+.stamp.built { color: var(--pine); } .stamp.hand { color: var(--rust); } .stamp.begun { color: #8a6424; }
+.meter { display: flex; align-items: center; gap: 12px; margin: 0 0 16px; font-size: .84rem; color: var(--muted); }
+.meter .bar { flex: 1; height: 7px; display: flex; background: repeating-linear-gradient(90deg, var(--rule) 0 1px, transparent 1px 6px); border: 1px solid var(--rule); max-width: 320px; }
+.meter .bar i { display: block; height: 100%; width: 0; transition: width .9s cubic-bezier(.2,.7,.2,1); }
+.meter .bar .d { background: var(--pine); } .meter .bar .p { background: var(--ochre); }
+.status { background: rgba(47,66,52,.07); border-left: 3px solid var(--pine); padding: 10px 14px; font-size: .93rem; margin: 0 0 16px; max-width: none; }
+.status b:first-child { font: 400 .76rem/1 var(--caps); letter-spacing: .14em; color: var(--pine); margin-right: 6px; }
+.status .rev { display: block; margin-top: 6px; font-style: italic; color: var(--ink-soft); font-size: .88rem; }
+.donewhen { margin: 20px 0 0; padding: 12px 16px; border: 1px dashed var(--ink-soft); font-size: .95rem; max-width: none; }
+.donewhen b { font: 400 .78rem/1 var(--caps); letter-spacing: .14em; color: var(--rust); margin-right: 6px; }
+.donewhen i { display: block; margin-top: 6px; font-size: .87rem; color: var(--ink-soft); }
+.stage ul:not(.checks):not(.sub) { padding-left: 1.15em; }
+.stage ul:not(.checks):not(.sub) li { margin: .25em 0; }
+.central { font: italic 400 1.42rem/1.36 var(--display); color: var(--pine); border-left: 0; margin: 18px 0 20px; padding: 16px 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); max-width: 34em; }
+
+.principles { list-style: none; counter-reset: p; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 34px; max-width: none; }
+.principles li { counter-increment: p; position: relative; padding: 14px 0 14px 46px; border-top: 1px solid var(--rule); font-size: .96rem; }
+.principles li::before { content: counter(p); position: absolute; left: 0; top: 8px; font: 400 2.2rem/1 var(--display); color: var(--rust); }
+.principles b { display: block; font-weight: 600; font-size: 1.04rem; }
+
+.open { counter-reset: o; list-style: none; padding: 0; }
+.open li { counter-increment: o; position: relative; padding: 10px 0 10px 40px; border-bottom: 1px dotted var(--rule); }
+.open li::before { content: counter(o); position: absolute; left: 0; top: 7px; width: 27px; height: 27px; border: 1px solid var(--ink-soft); border-radius: 50%; display: grid; place-items: center; font: 400 .92rem/1 var(--display); }
+
+/* ---------- Future considerations: loose leaves tucked into the folio ---------- */
+#future { margin-top: 84px; padding: 34px 32px 30px; background:
+    linear-gradient(180deg, rgba(47,66,52,.96), rgba(38,54,43,.98)); color: #efe6cf; position: relative; box-shadow: 0 26px 44px -30px rgba(43,39,29,.9); }
+#future::before { content: ""; position: absolute; inset: 7px; border: 1px solid rgba(242,229,189,.28); pointer-events: none; }
+#future h2 { color: #f6efdb; border-bottom-color: rgba(242,229,189,.45); }
+#future h2 .sec { color: #e1c98e; }
+#future > p { color: #ddd2b4; max-width: 44em; }
+#future a { color: #e9cf96; }
+#future code { background: rgba(242,229,189,.14); }
+.leaves { list-style: none; counter-reset: f; margin: 26px 0 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; max-width: none; }
+.leaves li { counter-increment: f; background: var(--leaf); color: var(--ink); padding: 18px 20px 16px; position: relative; font-size: .93rem; line-height: 1.5; }
+.leaves li:nth-child(odd) { transform: rotate(-.35deg); } .leaves li:nth-child(even) { transform: rotate(.3deg); }
+.leaves li::before { content: counter(f, upper-roman); position: absolute; right: 16px; top: 12px; font: 400 1.3rem/1 var(--display); color: var(--rule); }
+.leaves h3 { font-size: 1.22rem; margin: 0 2.2em 8px 0; }
+.leaves p { margin: 0 0 8px; max-width: none; }
+.leaves .when { margin: 10px 0 0; padding-top: 8px; border-top: 1px dotted var(--rule); font-size: .85rem; color: var(--ink-soft); }
+.leaves .when b { font: 400 .7rem/1 var(--caps); letter-spacing: .13em; color: var(--rust); margin-right: 5px; }
+.leaves a { color: var(--rust) !important; }
+.leaves code { background: rgba(179,134,60,.14) !important; }
+
+footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink); font-size: .86rem; color: var(--muted); max-width: none; }
+
+/* IM Fell's figures are old-style, and its nought reads as a letter. Standalone numbers use Alegreya's lining figures. */
+.lane .stone, .stage .numeral, .tally b, .rail a .n, .principles li::before, .open li::before, ol.checks > li > .what::before {
+  font-family: var(--body); font-variant-numeric: lining-nums; font-feature-settings: "lnum" 1;
+}
+.stage .numeral { font-weight: 400; font-size: 3.6rem; line-height: .9; }
+.stage .numeral::before { content: "Stage"; display: block; font: 400 .66rem/1 var(--caps); letter-spacing: .18em; color: var(--muted); margin-bottom: 5px; }
+
+/* ---------- Arrival ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  .title > *, .state { animation: rise .7s cubic-bezier(.2,.7,.2,1) both; }
+  .title .eyebrow { animation-delay: .05s; } .title h1 { animation-delay: .12s; } .title .lede { animation-delay: .2s; }
+  .title ul { animation-delay: .28s; } .state { animation-delay: .38s; }
+  .title .crest { animation: settle .9s .3s cubic-bezier(.2,.7,.2,1) both; }
+  @keyframes rise { from { opacity: 0; transform: translateY(14px); } }
+  @keyframes settle { from { opacity: 0; transform: translateY(-16px) rotate(-8deg); } }
+}
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .meter .bar i { transition: none; } }
+
+@media (max-width: 980px) {
+  .frame { display: block; padding: 0 18px 64px; }
+  .rail { position: static; max-height: none; padding: 18px 0 0; }
+  .rail nav { display: none; }
+  .rail .mark { margin: 0; }
+  main { padding-top: 22px; }
+}
+@media (max-width: 700px) {
+  body { font-size: 17px; }
+  .title .crest { width: 54px; top: -2px; }
+  h1 { padding-right: 60px; }
+  .eyebrow { padding-right: 64px; letter-spacing: .14em; line-height: 1.4; }
+  .state { padding: 20px 16px 18px; }
+  .tally b { font-size: 1.9rem; } .tally div { padding: 10px 8px 8px; }
+  .lane { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 0; }
+  .lane::before, .milestone::before { display: none; }
+  .stage { padding: 20px 16px 18px; margin-left: -6px; margin-right: -6px; }
+  .stage > header { grid-template-columns: auto 1fr; }
+  .stage .numeral { font-size: 3.2rem; }
+  .stamp { grid-column: 1 / -1; grid-row: auto; justify-self: start; transform: rotate(-1.5deg); max-width: none; margin-top: 8px; }
+  .principles, .leaves { grid-template-columns: 1fr; }
+  #future { padding: 26px 16px 20px; margin-left: -6px; margin-right: -6px; }
+  h2 { font-size: 1.75rem; flex-direction: column; gap: 6px; }
+}
+@media print {
+  body { background: #fff; font-size: 11pt; }
+  .frame { display: block; padding: 0; } .rail, .key { display: none; }
+  .stage, .state { box-shadow: none; break-inside: avoid-page; }
+  #future { background: none; color: var(--ink); box-shadow: none; padding: 0; }
+  #future h2, #future > p { color: var(--ink); } .leaves li { border: 1px solid var(--rule); transform: none !important; break-inside: avoid; }
+  a { color: inherit; }
+}
+</style>
+</head>
+<body>
+<div class="frame">
+
+<aside class="rail">
+  <a class="mark" href="#top"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 52'%3E%3Cpath fill='%232d4439' d='M2 3 Q24 -1 46 3V28Q44 41 24 51Q4 42 2 28Z'/%3E%3Cg fill='none' stroke='%23f2e5bd' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M24 39V14m0 9-7-8m7 13 9-10m-9 15L12 23'/%3E%3Cpath fill='%23e1c98e' d='M24 19q-5-5 0-12 5 7 0 12Zm-5 1q-7 0-8-9 7 1 8 9Zm11 2q-1-8 8-12 0 8-8 12Zm-13 6q-8 1-11-7 8-1 11 7Zm11 5q2-8 12-10-2 9-12 10Z'/%3E%3C/g%3E%3C/svg%3E" alt=""><span>Dalecrest</span></a>
+  <nav aria-label="Contents">
+    <h2>The plan</h2>
+    <ol>
+      <li><a href="#state">State of the plan</a></li>
+      <li><a href="#roles">The roles this plan keeps</a></li>
+      <li><a href="#measurements">Measurements before Stage 0</a></li>
+      <li><a href="#minds">Review: how residents think</a></li>
+      <li><a href="#looks">Review: how it looks</a></li>
+      <li><a href="#principles">Principles</a></li>
+    </ol>
+    <h2>The stages</h2>
+    <ol>
+      <li><a href="#stage-0"><span class="n">0</span> Liveness and choices <i class="pip built"></i></a></li>
+      <li><a href="#stage-1"><span class="n">1</span> The promise pilot <i class="pip hand"></i></a></li>
+      <li><a href="#stage-2"><span class="n">2</span> Goals and memory <i class="pip"></i></a></li>
+      <li><a href="#stage-3"><span class="n">3</span> A village with stakes <i class="pip hand"></i></a></li>
+      <li><a href="#stage-4"><span class="n">4</span> Voices and the moot <i class="pip"></i></a></li>
+      <li><a href="#stage-5"><span class="n">5</span> Worth watching <i class="pip hand"></i></a></li>
+      <li><a href="#stage-6"><span class="n">6</span> Worth following <i class="pip"></i></a></li>
+      <li><a href="#stage-7"><span class="n">7</span> Taking part <i class="pip"></i></a></li>
+      <li><a href="#stage-8"><span class="n">8</span> A wider world <i class="pip"></i></a></li>
+    </ol>
+    <h2>The reckoning</h2>
+    <ol>
+      <li><a href="#order">Order and dependencies</a></li>
+      <li><a href="#cost">Cost and pacing</a></li>
+      <li><a href="#acceptance">Acceptance tests</a></li>
+      <li><a href="#open">Decisions that remain open</a></li>
+      <li><a href="#future">Future considerations <span class="new">New</span></a></li>
+    </ol>
+  </nav>
+</aside>
+
+<main id="top">
+
+<header class="title">
+  <img class="crest" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 52'%3E%3Cpath fill='%232d4439' d='M2 3 Q24 -1 46 3V28Q44 41 24 51Q4 42 2 28Z'/%3E%3Cg fill='none' stroke='%23f2e5bd' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M24 39V14m0 9-7-8m7 13 9-10m-9 15L12 23'/%3E%3Cpath fill='%23e1c98e' d='M24 19q-5-5 0-12 5 7 0 12Zm-5 1q-7 0-8-9 7 1 8 9Zm11 2q-1-8 8-12 0 8-8 12Zm-13 6q-8 1-11-7 8-1 11 7Zm11 5q2-8 12-10-2 9-12 10Z'/%3E%3C/g%3E%3C/svg%3E" alt="">
+  <p class="eyebrow">Canonical plan · 21 November 2026</p>
+  <h1>Dalecrest <em>roadmap</em></h1>
+  <p class="lede">This document is the one plan for moving Dalecrest from a small simulated village to one people want to watch, follow and take part in. It describes work to be done. Nothing here is implemented or deployed by being written down.</p>
+  <ul>
+    <li>The accepted architecture is the <a href="knowledge-graph.md">resident knowledge graph</a>. Where this plan and that document differ, the knowledge graph governs and this plan is wrong.</li>
+    <li><a href="design.md">Design decisions</a> describes the village as it runs today.</li>
+    <li><a href="proposal-village-life.md">Give Dalecrest residents something worth following</a> is design background. It argued for the promise pilot that is now the first milestone, and its reasoning is worth reading. Its stage list is superseded by this one.</li>
+  </ul>
+</header>
+
+<section class="state" id="state" aria-labelledby="state-h">
+  <h2 id="state-h">State of the plan</h2>
+  <p>Marked off on 21 November 2026 against the code on <code>main</code> at <code>d54af9c</code>. A tick means built, tested and merged. It does not mean measured in the live village: each stage's own “done when” is shown separately. <a href="roadmap.md">roadmap.md</a> remains the canonical text and this page is a rendering of it.</p>
+  <div class="tally" aria-live="polite">
+    <div class="d"><b id="n-done">–</b><span>stage items done</span></div>
+    <div class="p"><b id="n-part">–</b><span>under way</span></div>
+    <div class="t"><b id="n-todo">–</b><span>not begun</span></div>
+  </div>
+  <ol class="lane">
+    <li class="built"><a href="#stage-0"><span class="stone">0</span><b>Liveness</b><small>Built · measuring</small></a></li>
+    <li class="hand"><a href="#stage-1"><span class="stone">1</span><b>Promise pilot</b><small>In hand</small></a></li>
+    <li><a href="#stage-2"><span class="stone">2</span><b>Goals, memory</b><small>Not begun</small></a></li>
+    <li class="begun"><a href="#stage-3"><span class="stone">3</span><b>Stakes</b><small>Begun</small></a></li>
+    <li><a href="#stage-4"><span class="stone">4</span><b>Voices</b><small>Groundwork</small></a></li>
+    <li class="begun"><a href="#stage-5"><span class="stone">5</span><b>Watching</b><small>Begun</small></a></li>
+    <li><a href="#stage-6"><span class="stone">6</span><b>Following</b><small>Groundwork</small></a></li>
+    <li><a href="#stage-7"><span class="stone">7</span><b>Taking part</b><small>Groundwork</small></a></li>
+    <li><a href="#stage-8"><span class="stone">8</span><b>Wider world</b><small>Later</small></a></li>
+  </ol>
+  <p class="milestone">Stages 0 and 1 together are the first milestone, the promise pilot.</p>
+  <div class="key" role="group" aria-label="Show items by status">
+    <span>Show</span>
+    <button type="button" data-f="" aria-pressed="true">Everything</button>
+    <button type="button" data-f="done" aria-pressed="false"><i class="i-done"></i>Done</button>
+    <button type="button" data-f="part" aria-pressed="false"><i class="i-part"></i>Under way</button>
+    <button type="button" data-f="todo" aria-pressed="false"><i class="i-todo"></i>Not begun</button>
+  </div>
+</section>
+
+<section id="roles">
+  <h2><span class="sec">§ 1</span>The roles this plan keeps</h2>
+  <p>Three responsibilities are fixed. Every stage below is written to preserve them.</p>
+  <div class="scroll"><table>
+    <thead><tr><th>Role</th><th>Responsibility</th></tr></thead>
+    <tbody>
+      <tr><td>A general-purpose model</td><td>Sets and revises each resident's persistent goals.</td></tr>
+      <tr><td>The Decisions API</td><td>Chooses a meaningful, feasible action in light of those goals, the resident's needs and what the resident knows.</td></tr>
+      <tr><td>The simulation</td><td>Executes the chosen action, establishes what actually happened and records it.</td></tr>
+    </tbody>
+  </table></div>
+  <p>The providers behind the two model roles can change without changing who is responsible for what. The current choices are recorded in <a href="design.md">design decision 6</a>.</p>
+</section>
+
+<section id="measurements">
+  <h2><span class="sec">§ 2</span>Measurements before Stage 0</h2>
+  <p>Each figure is marked with where it came from. “Local rules” means the scoring in <code>choose</code> in <code>sim.mjs</code>, which runs in tests, the Atlas and the preview. It is a stand-in for measurement, not the production decider. The mix of activities the Decisions API chooses in production has not been measured.</p>
+  <div class="scroll"><table>
+    <thead><tr><th>What</th><th>Value</th><th>Source</th></tr></thead>
+    <tbody>
+      <tr><td>Activities a resident starts per village day</td><td>23.2 to 23.3. About 184 a day for eight residents.</td><td class="src">Measured, local rules, 60 days on seeds 26111, 26112 and 26113</td></tr>
+      <tr><td>What those 23 are</td><td>Leisure 11.8, sleep 4.9, visiting 2.2, own trade 1.9, meals 1.4, other work and building 0.7, moot 0.3</td><td class="src">Measured, same runs, founding residents</td></tr>
+      <tr><td>Activities that repeat the one before, in the same place</td><td>55%</td><td class="src">Measured, same runs</td></tr>
+      <tr><td>Separate choices that make up one night's sleep</td><td>4.9</td><td class="src">Measured, same runs</td></tr>
+      <tr><td>Tokens per action request</td><td>589</td><td class="src">Historical production observation used in the original cost estimate</td></tr>
+      <tr><td>Action budget</td><td>7,000 tokens per real hour in the original eight-person pilot, about 168,000 a real day</td><td class="src">Historical configuration</td></tr>
+      <tr><td>Previous clock</td><td>49 seconds until the next tick, which advanced one village minute. The planner reported “waiting for token budget”.</td><td class="src">One public snapshot before the fixed-clock release on 21 November 2026</td></tr>
+      <tr><td>Wood store</td><td>Never below 10 of 32. Never below 20 while a building site was open. No minute with flour and no wood.</td><td class="src">Measured, local rules, same runs</td></tr>
+      <tr><td>Daytime</td><td>56% idling, 17% at a trade, 10% walking, 8% visiting</td><td class="src">Measured, local rules, seed 26111</td></tr>
+      <tr><td>The chronicle</td><td>49 entries a day. One sentence, “took a loaf from the common oven”, is 35% of them. Moots, building and arrivals are 4%.</td><td class="src">Measured, local rules, seed 26111</td></tr>
+      <tr><td>Memory given to the action model</td><td>The two latest memory texts. Changing an older promise or a relationship score leaves the request byte-for-byte identical.</td><td class="src">Checked against <code>decisions.mjs</code> in the background proposal</td></tr>
+    </tbody>
+  </table></div>
+  <p>Walking to a worksite and doing the job there already count as one activity. The 23 a day cannot be reduced by merging the walk into the work.</p>
+  <p>Three conclusions shape the plan.</p>
+  <ol class="checks">
+    <li data-s="done"><div class="what"><strong>The former clock slowed when money for calls ran short.</strong> Stage 0 moved timekeeping off the decision queue.</div><span class="st">The clock runs at a fixed pace whatever the models are doing.</span></li>
+    <li data-s="done"><div class="what"><strong>Many activities repeat.</strong> One night's sleep spanned about five boundaries in the local runs. Stage 0 lets a still-valid model instruction cover routine repeats.</div><span class="st">Standing instructions, in <code>engine/standing.mjs</code>.</span></li>
+    <li data-s="part"><div class="what"><strong>Promises need durable records.</strong> Residents remember encounters, but the model sees only the latest two memory texts. A promise needs to survive later meals and shifts.</div><span class="st">A request for help is now a stored record with its terms, deadline and ending. A viewer cannot yet open one.</span></li>
+  </ol>
+</section>
+
+<section id="minds">
+  <h2><span class="sec">§ 3</span>Review: how the residents think</h2>
+  <p>Stage numbers refer to the plan below. Each finding is marked by whether the fault it describes has since been mended.</p>
+  <ol class="checks">
+    <li data-s="done"><div class="what"><strong>Clock and queue.</strong> Stage 0 made the village clock independent of model latency. A resident can wait while others continue.</div></li>
+    <li data-s="done"><div class="what"><strong>Routine decisions.</strong> Stage 0 lets a resident continue sleeping under a valid earlier instruction. The activity log records the original model choice.</div></li>
+    <li data-s="part"><div class="what"><strong>The action model is shown too little.</strong> <code>actionBody</code> in <code>decisions.mjs</code> sends needs, stores, two memories and a menu. It leaves out relationships, open obligations and what the resident has learned. (Stages 1 and 2)</div><span class="st">The request now carries the resident's own dated oven count, open requests for help with the standing between the two, cold and the weather. Recalled memory and goals that change wait for Stage 2.</span></li>
+    <li data-s="done"><div class="what"><strong>Place names.</strong> Stage 0 added readable place names to option descriptions. Choice IDs still identify the exact action.</div></li>
+    <li data-s="part"><div class="what"><strong>Moot attendance.</strong> A scripted test exercises quorum and construction on the model-driven path. How often real residents choose to attend remains a pilot measurement. <a href="../standing.test.mjs">Standing-instruction tests</a></div><span class="st">The test is in. The live measurement is not.</span></li>
+    <li data-s="todo"><div class="what"><strong>Memory is a short list of sentences.</strong> <code>remember</code> in <code>engine/civic.mjs</code> keeps 18 strings with no source, importance or recall. (Stages 1 and 2)</div><span class="st">The list of 18 is unchanged. Supply counts are kept beside it as observations with a source and a time.</span></li>
+    <li data-s="part"><div class="what"><strong>Everyone knows everything.</strong> The menu and the request use the true stores and every resident's true destination. “Bake” disappears from a menu the moment someone far away uses the last wood. (Stage 1)</div><span class="st">Flour and firewood are known only from an oven inspection or from being told. Barley and water are seen on depositing. Other knowledge is still shared by all.</span></li>
+    <li data-s="part"><div class="what"><strong>Residents cannot ask, agree, decline or vote.</strong> Encounters pick one of five templates. Votes in <code>resolve</code> are supporter-or-random. One template is wrong in effect: “discussed the dwindling grain reserve” fires when a store is under a quarter of its capacity, so building a granary makes it fire more often. (Stage 1 for asking and agreeing, Stage 3 for the fix, Stage 4 for votes)</div><span class="st">Asking, agreeing and declining are model choices. The grain sentence still fires on a quarter of capacity, and votes are unchanged.</span></li>
+    <li data-s="todo"><div class="what"><strong>Relationships are one number that only rises.</strong> After 60 days, 19 of 122 are at the maximum. (Stages 2 and 3)</div></li>
+    <li data-s="part"><div class="what"><strong>People only arrive, and the economy has no pressure.</strong> Nobody is born, grows old, falls ill or leaves. One harvest shift feeds the founding village for a day. (Stage 3)</div><span class="st">Winter fuel is a first real pressure. Lives are not begun.</span></li>
+  </ol>
+  <p>What is already right and should be kept: the simulation is deterministic and replays from JSON; every model exchange is recorded before it is applied; the engine checks a chosen action again before starting it; and the map is data the village owns.</p>
+</section>
+
+<section id="looks">
+  <h2><span class="sec">§ 4</span>Review: how it looks</h2>
+  <p>The map and the walking view are sound and draw the same data. What is missing is legibility and life.</p>
+  <ul class="checks">
+    <li data-s="part"><div class="what">Nothing marks that something is happening. A request, a moot and a building site look like an empty lane.</div><span class="st">A resident who is deciding carries a question mark, and a site shows as stakes, then a frame. Requests and moots are still unmarked.</span></li>
+    <li data-s="part"><div class="what">Every trade is the same arm movement, and a resting resident stands outside their door.</div><span class="st">A resident at home is indoors, with a lit window and smoke standing in for them. The walking view has jointed figures with a tool and a movement for each trade, from commit <code>c3353a5</code>. The map's figures do not.</span></li>
+    <li data-s="part"><div class="what">A selected resident is not in the URL, a fresh page always starts with Agnes, and only the latest 100 chronicle entries can be reached.</div><span class="st">The selected resident is in the address, so a link or a refresh keeps them. A bare address still opens on Agnes, and the chronicle still stops at 100.</span></li>
+    <li data-s="part"><div class="what">There is no season, weather, sound or change with the hour on the map.</div><span class="st">Season, weather, night and the hour show in both views. There is no sound.</span></li>
+    <li data-s="part"><div class="what">The walking view can only follow. It rebuilds the whole scene whenever the map changes.</div><span class="st">A visitor can look around, move closer and click a resident to follow. The village is still rebuilt on every map revision.</span></li>
+    <li data-s="todo"><div class="what">The page fetches every resident's whole record every 2.5 seconds.</div><span class="st">Unchanged. Only the map is fetched on demand.</span></li>
+  </ul>
+</section>
+
+<section id="principles">
+  <h2><span class="sec">§ 5</span>Principles</h2>
+  <ol class="principles">
+    <li><b>The clock does not wait for a model.</b> Village time advances on its own schedule. Budget and latency limit how fresh a resident's decisions are, never how fast time passes.</li>
+    <li><b>Models decide. The engine establishes what is true.</b> A goal, a choice and a ballot come from a model. Whether the action could start, what it changed and who saw it come from the engine.</li>
+    <li><b>Ask a model when there is a choice to make.</b> Routine follows an instruction a model already gave. A real tradeoff gets a fresh decision.</li>
+    <li><b>Keep three kinds of knowledge apart.</b> What the world holds, what each resident knows and what the chronicle can verify are different records, and the plan never lets one stand in for another.</li>
+    <li><b>Record how each activity came about.</b> Fresh choice, standing instruction or a wait. A viewer and an operator can both tell which.</li>
+    <li><b>Pressure before complexity.</b> A mind needs something to weigh. Add one real need and prove a story on it before adding systems.</li>
+    <li><b>Everything notable has an address.</b> A resident, a promise, an event and a day can each be linked to and returned to.</li>
+  </ol>
+</section>
+
+<section id="stages">
+  <h2><span class="sec">§ 6</span>The stages</h2>
+  <p>Stages 0 and 1 together are the first milestone, the promise pilot. Sizes are relative: S is days of work, M is one to two weeks, L is longer.</p>
+
+  <!-- ============ Stage 0 ============ -->
+  <article class="stage" id="stage-0">
+    <header>
+      <span class="numeral">0</span>
+      <h3>Liveness and meaningful choices</h3>
+      <span class="meta">Size M · First milestone</span>
+      <span class="stamp built">Built<br>Measuring</span>
+    </header>
+    <div class="meter"><span class="bar"><i class="d"></i><i class="p"></i></span><span class="count"></span></div>
+    <p class="status"><b>Status · 21 November 2026</b> The VPS deployed <code>19c3f47</code> from GitHub main at 15:35 EST. The timer was active and the app and PostgreSQL passed their health checks. The full-week live measurements are pending. In a scripted stand-in run, 31% of activity boundaries needed a fresh choice, about seven per resident per village day. <a href="design.md">Clock and activity logging</a> · <a href="https://github.com/nam37/dalecrest/commit/19c3f47dea22bb374903dfae83c6c145562b590c">Deployed commit</a></p>
+    <p>The clock advances independently. A routine follows a valid standing instruction from an earlier model choice. When no instruction fits, the resident waits for a fresh decision. The thresholds remain pilot parameters.</p>
+
+    <ul class="checks">
+      <li data-s="done">
+        <div class="what"><strong>A clock that advances independently.</strong> Action requests run alongside the village clock. In OpenAI mode the default pace is 30 real seconds per village minute, or two village days per real day. The pilot will measure how that pace feels to viewers.</div>
+        <span class="st">Commit <code>19c3f47</code>. Tested by “village time passes when no decision ever arrives”.</span>
+      </li>
+      <li data-s="done">
+        <div class="what"><strong>Standing instructions.</strong> A standing instruction is a past model choice that the engine may repeat while the situation it answered still holds. It records:
+          <ul>
+            <li>the routine it covers, such as sleeping at night, a morning meal or the next shift at the resident's trade</li>
+            <li>the action chosen, and the exchange that chose it</li>
+            <li>the goal versions and open commitments in force when it was chosen</li>
+            <li>when it lapses</li>
+          </ul>
+        </div>
+        <span class="st">An instruction keeps its routine, action, exchange, goals and lapse. Anything touching a request for help is always a fresh choice, so no commitment is stored on it.</span>
+      </li>
+      <li data-s="part">
+        <div class="what"><strong>When a fresh decision is needed.</strong> The engine requests one when any of these holds at an activity boundary:</div>
+        <ul class="sub">
+          <li data-s="done">no standing instruction covers the situation</li>
+          <li data-s="done">the instruction has lapsed, or the goals or commitments it was chosen under have changed</li>
+          <li data-s="done">the resident has learned something consequential since, such as a request, a shortage seen or a promise broken</li>
+          <li data-s="part">following the instruction would cost the resident something they have a stake in, such as missing a commitment that falls due</li>
+          <li data-s="done">two needs are urgent at once</li>
+          <li data-s="done">the instructed action can no longer be started</li>
+        </ul>
+        <span class="st">Five of six conditions are in. The engine's only known stake today is a moot falling due, so the breakfast example below is not yet possible.</span>
+      </li>
+    </ul>
+
+    <p>Breakfast shows the difference. Alice's morning meal is routine and follows her standing instruction. On the morning she has promised to meet Edith at the well, the engine can see that eating first would run past the hour she promised. That is a tradeoff, so the same breakfast is put to the Decisions API as a choice, with the promise in view.</p>
+
+    <ul class="checks">
+      <li data-s="done">
+        <div class="what"><strong>What happens when things go wrong.</strong></div>
+        <span class="st">Each row has a test in <code>standing.test.mjs</code> or <code>work-outcomes.test.mjs</code>.</span>
+      </li>
+    </ul>
+    <div class="scroll"><table>
+      <thead><tr><th>Situation</th><th>What the resident does</th><th>What is recorded</th></tr></thead>
+      <tbody>
+        <tr><td>A fresh decision is needed and the reply arrives in time</td><td>Starts the chosen action if the engine finds it still feasible</td><td>Fresh choice, with the exchange</td></tr>
+        <tr><td>The reply is late, or the request is queued behind the budget</td><td>Waits where they are. Needs keep rising and the wait is visible. If a valid instruction comes to cover the moment, such as nightfall, they follow it and the pending request is withdrawn.</td><td>A wait with its cause and length, then whatever ended it</td></tr>
+        <tr><td>The reply arrives after the resident has moved on or the situation has changed</td><td>Nothing. The reply is kept and marked superseded.</td><td>The exchange, its cost and that it was not applied</td></tr>
+        <tr><td>A standing instruction becomes stale</td><td>It is never followed. A fresh decision is requested.</td><td>The instruction's end and the reason</td></tr>
+        <tr><td>No instruction applies</td><td>A fresh decision is requested, and the resident waits for it</td><td>A wait, as above</td></tr>
+        <tr><td>The chosen or instructed action cannot start</td><td>The obstacle is recorded and the next choice goes back to the model</td><td>The obstacle as an outcome the resident can remember</td></tr>
+      </tbody>
+    </table></div>
+    <p>A wait never stops the clock or anyone else. When the budget is short, pending requests are served by how soon a commitment falls due and then by how long the resident has waited.</p>
+
+    <ul class="checks">
+      <li data-s="done">
+        <div class="what"><strong>Record the basis of every activity.</strong> Each activity a resident starts is stored with how it came about: a fresh choice and its exchange, a standing instruction and the exchange that set it, or the wait that preceded it. This is what the pilot measures and what a viewer is later shown.</div>
+        <span class="st"><code>dalecrest.activity_log</code>, reported by <code>tools/pilot-report.mjs</code>.</span>
+      </li>
+      <li data-s="part">
+        <div class="what"><strong>Pilot parameters.</strong> These are starting values to be tuned, not decisions: the clock pace; how long each kind of instruction stays valid; how far ahead the engine looks for a commitment that a routine would run into; the need levels that count as urgent; how long a reply may take before the situation is treated as changed; and how long a resident waits before their request is moved up the queue.</div>
+        <span class="st">Starting values are set. None has been tuned against a pilot week.</span>
+      </li>
+      <li data-s="done">
+        <div class="what"><strong>Covered in Stage 0.</strong> The action model sees place names. Scripted tests exercise a moot reaching quorum, superseded replies and standing instructions through the same action-selection code used in production.</div>
+      </li>
+    </ul>
+
+    <p class="donewhen"><b>Done when</b> across a full pilot week the clock is never more than one tick late, including through a deliberate provider outage; no resident has followed a stale instruction; every activity has a recorded basis; and the share of boundaries that needed a fresh choice is known.<i>Not yet met. The pilot week has not been measured.</i></p>
+  </article>
+
+  <!-- ============ Stage 1 ============ -->
+  <article class="stage" id="stage-1">
+    <header>
+      <span class="numeral">1</span>
+      <h3>The promise pilot</h3>
+      <span class="meta">Size L · First milestone</span>
+      <span class="stamp hand">In hand</span>
+    </header>
+    <div class="meter"><span class="bar"><i class="d"></i><i class="p"></i></span><span class="count"></span></div>
+    <p>Build one promise that can survive a night's sleep, and let a viewer find out how it ended.</p>
+    <p class="status"><b>Implemented so far</b> Residents can check the communal oven, share dated observations, ask a neighbour for supplies and choose how to answer. An accepted request offers a specific shift the resident can choose to keep their word. A requester who learns of a later count or delivery can keep the request open, withdraw it in person or decide later. An ordinary shift changes the stores and earns its worker credit for that work alone. <a href="decision-tracing.md#trace-a-request-and-its-reply">Trace a request and its reply</a> · <a href="decision-tracing.md#trace-a-reconsideration">Trace a reconsideration</a></p>
+    <p>Mabel Ash needs wood for the oven. Oswin Holt cuts it. Mabel may ask Oswin for help, and he may accept, decline or leave it unanswered. An accepted promise can be kept, broken or released by Mabel. Each ending has a record a viewer can return to find.</p>
+
+    <h4>Three kinds of knowledge, kept apart</h4>
+    <div class="scroll"><table>
+      <thead><tr><th>Record</th><th>What it holds</th><th>In the pilot</th></tr></thead>
+      <tbody>
+        <tr><td>The world</td><td>What is true and what happened, established by the engine</td><td>The wood and flour in the store, each shift's actual result, the request and reply as events</td></tr>
+        <tr><td>A resident's knowledge</td><td>What that resident observed or was told, with its source and the village minute they learned it</td><td>Mabel saw the oven had flour and no wood at a certain hour. Oswin, at the coppice, did not.</td></tr>
+        <tr><td>The chronicle</td><td>What a viewer can be shown as verified</td><td>That Mabel asked, what Oswin answered, and whether wood arrived from his own shift</td></tr>
+      </tbody>
+    </table></div>
+    <p>The chronicle states a reason only when a record supports it. An action chosen as “Cut wood for Mabel's request” names the commitment and can be credited to it. A plain “Cut wood” establishes the work and its result and nothing about why.</p>
+
+    <h4>What gets built</h4>
+    <ul class="checks">
+      <li data-s="done">
+        <div class="what"><strong>Outcomes.</strong> For oven and woodcutting shifts, record the site, the participants, the actual change to the stores and any commitment the choice named, in the same transaction as the change. Record a fruitless or interrupted shift too.</div>
+        <span class="st">Commit <code>b6d7b8d</code>, with <code>work-outcomes.test.mjs</code>.</span>
+      </li>
+      <li data-s="done">
+        <div class="what"><strong>Observations.</strong> A resident's knowledge of the stores comes from being there or being told. Away from the oven, Mabel's menu offers “Go and check the oven”, and the trip has an outcome even when there is no fuel. Once there, the engine offers the jobs she can actually start.</div>
+        <span class="st">Commits <code>ee1a785</code> and <code>2725032</code>, with <code>oven-observation.test.mjs</code>.</span>
+      </li>
+      <li data-s="done">
+        <div class="what"><strong>Requests and commitments.</strong> The record identifies both residents, the terms, the due time and the event that began the request. Its statuses are asked, accepted, declined, unanswered, kept, broken and released.</div>
+        <span class="st">All seven statuses exist in <code>engine/exchanges.mjs</code>. A request asks for one shift's output within 24 village hours.</span>
+      </li>
+      <li data-s="done">
+        <div class="what"><strong>Choices.</strong> Asking, accepting and declining are actions on the menu, chosen by the Decisions API on the resident's own turn. The request to the action model includes the open commitment, the relevant observation and the standing with the other party.</div>
+      </li>
+      <li data-s="done">
+        <div class="what"><strong>Credit.</strong> Oswin keeps a promise when his chosen shift names the agreement and adds the wood on time. Someone else's delivery may relieve the shortage. Mabel can release Oswin if she learns enough to change her mind. An accepted agreement still open at its deadline expires as broken.</div>
+        <span class="st">Commit <code>45e3e16</code> added reconsidering and release. Tested in <code>social-turns.test.mjs</code>.</span>
+      </li>
+      <li data-s="part">
+        <div class="what"><strong>A thread a viewer can follow.</strong></div>
+        <ul class="sub">
+          <li data-s="done">A link to a resident</li>
+          <li data-s="todo">A link to a promise</li>
+          <li data-s="todo">The resident panel shows the open promise, its status and the last verified change</li>
+          <li data-s="todo">History can be read by participant or commitment beyond the latest 100 entries</li>
+          <li data-s="todo">A follow button kept in the browser, and “since your last visit”</li>
+          <li data-s="part">Mabel with a peel at the oven, Oswin working at the woodpile</li>
+          <li data-s="todo">A stack that changes with the store</li>
+          <li data-s="done">An oven that is lit during a bake</li>
+        </ul>
+        <span class="st">The promise lives in the records and cannot yet be seen on the page. The peel and the axe are in the walking view, from commit <code>c3353a5</code>.</span>
+      </li>
+    </ul>
+    <p>The pilot uses the residents' existing goals. Goal reviews arrive in Stage 2.</p>
+
+    <ul class="checks">
+      <li data-s="part">
+        <div class="what"><strong>First proof in a test village.</strong> Give Mabel flour and no wood. Exercise agreement, fulfilment, refusal, expiry and a withdrawal after a third party supplies wood. Change the stock between choice and execution and restart the server before an activity completes. Run the same starting position with budgeted model turns to see how residents respond to the information they receive.</div>
+        <span class="st">The scripted branches, the changed stock and the restart are covered by automated tests. A run with budgeted model turns is not on record.</span>
+      </li>
+      <li data-s="done">
+        <div class="what"><strong>Second proof: one ordinary pressure.</strong> A staged shortage shows that the branches work. It does not show that the story will ever happen. In 60-day runs today the wood store never falls below 10, and never below 20 while a site is open. Choose one ordinary pressure, such as a building project that draws its timber when the footings are set instead of a bundle a shift, and test whether it produces a morning with flour and no wood without scripting. One pressure is enough for the pilot. Personal inventories, deliveries and prices wait until a second story needs them.</div>
+        <span class="st">Winter fuel. Seed 26113 gives 15 mornings with flour and no firewood, held as a test in <code>seasons.test.mjs</code>.</span>
+      </li>
+    </ul>
+    <p class="status"><b>Status · 21 November 2026</b> Winter fuel is the chosen pressure. Hearths draw firewood from the common store on cold mornings, and in seeded runs under local rules a morning with flour and no wood arises unscripted, with a baker learning of it by going to look. Whether it changes what the Decisions API chooses is not yet measured. <a href="design.md">Design decision 11</a><span class="rev">Revised for this edition: roadmap.md still says this is on the <code>winter-fuel</code> branch. It was merged to <code>main</code> in <code>db81515</code> and pushed. Whether the VPS has picked it up was not checked.</span></p>
+
+    <p class="donewhen"><b>Done when</b> the <a href="#acceptance">acceptance tests</a> at the end of this document pass.<i>Not yet met. Six of the ten have automated cover and four await the pilot.</i></p>
+  </article>
+
+  <!-- ============ Stage 2 ============ -->
+  <article class="stage" id="stage-2">
+    <header>
+      <span class="numeral">2</span>
+      <h3>Goals and memory</h3>
+      <span class="meta">Size M · Needs the pilot's observations and commitments</span>
+      <span class="stamp">Not begun</span>
+    </header>
+    <div class="meter"><span class="bar"><i class="d"></i><i class="p"></i></span><span class="count"></span></div>
+    <p>Give each resident goals that persist and change for reasons, set by the general-purpose model.</p>
+
+    <ul class="checks">
+      <li data-s="todo"><div class="what"><strong>Two kinds of goal.</strong></div><span class="st">Residents still hold the goals they were founded with.</span></li>
+    </ul>
+    <div class="scroll"><table>
+      <thead><tr><th></th><th>A goal the engine can verify</th><th>A goal only evidence can inform</th></tr></thead>
+      <tbody>
+        <tr><td>Example</td><td>“Four buckets in the barrels by dusk.”</td><td>“Earn Edith's trust.”</td></tr>
+        <tr><td>What it carries</td><td>A completion condition from a fixed vocabulary the engine can evaluate: a store level by a time, a commitment kept, a place reached, a work finished</td><td>No condition. A statement of what the resident wants and whom it concerns.</td></tr>
+        <tr><td>What the engine does</td><td>Marks it met, missed or overtaken, and records the outcome that settled it</td><td>Never declares it achieved. Records the evidence that bears on it: promises kept and broken between the two, and Edith's own responses, such as accepting or declining a request, a visit returned, a vote.</td></tr>
+        <tr><td>Who decides it is finished</td><td>The engine, from the record</td><td>The goal-setting model, which reads the evidence and keeps, revises or retires the goal</td></tr>
+      </tbody>
+    </table></div>
+
+    <ul class="checks">
+      <li data-s="todo">
+        <div class="what"><strong>Goal reviews.</strong> A review is triggered when a resident needs direction, when a goal is met or missed, or when they learn something consequential. Between reviews the last valid goals are reused, including when the goal-setting model is unavailable. Reviews have their own spending cap so they never take turns from action choices. A review may also set or renew standing instructions for the resident's routines.</div>
+        <span class="st">The model for this work is chosen, in design decision 6. No review runs.</span>
+      </li>
+      <li data-s="todo">
+        <div class="what"><strong>The chain in PostgreSQL.</strong> Each link is stored, so an operator can follow a resident from a source event to an outcome without replaying the village.
+          <ol>
+            <li>An event in the world becomes an observation for each resident who saw or heard of it, with source and time.</li>
+            <li>A goal review reads observations and returns goal versions. Each version records its owner, its kind, its condition if it has one, the observations it rests on and the exchange that produced it.</li>
+            <li>An action exchange records the goal versions, commitments and observations it was given, the menu and the choice.</li>
+            <li>The outcome is linked to that choice.</li>
+            <li>The outcome becomes an observation for whoever witnessed it, and may trigger the next review.</li>
+          </ol>
+        </div>
+        <span class="st">Links 3 and 4 exist for action choices, through decision traces. The goal links do not.</span>
+      </li>
+      <li data-s="todo">
+        <div class="what"><strong>Memory.</strong> Replace the 18-sentence list with stored observations that carry source, time, the people and place involved and an importance. For any request, recall by recency, importance and relevance to the people and place at hand. Start with scored SQL.</div>
+      </li>
+      <li data-s="todo">
+        <div class="what"><strong>Relationships with substance.</strong> Separate warmth from trust. Mabel can stay fond of Oswin and become less willing to rely on him after a missed promise. Both move on recorded events and both can fall.</div>
+      </li>
+      <li data-s="todo">
+        <div class="what"><strong>A resident's own words.</strong> A review may return one sentence in the resident's voice explaining a revision. It is published as the resident's stated intention. It is not presented as a verified motive.</div>
+      </li>
+    </ul>
+    <p class="donewhen"><b>Done when</b> a verifiable goal is settled by the engine with the outcome that settled it; a relational goal is kept, revised or retired by a review that cites recorded evidence; two residents hold different beliefs about the same fact; a goal survives several activities and a night's sleep; and the chain from observation to outcome can be read with one query.</p>
+  </article>
+
+  <!-- ============ Stage 3 ============ -->
+  <article class="stage" id="stage-3">
+    <header>
+      <span class="numeral">3</span>
+      <h3>A village with stakes</h3>
+      <span class="meta">Size M · Engine rules</span>
+      <span class="stamp begun">Begun</span>
+    </header>
+    <div class="meter"><span class="bar"><i class="d"></i><i class="p"></i></span><span class="count"></span></div>
+    <p>Give residents more to weigh. This stage is engine work and adds no model calls of its own. It adds situations in which a choice is real, which the pilot will have shown how to count.</p>
+    <ul class="checks">
+      <li data-s="part">
+        <div class="what"><strong>Seasons and weather.</strong> A year of about 48 village days. Fields produce only in their season. Winter burns wood and eats the stores.</div>
+        <span class="st">The village has a calendar, daylight, weather and hearths that burn the woodpile. Barley is still gathered in January, and the year is the real 365 days, which is open decision 10.</span>
+      </li>
+      <li data-s="todo">
+        <div class="what"><strong>Households.</strong> Each cottage has its own larder and woodpile, so one household can run short while the village does not.</div>
+        <span class="st">A household can wake to a cold hearth, but it draws on the common store.</span>
+      </li>
+      <li data-s="todo">
+        <div class="what"><strong>Lives.</strong> Courtship, marriage, children, old age and death. Illness from hunger, cold or overwork. A resident who is not housed or fed for long leaves.</div>
+        <span class="st">Cold is now a fourth need, and a chilled resident sleeps badly. Nothing follows from it yet.</span>
+      </li>
+      <li data-s="part">
+        <div class="what"><strong>A working day.</strong> Trades have hours, the mill and oven have queues, buildings decay and need the carpenter, and feast days are for the green.</div>
+        <span class="st">Fields and coppice are worked by daylight only. Queues, decay and feast days are not begun.</span>
+      </li>
+      <li data-s="todo">
+        <div class="what"><strong>Outside events.</strong> A peddler, a tax collector, a storm, a stray herd.</div>
+      </li>
+      <li data-s="part">
+        <div class="what"><strong>A chronicle that selects.</strong> Each event carries a salience. Routine goes to a resident's own log. Measure food in days, not as a fraction of a bin, so that building a granary no longer reads as a shortage.</div>
+        <span class="st">The page opens on highlights that leave routine out. Events carry no salience of their own, and food is still a fraction of a bin.</span>
+      </li>
+    </ul>
+    <p>Local rules can exercise these mechanics cheaply in the Atlas and in tests. They are a harness for the engine. What residents do about a hard winter is still chosen by the models.</p>
+    <p class="donewhen"><b>Done when</b> in harness runs no sentence is more than 10% of the chronicle and a hard winter arrives that the stores can fail to cover; and in the live village the number of real tradeoffs per resident per day, as Stage 0 counts them, has risen without the clock or the budget giving way.</p>
+  </article>
+
+  <!-- ============ Stage 4 ============ -->
+  <article class="stage" id="stage-4">
+    <header>
+      <span class="numeral">4</span>
+      <h3>Voices: competing interests and the moot</h3>
+      <span class="meta">Size L · Needs Stage 2</span>
+      <span class="stamp">Groundwork<br>only</span>
+    </header>
+    <div class="meter"><span class="bar"><i class="d"></i><i class="p"></i></span><span class="count"></span></div>
+    <p>Apply the pilot's mechanism to a second problem, and let the village decide things by people taking positions.</p>
+    <ul class="checks">
+      <li data-s="todo"><div class="what"><strong>A second story.</strong> A lodger wants a cottage while the growers want another field. Residents who hear a proposal are offered positions on it.</div></li>
+      <li data-s="todo"><div class="what"><strong>Ballots.</strong> When the moot opens, each attending resident receives an explicit ballot from the Decisions API, with their own goals, obligations and what they know. The engine counts recorded ballots, resolves quorum, deducts materials and builds through the existing civic rules. Support, opposition, abstention and a postponed work are all valid endings.</div><span class="st">Votes are still supporter-or-random. The moot itself reaches quorum and builds on the model-driven path.</span></li>
+      <li data-s="part"><div class="what"><strong>News travels.</strong> Facts spread through conversation and witness, using Stage 2's observations. Two test villages with different witnesses give residents different evidence. Rumour can be wrong.</div><span class="st">Supply counts and work reports already pass by word of mouth and keep their first witness and time. Other news, and rumour that can be wrong, are not begun.</span></li>
+      <li data-s="todo"><div class="what"><strong>Words.</strong> For an exchange that matters, the general-purpose model may write what was said. The positions and their effects are already decided and recorded. The words are labelled as an account.</div></li>
+      <li data-s="todo"><div class="what"><strong>A wider agenda.</strong> A catalogue of works the engine can build and bylaws it can enforce. Residents propose from it. The catalogue grows by code.</div></li>
+    </ul>
+    <p class="donewhen"><b>Done when</b> a ballot can be traced to the goals and observations its voter was given; a piece of news can be followed from the person who saw it to the person who acted on it; and a moot runs to a valid outcome on the production path with every ballot recorded.</p>
+  </article>
+
+  <!-- ============ Stage 5 ============ -->
+  <article class="stage" id="stage-5">
+    <header>
+      <span class="numeral">5</span>
+      <h3>Worth watching</h3>
+      <span class="meta">Size M · Can start alongside Stage 3</span>
+      <span class="stamp begun">Begun</span>
+    </header>
+    <div class="meter"><span class="bar"><i class="d"></i><i class="p"></i></span><span class="count"></span></div>
+    <p>Presentation. The pilot delivers the first of it: links, the promise thread and readable work at the oven and woodpile.</p>
+    <ul class="checks">
+      <li data-s="todo"><div class="what"><strong>Show events where they happen</strong>, on the map and in the walking view. A chronicle entry takes you to its place and time.</div></li>
+      <li data-s="todo"><div class="what"><strong>A director.</strong> A watch mode that follows whoever is in the middle of something and holds on the scene. It is what a first-time visitor sees.</div></li>
+      <li data-s="done"><div class="what"><strong>Show the basis.</strong> A resident who is waiting on a decision looks like someone making up their mind. A resident following routine looks like routine.</div><span class="st">Each activity in the resident panel is tagged routine, fresh choice or deciding, with the reason in plain words. A deciding resident carries a question mark on the map.</span></li>
+      <li data-s="todo"><div class="what"><strong>Yesterday in Dalecrest.</strong> A short account of each village day written by the general-purpose model on its own budget. Every claim in it must cite an event.</div></li>
+      <li data-s="part"><div class="what"><strong>Seasons, weather and the hour</strong> in both views. Tools in hand, a movement for each trade, residents who go indoors.</div><span class="st">Seasons, weather, night and going indoors are in both views. Tools and trade movements arrived in commit <code>c3353a5</code>, in the walking view only.</span></li>
+      <li data-s="part"><div class="what"><strong>A richer parish.</strong> Gardens, fences, woodpiles, animals, moving water, sound.</div><span class="st">Kitchen gardens, light moving on the river and drifting cloud shadow. No fences, woodpiles, animals or sound.</span></li>
+      <li data-s="todo"><div class="what"><strong>Time-lapse</strong> of the village's growth from stored map revisions.</div></li>
+      <li data-s="todo"><div class="what"><strong>Streaming.</strong> Send changes to the page as they happen. Update the walking view in place.</div><span class="st">The page polls every 2.5 seconds. Walking is animated between snapshots, which hides most of the gap.</span></li>
+    </ul>
+    <p class="donewhen"><b>Done when</b> someone who opens the site with no explanation stays more than two minutes and can say afterwards what happened while they watched.</p>
+  </article>
+
+  <!-- ============ Stage 6 ============ -->
+  <article class="stage" id="stage-6">
+    <header>
+      <span class="numeral">6</span>
+      <h3>Worth following</h3>
+      <span class="meta">Size M · Needs Stages 1 and 2</span>
+      <span class="stamp">Groundwork<br>only</span>
+    </header>
+    <div class="meter"><span class="bar"><i class="d"></i><i class="p"></i></span><span class="count"></span></div>
+    <ul class="checks">
+      <li data-s="part"><div class="what"><strong>Pages with addresses</strong> for every resident, household, promise, moot and day.</div><span class="st">A resident has an address, such as <code>#village/agnes</code>. Nothing else does.</span></li>
+      <li data-s="todo"><div class="what"><strong>Follow</strong> with no account, plus a feed for the village and for each resident, a weekly letter and a webhook.</div></li>
+      <li data-s="todo"><div class="what"><strong>Why did she do that?</strong> A public, trimmed view of the record: what the resident knew, which goals were in force, whether the activity was a fresh choice or routine, and what happened. Motive is shown only where a record supports it. The full exchange stays private.</div></li>
+      <li data-s="todo"><div class="what"><strong>An archive</strong> of every day of the chronicle with the map as it was.</div></li>
+    </ul>
+    <p class="donewhen"><b>Done when</b> in a small pilot, people voluntarily return to check on a resident, and it is known which unresolved matter brought them back.</p>
+  </article>
+
+  <!-- ============ Stage 7 ============ -->
+  <article class="stage" id="stage-7">
+    <header>
+      <span class="numeral">7</span>
+      <h3>Taking part</h3>
+      <span class="meta">Size L · Needs Stage 4</span>
+      <span class="stamp">Groundwork<br>only</span>
+    </header>
+    <div class="meter"><span class="bar"><i class="d"></i><i class="p"></i></span><span class="count"></span></div>
+    <p>Let visitors introduce circumstances. Residents keep the final say over their own actions.</p>
+    <ol class="checks">
+      <li data-s="todo"><div class="what"><strong>React.</strong> Visitors mark events. This informs the director and changes nothing in the village.</div></li>
+      <li data-s="todo"><div class="what"><strong>A petition, in a separate village.</strong> A persistent pilot village with its own database and model allowance. A viewer posts a petition for a second well. One open petition per subject. Its origin is recorded, residents who encounter it may ignore, contest or support it, and the petitioner is shown what became of it.</div></li>
+      <li data-s="todo"><div class="what"><strong>The peddler's cart.</strong> Visitors choose what the peddler brings from a short list.</div></li>
+      <li data-s="todo"><div class="what"><strong>Letters.</strong> A short, screened, rate-limited letter to a resident, which enters the village only as an observation from far away. Visitor text is data to a model, never instruction.</div></li>
+      <li data-s="part"><div class="what"><strong>Your own village.</strong> A shareable link to an Atlas village first. Hosted villages later.</div><span class="st">The Atlas already founds a village from <code>?seed=</code> in its address. Hosted villages are not begun.</span></li>
+    </ol>
+    <p class="donewhen"><b>Done when</b> a repeat submission creates one petition; a petition can lapse unheard or lose a vote; every resident response links to a real choice; and the original village carried on independently throughout.</p>
+  </article>
+
+  <!-- ============ Stage 8 ============ -->
+  <article class="stage" id="stage-8">
+    <header>
+      <span class="numeral">8</span>
+      <h3>A wider world</h3>
+      <span class="meta">Later</span>
+      <span class="stamp">Not begun</span>
+    </header>
+    <div class="meter"><span class="bar"><i class="d"></i><i class="p"></i></span><span class="count"></span></div>
+    <ul class="checks">
+      <li data-s="todo"><div class="what">More than one village with a road between them. This multiplies everything above, including the cost, and waits until one village holds an audience.</div></li>
+    </ul>
+  </article>
+</section>
+
+<section id="order">
+  <h2><span class="sec">§ 7</span>Order and dependencies</h2>
+  <ul>
+    <li>Stages 0 and 1 are the first milestone and are built together. The pilot is what tunes Stage 0's parameters.</li>
+    <li>Stage 2 needs the observations and commitments the pilot introduces.</li>
+    <li>Stage 3 is engine work and can begin once Stage 0 can count real tradeoffs. Its presentation counterpart, Stage 5, can run beside it.</li>
+    <li>Stage 4 needs Stage 2's goals and observations.</li>
+    <li>Stage 6 needs the records from Stages 1 and 2 and reads best after Stage 5's daily account.</li>
+    <li>Stage 7 needs Stage 4's ballots and positions, which are what make a visitor's petition something residents can answer.</li>
+  </ul>
+</section>
+
+<section id="cost">
+  <h2><span class="sec">§ 8</span>Cost and pacing</h2>
+  <p class="aside"><b>Since this was written</b>The hosted village now keeps at least ten residents, each with up to 48,000 tokens per rolling real hour under a village ceiling of 480,000 (<a href="design.md">design decision 3</a>). The figures below are the plan's original eight-resident estimate against 168,000 a real day and have not been reworked.</p>
+
+  <h4>Pre-Stage 0 baseline</h4>
+  <ul>
+    <li>A resident reaches about 23 activity boundaries per village day. Eight residents reach roughly 184.</li>
+    <li>The historical production sample used 589 tokens per action request.</li>
+    <li>The original pilot budget was about 168,000 tokens a real day, which funds about 285 requests of that size.</li>
+    <li>Under the former one-request-per-boundary design, those assumptions imply about 108,000 tokens per village day for eight residents. Spending limited the pace to roughly 1.5 village days per real day.</li>
+  </ul>
+
+  <h4>What can be avoided</h4>
+  <p>These follow from the measured mix, which is a local-rule mix and will differ in production.</p>
+  <ul>
+    <li>One night's sleep is 4.9 boundaries and one decision. That is about 4 avoidable requests per resident per village day.</li>
+    <li>55% of boundaries repeat the activity before, in the same place. If a repeat with nothing changed follows a standing instruction, about 12.8 of the 23 need no request.</li>
+    <li>Meals are 1.4 a day and are routine unless they run into something.</li>
+  </ul>
+
+  <h4>Assumptions</h4>
+  <p>None of these is measured.</p>
+  <div class="scroll"><table>
+    <thead><tr><th>Quantity</th><th class="num">Low</th><th class="num">High</th><th>Why it is uncertain</th></tr></thead>
+    <tbody>
+      <tr><td>Fresh choices per resident per village day</td><td class="num">5</td><td class="num">10</td><td>The high case avoids only repeats. The low case also treats most meals and the next shift at a trade as routine. More at stake means more real tradeoffs.</td></tr>
+      <tr><td>Tokens per action request, with goals, commitments, observations and place names added</td><td class="num">900</td><td class="num">1,200</td><td>Depends on how much recalled context is sent.</td></tr>
+      <tr><td>Goal reviews per resident per village day</td><td class="num">0.5</td><td class="num">1.5</td><td>Triggered by events, so quiet days need none.</td></tr>
+      <tr><td>Tokens per goal review</td><td class="num">1,500</td><td class="num">2,500</td><td>A different model with its own price and its own cap.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h4>Estimate for eight residents, per village day</h4>
+  <div class="scroll"><table>
+    <thead><tr><th></th><th class="num">Pre-Stage 0 estimate</th><th class="num">Pilot, low</th><th class="num">Pilot, high</th></tr></thead>
+    <tbody>
+      <tr><td>Action requests</td><td class="num">184</td><td class="num">40</td><td class="num">80</td></tr>
+      <tr><td>Action tokens</td><td class="num">108,000</td><td class="num">36,000</td><td class="num">96,000</td></tr>
+      <tr><td>Goal reviews (Stage 2 onward)</td><td class="num">none</td><td class="num">4</td><td class="num">12</td></tr>
+      <tr><td>Goal-review tokens</td><td class="num">none</td><td class="num">6,000</td><td class="num">30,000</td></tr>
+    </tbody>
+  </table></div>
+
+  <h4>What that means for the clock</h4>
+  <p>Real spending is tokens per village day multiplied by village days per real day. With the clock independent, the pace is a choice.</p>
+  <div class="scroll"><table>
+    <thead><tr><th>Clock pace</th><th class="num">Village days per real day</th><th>Action tokens per real day, low to high</th><th>Against 168,000</th></tr></thead>
+    <tbody>
+      <tr><td>49 seconds (illustrative pace from one pre-Stage 0 tick)</td><td class="num">1.2</td><td>43,000 to 115,000</td><td>Within</td></tr>
+      <tr><td>30 seconds</td><td class="num">2</td><td>72,000 to 192,000</td><td>Within, except near the high case</td></tr>
+      <tr><td>20 seconds</td><td class="num">3</td><td>108,000 to 288,000</td><td>Within only below the middle case</td></tr>
+      <tr><td>8 seconds</td><td class="num">7.5</td><td>270,000 to 720,000</td><td>Over in every case</td></tr>
+    </tbody>
+  </table></div>
+  <p>Thirty seconds per village minute is the deployed code's default in OpenAI mode. At that pace a village day lasts twelve real hours. Budget pressure increases the wait for a fresh choice while the clock keeps its pace.</p>
+
+  <h4>What the pilot measures</h4>
+  <p>The estimates above are replaced by these.</p>
+  <ul>
+    <li>Actual tokens charged per applied action and per goal review, as the provider reports them</li>
+    <li>Spending per village day and per real day against each cap, including replies that were superseded and never applied</li>
+    <li>Real time from an activity boundary to the next activity starting: median, 95th percentile and longest by resident, split into time queued for budget and time waiting on the API</li>
+    <li>The share of activities that began as a fresh choice, on a standing instruction, or after a wait</li>
+    <li>Fresh choices per resident per village day, and which condition called for each</li>
+    <li>How long instructions stayed valid, and how often one went stale before it lapsed</li>
+    <li>How late the clock ever ran</li>
+    <li>Commitments per village day, how each ended, and the spending per completed commitment</li>
+    <li>How long a new visitor waits to see someone act</li>
+  </ul>
+</section>
+
+<section id="acceptance">
+  <h2><span class="sec">§ 9</span>Acceptance tests for the first milestone</h2>
+  <p class="central">Can someone follow Mabel, return the next day, and tell whether Oswin kept his word, and can we trace the answer to choices the residents actually made?</p>
+  <p class="aside"><b>How these are marked</b>None of the ten has been signed off, because the pilot has not run. A half mark means the behaviour is exercised by an automated test today. On 21 November the suite ran 56 tests: 49 passed, none failed, and 7 were skipped for want of a PostgreSQL database on this machine.</p>
+  <ol class="checks">
+    <li data-s="part"><div class="what"><strong>Every ending is reachable.</strong> Exercise kept, broken, declined, unanswered and released in a test village. Change the store between choice and execution in one run. Each ending must agree with the work and conversations that actually took place.</div><span class="st tested">All five endings in <code>social-turns.test.mjs</code>. The changed store in <code>oven-observation.test.mjs</code>.</span></li>
+    <li data-s="part"><div class="what"><strong>It survives a restart.</strong> Restarting between a choice and its completion yields each outcome exactly once. Earlier history still opens.</div><span class="st tested">Covered by the PostgreSQL tests, which were among the seven skipped in today's run.</span></li>
+    <li data-s="part"><div class="what"><strong>The promise reaches the model.</strong> With the menu held fixed, changing an open promise or the standing between two residents changes the serialized action request.</div><span class="st">The request now carries open requests and the standing between the two. No test yet holds the menu fixed and compares the bytes.</span></li>
+    <li data-s="part"><div class="what"><strong>Knowledge stays local.</strong> A resident who did not see or hear of the shortage receives no trace of it in their request. Mabel's request shows the wood she last observed and when, and a test makes that differ from the true store.</div><span class="st tested">“Unseen flour and wood cannot change the request”, in <code>oven-observation.test.mjs</code>.</span></li>
+    <li data-s="part"><div class="what"><strong>The chronicle claims only what it can verify.</strong> Every statement about the promise links to a recorded event or outcome. A plain woodcutting shift is not credited to the promise. Wood supplied by someone else relieves the shortage and gives Oswin no credit.</div><span class="st tested">“Only a chosen shift for the promise earns credit”, in <code>social-turns.test.mjs</code>.</span></li>
+    <li data-s="part"><div class="what"><strong>The answer can be traced.</strong> Starting from the outcome, one query returns the choice that produced it, whether that activity was a fresh choice or routine, the commitment and observations the model was given, and the exact exchange.</div><span class="st">The trace records and worked queries are in <a href="decision-tracing.md">decision tracing</a>. Not yet checked as a single query from an outcome.</span></li>
+    <li data-s="todo"><div class="what"><strong>Time kept moving.</strong> Through the pilot, including a deliberate provider outage, the clock was never more than one tick late and no resident followed a stale instruction.</div><span class="st await">Both rules have unit tests. The claim is about a live week.</span></li>
+    <li data-s="todo"><div class="what"><strong>A viewer can read it.</strong> Four of five first-time viewers, on a mix of phones and desktops, can say who wanted what and what happened within 90 seconds. On a second visit a day later they can find the ending after it has left the latest 100 entries.</div><span class="st await">The page does not show promises yet.</span></li>
+    <li data-s="part"><div class="what"><strong>It can happen unprompted.</strong> With the one chosen pressure in place and no scripting, a morning with flour and no wood arises in seeded runs, and Mabel learns of it by going to look.</div><span class="st tested">“A first winter under local rules brings a morning with flour and no firewood, unscripted”, in <code>seasons.test.mjs</code>.</span></li>
+    <li data-s="todo"><div class="what"><strong>It was affordable.</strong> Spending stayed inside both caps and every measurement in the list above was captured.</div><span class="st await"><code>tools/pilot-report.mjs</code> is ready to report it.</span></li>
+  </ol>
+</section>
+
+<section id="open">
+  <h2><span class="sec">§ 10</span>Decisions that remain open</h2>
+  <p>All eleven are still open.</p>
+  <ol class="open">
+    <li><strong>The pace of the clock and the other Stage 0 thresholds.</strong> Thirty seconds per village minute is a starting value. The pilot sets them.</li>
+    <li><strong>A resident with no instruction and no reply.</strong> This plan has them wait indefinitely. The alternative is a default the engine applies after a long wait, which would be an action no model chose. That changes the agreed roles and needs an explicit decision.</li>
+    <li><strong>Who issues standing instructions.</strong> The action choice that is reused, the goal review that sets a routine, or both.</li>
+    <li><strong>How long a promise lasts in real viewing time.</strong> The starting assumption is a visitor who watches for two minutes and checks back tomorrow.</li>
+    <li><strong>What the audience may see before residents learn it.</strong> The starting assumption is a public record of observable events.</li>
+    <li><strong>How the action and goal budgets are divided</strong>, and whether the daily account in Stage 5 has a third.</li>
+    <li><strong>When the pilot reaches the live village.</strong> It is proved in a test village. Moving it to the live one changes what residents know about the stores.</li>
+    <li><strong>Whether residents die</strong>, and whether the live village is migrated or a new one is founded when Stage 3 changes the economy.</li>
+    <li><strong>How far visitors may reach.</strong> Stage 7 can stop at any step. Letters are the first with real moderation work.</li>
+    <li><strong>How long a year is.</strong> Stage 3 proposes a year of about 48 village days. The calendar and the weather now keep the real year of 365, which at two village days to a real day takes six real months. One of the two has to give.</li>
+    <li><strong>Whether the wood store grows with the village.</strong> It holds 32 bundles at any size. With winter fuel that is about a day's burning for thirty hearths in frost, so a large village cannot lay in wood for a cold spell.</li>
+  </ol>
+</section>
+
+<section id="future">
+  <h2><span class="sec">§ 11 · New</span>Future considerations</h2>
+  <p>Questions the stages above do not answer. This section was added in the HTML edition and is not in <a href="roadmap.md">roadmap.md</a>. Nothing here is scheduled or decided. Each is worth a deliberate answer before the point named under it.</p>
+  <ol class="leaves">
+    <li>
+      <h3>Keeping this page and the plan in step</h3>
+      <p>roadmap.md is the canonical plan and this page is a hand-made rendering with the marks added. The two will drift the first time a status changes in only one of them.</p>
+      <p>Either the marks move into the markdown and this page is generated from it, or one of the two is retired.</p>
+      <p class="when"><b>Before</b>the next status changes.</p>
+    </li>
+    <li>
+      <h3>Proving a model change is safe</h3>
+      <p>Every exchange is stored with the exact request that was sent. Replaying stored requests against a candidate model or a reworded request would show how choices shift before the village feels it.</p>
+      <p>Stages 1 and 2 both change what the request contains, and design decision 6 expects providers to change.</p>
+      <p class="when"><b>Before</b>the first change of model, or Stage 2's larger request.</p>
+    </li>
+    <li>
+      <h3>Records that only grow</h3>
+      <p>Events, the activity log and decision traces gain rows with every tick, and each resident's record grows with what they hold. Stage 6 wants an archive of every day.</p>
+      <p>What is kept whole, what is summarised and what may be dropped needs deciding while the tables are still small.</p>
+      <p class="when"><b>Before</b>Stage 6, or the first slow query.</p>
+    </li>
+    <li>
+      <h3>Many viewers at once</h3>
+      <p>Each open page asks for the whole village every 2.5 seconds and the server builds the answer afresh each time. Stage 5's streaming improves freshness. It does not by itself settle what a hundred watchers cost.</p>
+      <p>One snapshot built per tick and shared by everyone may be enough.</p>
+      <p class="when"><b>Before</b>Stage 5's first public test.</p>
+    </li>
+    <li>
+      <h3>A village that can be read without the map</h3>
+      <p>Acceptance test 8 puts first-time viewers on phones. Both views are pictures: a visitor using a screen reader, or a small screen in the walking view, gets little of what is happening.</p>
+      <p>A plain account of the current scene would serve them and would also feed Stage 5's director.</p>
+      <p class="when"><b>Before</b>acceptance test 8 is run.</p>
+    </li>
+    <li>
+      <h3>Model-written prose in public</h3>
+      <p>Stage 2 publishes a resident's own sentence, Stage 4 an account of what was said, and Stage 5 a daily account. Each is text nobody reviewed, shown under the village's name.</p>
+      <p>The plan labels these as accounts. It does not yet say how they are screened, how a wrong one is withdrawn, or how they keep a period voice.</p>
+      <p class="when"><b>Before</b>Stage 2's first published sentence.</p>
+    </li>
+    <li>
+      <h3>History beyond the parish</h3>
+      <p>Dalecrest was founded on 1 August 1312 and keeps the real Julian calendar. The Great Famine of 1315 to 1317 lies under three village years ahead, about a year and a half of real time at the present pace.</p>
+      <p>Whether the outside world reaches the village at all is undecided, and a 48-day year would cut the calendar loose from history altogether.</p>
+      <p class="when"><b>With</b>open decisions 8 and 10.</p>
+    </li>
+    <li>
+      <h3>Knowing when the village is in trouble</h3>
+      <p>The caps bound what can be spent and the activity log records every wait. What tells an operator that the provider has been down for an hour, or that half the village has stood waiting since noon?</p>
+      <p>The pilot's deliberate outage is the natural rehearsal, and open decision 2 depends on how long such waits really last.</p>
+      <p class="when"><b>Before</b>the pilot week.</p>
+    </li>
+    <li>
+      <h3>The tests that need a database</h3>
+      <p>Seven of the 56 tests are skipped without PostgreSQL. They are the ones that prove a restart yields each outcome exactly once, which is acceptance test 2.</p>
+      <p>It is worth confirming that the deploy run includes them, so the promise is checked on every release and not only on a machine that happens to have a database.</p>
+      <p class="when"><b>Before</b>acceptance test 2 is signed off.</p>
+    </li>
+  </ol>
+</section>
+
+<footer>
+  Dalecrest roadmap · HTML edition of <a href="roadmap.md">docs/roadmap.md</a> · Status marked 21 November 2026 against <code>main</code> at <code>d54af9c</code> and the working tree.
+</footer>
+
+</main>
+</div>
+
+<script>
+// Tallies are counted from the marks on the page, so the numbers cannot disagree with the lists.
+const count = (root, s) => root.querySelectorAll('.checks > li[data-s="' + s + '"]').length;
+let total = { done: 0, part: 0, todo: 0 };
+for (const stage of document.querySelectorAll('.stage')) {
+  const n = { done: count(stage, 'done'), part: count(stage, 'part'), todo: count(stage, 'todo') };
+  const all = n.done + n.part + n.todo;
+  for (const k in n) total[k] += n[k];
+  const label = [n.done && n.done + ' done', n.part && n.part + ' under way', n.todo && n.todo + ' not begun'].filter(Boolean).join(' · ');
+  stage.querySelector('.count').textContent = label;
+  const bar = stage.querySelector('.bar');
+  bar.setAttribute('role', 'img'); bar.setAttribute('aria-label', label);
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    bar.querySelector('.d').style.width = (100 * n.done / all) + '%';
+    bar.querySelector('.p').style.width = (100 * n.part / all) + '%';
+  }));
+}
+for (const k in total) document.getElementById('n-' + k).textContent = total[k];
+
+// Every mark is also spoken.
+const words = { done: 'Done: ', part: 'Under way: ', todo: 'Not begun: ' };
+for (const li of document.querySelectorAll('li[data-s]')) {
+  const s = document.createElement('span'); s.className = 'vh'; s.textContent = words[li.dataset.s]; li.prepend(s);
+}
+
+// Show one kind of item and let the rest fall back.
+const buttons = document.querySelectorAll('.key button');
+for (const b of buttons) b.addEventListener('click', () => {
+  if (b.dataset.f) document.body.dataset.filter = b.dataset.f; else delete document.body.dataset.filter;
+  for (const o of buttons) o.setAttribute('aria-pressed', String(o === b));
+});
+
+// The contents follow the reader.
+const links = new Map([...document.querySelectorAll('.rail nav a')].map(a => [a.hash.slice(1), a]));
+const seen = new IntersectionObserver(entries => {
+  for (const e of entries) if (e.isIntersecting) {
+    for (const a of links.values()) a.classList.remove('here');
+    links.get(e.target.id)?.classList.add('here');
+  }
+}, { rootMargin: '-12% 0px -78% 0px' });
+for (const id of links.keys()) { const el = document.getElementById(id); if (el) seen.observe(el); }
+</script>
+</body>
+</html>
