@@ -28,6 +28,9 @@ services:
       DATABASE_URL: postgresql://dalecrest_app:${PG_APP_PASSWORD:?}@db:5432/dalecrest
       OLLAMA_MODEL: ${OLLAMA_MODEL:-}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
+      PLANNER_PROVIDER: ${PLANNER_PROVIDER:-ollama}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_DECISION_INTERVAL_SECONDS: ${OPENAI_DECISION_INTERVAL_SECONDS:-300}
     depends_on:
       db: { condition: service_healthy }
     networks: [database, web]

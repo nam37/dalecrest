@@ -92,7 +92,7 @@ function renderProfile(actor) {
   const activity=actor.action;
   const at=state.locations[activity.target]?.name || activity.target;
   detail.append(block(activity.phase==='travelling'?'Walking to '+at:'At '+at,el('strong','activity',activity.label),el('p','reason',activity.reason)));
-  if(actor.plan)detail.append(block('Model intention',el('p','goal',actor.plan.reason)));
+  if(actor.plan)detail.append(block(actor.plan.method==='choice'?'Model priority · '+actor.plan.focus:'Model intention',el('p','goal',actor.plan.reason)));
   detail.append(block('Desires',...(actor.desires||[]).map(d=>el('p','goal',d.label))));
   const needs=block('Current needs');
   for(const [key,val] of Object.entries(actor.needs)){

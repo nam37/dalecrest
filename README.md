@@ -20,6 +20,8 @@ The engine scores available activities using the resident’s weighted desires, 
 
 To enable model planning, install a model in Ollama and add `OLLAMA_MODEL` and `OLLAMA_BASE_URL` to the generated `.env`, preserving its database settings. For example, set `OLLAMA_MODEL=gemma4:12b` and `OLLAMA_BASE_URL=http://127.0.0.1:11434` for a standard local Ollama service. The Windows launcher can also start a dedicated Ollama listener when configured for `http://127.0.0.1:11435`. Restart the web server after changing these settings. If the model is unavailable, ordinary decisions continue and the planner retries.
 
+For OpenAI planning, set `PLANNER_PROVIDER=openai` and `OPENAI_API_KEY` in the server environment. Dalecrest sends the selected resident’s observation to the Decisions API. The `gpt-6-luna` model selects work, social contact, food, or rest. The interface displays the selected priority alongside a fact from the observation. Requests across the village are spaced at least five minutes apart by default, including failed attempts. PostgreSQL preserves that limit across restarts. Set `OPENAI_DECISION_INTERVAL_SECONDS` to adjust the interval. [OpenAI Decisions guide](https://developers.openai.com/api/docs/guides/decisions)
+
 ## State and hosting
 
 PostgreSQL stores one JSONB document per resident in `dalecrest.actors.state`, the shared clock and supplies in `dalecrest.world`, and the chronological history in `dalecrest.events`. A tick commits all three together. Initialization seeds a new database once. Subsequent starts load its existing residents.

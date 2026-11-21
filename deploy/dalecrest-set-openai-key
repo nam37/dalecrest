@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+cd /opt/stacks/dalecrest
+if [[ -t 0 ]]; then
+  read -rsp 'Dalecrest OpenAI API key: ' api_key
+  printf '\n'
+else
+  IFS= read -r api_key
+fi
+api_key=${api_key%$'\r'}
+[[ "$api_key" =~ ^[[:alnum:]._:-]+$ ]] || { echo 'Invalid key format'; exit 1; }
+exec 9>/opt/git-deploy/dalecrest/deploy.lock
+flock 9
+tmp=$(mktemp .env.XXXXXX)
+trap 'unlink "$tmp" 2>/dev/null || true' EXIT
+grep -vE '^(OPENAI_API_KEY|PLANNER_PROVIDER)=' .env > "$tmp"
+printf 'PLANNER_PROVIDER=openai\nOPENAI_API_KEY=%s\n' "$api_key" >> "$tmp"
+unset api_key
+mv "$tmp" .env
+export DALECREST_RELEASE
+DALECREST_RELEASE=$(cat /opt/git-deploy/dalecrest/deployed-sha)
+docker compose up -d --no-deps --wait --wait-timeout 90 app

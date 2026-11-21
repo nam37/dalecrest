@@ -1,8 +1,13 @@
 import { FOCUSES } from './sim.mjs';
-import { snapshot, savePlan } from './db.mjs';
+import { snapshot, savePlan, reserveOpenAICall } from './db.mjs';
+import { choosePriority, DECISIONS_MODEL } from './decisions.mjs';
 
-const model = process.env.OLLAMA_MODEL?.trim();
-export const plannerStatus = { configured: Boolean(model), model: model || null, state: model ? 'starting' : 'local rules' };
+const decisions = process.env.PLANNER_PROVIDER === 'openai';
+const model = decisions ? DECISIONS_MODEL : process.env.OLLAMA_MODEL?.trim();
+const key = process.env.OPENAI_API_KEY?.trim();
+const interval = Number(process.env.OPENAI_DECISION_INTERVAL_SECONDS || 300);
+if (decisions && (!Number.isSafeInteger(interval) || interval < 20)) throw new Error('Use an OpenAI planning interval of at least 20 seconds.');
+export const plannerStatus = { configured: Boolean(model), model: model || null, state: decisions && !key ? 'awaiting API key · local rules active' : model ? 'ready' : 'local rules' };
 const base = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
 const schema = {
   type: 'object', additionalProperties: false, required: ['focus', 'reason'],
@@ -11,11 +16,11 @@ const schema = {
 let inFlight = false;
 
 export async function planOnce() {
-  if (!model || inFlight) return;
+  if (!model || inFlight || (decisions && !key)) return;
   inFlight = true;
   try {
     const { world, actors } = await snapshot();
-    const actor = actors.filter(a => !a.plan || a.plan.until <= world.minute)
+    const actor = actors.filter(a => a.plan?.model !== model || a.plan.until <= world.minute)
       .sort((a, b) => (a.lastModelPlanAt ?? -1) - (b.lastModelPlanAt ?? -1))[0];
     if (!actor) return;
     const knownPeople = actors.filter(a => a.id !== actor.id).map(a => ({ name: a.name, affinity: actor.relationships[a.id] }));
@@ -25,6 +30,13 @@ export async function planOnce() {
       recentMemories: actor.memories.slice(-4), knownPeople,
       hour: Math.floor(world.minute / 60) % 24, sharedStores: world.supplies
     };
+    if (decisions) {
+      if (!await reserveOpenAICall(interval)) return;
+      const { focus, reason } = await choosePriority(observation, key);
+      await savePlan(actor.id, world.minute, focus, reason, model, 'choice');
+      plannerStatus.state = 'connected';
+      return;
+    }
     const response = await fetch(new URL('/api/chat', base), {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ model, stream: false, think: false, format: schema, options: { num_ctx: 4096, num_predict: 170 },
@@ -39,7 +51,8 @@ export async function planOnce() {
     if (!FOCUSES.includes(result.focus) || typeof result.reason !== 'string' || !result.reason.trim()) throw new Error('Invalid plan');
     await savePlan(actor.id, world.minute, result.focus, result.reason.trim().slice(0, 320), model);
     plannerStatus.state = 'connected';
-  } catch {
-    plannerStatus.state = 'offline · local rules active';
+  } catch (error) {
+    const status = decisions && /^OpenAI HTTP \d{3}$/.test(error.message) ? error.message : 'offline';
+    plannerStatus.state = status + ' · local rules active';
   } finally { inFlight = false; }
 }

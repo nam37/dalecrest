@@ -44,6 +44,9 @@ export async function initialize() {
         id bigserial PRIMARY KEY, minute bigint NOT NULL, kind text NOT NULL,
         actor_ids text[] NOT NULL, description text NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS dalecrest.planner_limits (
+        provider text PRIMARY KEY, next_request_at timestamptz NOT NULL
+      );
     `);
     if ((await db.query('SELECT id FROM dalecrest.world WHERE id=1')).rowCount) return;
     const village = createVillage();
@@ -54,6 +57,14 @@ export async function initialize() {
     }
     await recordEvents(db, village.events);
   });
+}
+
+export async function reserveOpenAICall(seconds) {
+  const result = await pool.query(`INSERT INTO dalecrest.planner_limits(provider, next_request_at)
+    VALUES ('decisions', now() + make_interval(secs => $1))
+    ON CONFLICT (provider) DO UPDATE SET next_request_at = excluded.next_request_at
+    WHERE dalecrest.planner_limits.next_request_at <= now() RETURNING provider`, [seconds]);
+  return result.rowCount === 1;
 }
 
 export async function advance() {
@@ -81,18 +92,19 @@ export async function snapshot() {
   return result.rows[0];
 }
 
-export async function savePlan(actorId, basedOn, focus, reason, model) {
+export async function savePlan(actorId, basedOn, focus, reason, model, method = 'generated') {
   if (!FOCUSES.includes(focus) || !reason) return false;
   return transaction(async db => {
     const { rows } = await db.query('SELECT state FROM dalecrest.world WHERE id=1 FOR UPDATE');
     const minute = rows[0].state.minute;
     if (minute - basedOn > 120) return false;
     const actor = (await db.query('SELECT state FROM dalecrest.actors WHERE id=$1', [actorId])).rows[0]?.state;
-    if (!actor || (actor.plan && actor.plan.until > minute)) return false;
-    actor.plan = { focus, reason, until: minute + 360, model, madeAt: minute };
+    if (!actor || (actor.plan?.model === model && actor.plan.until > minute)) return false;
+    actor.plan = { focus, reason, until: minute + 360, model, method, madeAt: minute };
     actor.lastModelPlanAt = minute;
     await db.query('UPDATE dalecrest.actors SET state=$1 WHERE id=$2', [actor, actor.id]);
-    await recordEvents(db, [{ minute, type: 'plan', actorIds: [actor.id], text: actor.name + ' made a plan. “' + reason + '”' }]);
+    const text = method === 'choice' ? actor.name + ' prioritized ' + focus + '. ' + reason : actor.name + ' made a plan. “' + reason + '”';
+    await recordEvents(db, [{ minute, type: 'plan', actorIds: [actor.id], text }]);
     return true;
   });
 }

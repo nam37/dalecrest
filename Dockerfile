@@ -2,7 +2,7 @@ FROM node:22-alpine
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --no-audit --no-fund
-COPY db.mjs planner.mjs server.mjs sim.mjs sim.test.mjs ./
+COPY *.mjs ./
 COPY public/ ./public/
 USER node
 RUN npm test
