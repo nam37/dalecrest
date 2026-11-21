@@ -18,7 +18,7 @@ Three responsibilities are fixed. Every stage below is written to preserve them.
 
 The providers behind the two model roles can change without changing who is responsible for what. The current choices are recorded in [design decision 6](design.md).
 
-## Where it stands
+## Measurements before Stage 0
 
 Each figure is marked with where it came from. "Local rules" means the scoring in `choose` in `sim.mjs`, which runs in tests, the Atlas and the preview. It is a stand-in for measurement, not the production decider. The mix of activities the Decisions API chooses in production has not been measured.
 
@@ -28,9 +28,9 @@ Each figure is marked with where it came from. "Local rules" means the scoring i
 | What those 23 are | Leisure 11.8, sleep 4.9, visiting 2.2, own trade 1.9, meals 1.4, other work and building 0.7, moot 0.3 | Measured, same runs, founding residents |
 | Activities that repeat the one before, in the same place | 55% | Measured, same runs |
 | Separate choices that make up one night's sleep | 4.9 | Measured, same runs |
-| Tokens per action request | 589 | Recorded in design decision 3 from production |
+| Tokens per action request | 589 | Historical production observation used in the original cost estimate |
 | Action budget | 7,000 tokens per real hour by default, about 168,000 a real day | Configuration |
-| Live clock | 49 seconds until the next tick, which advanced one village minute. The planner reported "waiting for token budget". | One public snapshot of the live village, 21 November 2026 |
+| Previous clock | 49 seconds until the next tick, which advanced one village minute. The planner reported "waiting for token budget". | One public snapshot before the fixed-clock release on 21 November 2026 |
 | Wood store | Never below 10 of 32. Never below 20 while a building site was open. No minute with flour and no wood. | Measured, local rules, same runs |
 | Daytime | 56% idling, 17% at a trade, 10% walking, 8% visiting | Measured, local rules, seed 26111 |
 | The chronicle | 49 entries a day. One sentence, "took a loaf from the common oven", is 35% of them. Moots, building and arrivals are 4%. | Measured, local rules, seed 26111 |
@@ -40,19 +40,19 @@ Walking to a worksite and doing the job there already count as one activity. The
 
 Three conclusions shape the plan.
 
-1. **Time is tied to spending.** Every activity boundary waits for a model reply, and the clock slows to fit the budget. A visitor to the live village sees nobody move. More residents or richer prompts make it slower.
-2. **Most boundaries are not choices.** A night's sleep is five requests. More than half of all activities repeat the one before. The model is asked a question when nothing has changed.
-3. **Little is at stake, and nothing is remembered.** Nobody needs anything from anyone, a promise cannot be made, and the action model would not see one if it were.
+1. **The former clock slowed when money for calls ran short.** Stage 0 moved timekeeping off the decision queue.
+2. **Many activities repeat.** One night's sleep spanned about five boundaries in the local runs. Stage 0 lets a still-valid model instruction cover routine repeats.
+3. **Promises need durable records.** Residents remember encounters, but the model sees only the latest two memory texts. A promise needs to survive later meals and shifts.
 
 ## Review: how the residents think
 
 Stage numbers refer to the plan below.
 
-1. **The clock waits for the model.** `tick` in `db.mjs` advances one minute instead of three while anyone is waiting, spaces ticks by up to 60 seconds, and stops when everyone is waiting. (Stage 0)
-2. **Every boundary is treated as a decision.** A resident who finishes one stretch of sleep at two in the morning waits for a reply before sleeping again. (Stage 0)
+1. **Clock and queue.** Stage 0 made the village clock independent of model latency. A resident can wait while others continue.
+2. **Routine decisions.** Stage 0 lets a resident continue sleeping under a valid earlier instruction. The activity log records the original model choice.
 3. **The action model is shown too little.** `actionBody` in `decisions.mjs` sends needs, stores, two memories and a menu. It leaves out relationships, open obligations and what the resident has learned. (Stages 1 and 2)
-4. **Menu entries name places by ID.** `actionDescription` writes "Visiting Mabel Ash at cottage-3". `locationsOf` in `sim.mjs` already has the names. (Stage 0)
-5. **The production path has thin test cover.** The growth rules in `engine/civic.mjs` were tuned under local rules. A moot needs residents at the hall within a 65-minute window, which in production depends on each one choosing to attend in time, and that path has no test. (Stage 0)
+4. **Place names.** Stage 0 added readable place names to option descriptions. Choice IDs still identify the exact action.
+5. **Moot attendance.** A scripted test exercises quorum and construction on the model-driven path. How often real residents choose to attend remains a pilot measurement. [Standing-instruction tests](../standing.test.mjs)
 6. **Memory is a short list of sentences.** `remember` in `engine/civic.mjs` keeps 18 strings with no source, importance or recall. (Stages 1 and 2)
 7. **Everyone knows everything.** The menu and the request use the true stores and every resident's true destination. "Bake" disappears from a menu the moment someone far away uses the last wood. (Stage 1)
 8. **Residents cannot ask, agree, decline or vote.** Encounters pick one of five templates. Votes in `resolve` are supporter-or-random. One template is wrong in effect: "discussed the dwindling grain reserve" fires when a store is under a quarter of its capacity, so building a granary makes it fire more often. (Stage 1 for asking and agreeing, Stage 3 for the fix, Stage 4 for votes)
@@ -88,11 +88,11 @@ Stages 0 and 1 together are the first milestone, the promise pilot. Sizes are re
 
 ### Stage 0. Liveness and meaningful choices (M)
 
-**Status · 21 November 2026.** Built on the `village-engine` branch and described in [design decision 3](design.md). It is not deployed, and its parameters are the untuned starting values. With a scripted stand-in answering in place of the Decisions API, 31% of activity boundaries needed a fresh choice, about 7 per resident per village day. That is a property of the rules and the stand-in, not a measurement of the model. Commitments other than the moot arrive with Stage 1.
+**Status · 21 November 2026.** The VPS deployed `19c3f47` from GitHub main at 15:35 EST. The timer was active and the app and PostgreSQL passed their health checks. The full-week live measurements are pending. In a scripted stand-in run, 31% of activity boundaries needed a fresh choice, about seven per resident per village day. [Clock and activity logging](design.md) · [Deployed commit](https://github.com/nam37/dalecrest/commit/19c3f47dea22bb374903dfae83c6c145562b590c)
 
-Let village time pass at a chosen pace, and spend action requests only where a resident has something to decide. This stage proposes how to tell a routine boundary from a real choice. The roles in the knowledge graph do not change. If the proposal is accepted, the "Who decides and when" table there gains the standing instruction.
+The clock advances independently. A routine follows a valid standing instruction from an earlier model choice. When no instruction fits, the resident waits for a fresh decision. The thresholds remain pilot parameters.
 
-**A clock that advances independently.** The server advances village time on a fixed schedule. Requests to either model are sent and answered alongside it. A reply that takes five seconds, a provider outage and an empty budget all leave the clock running. The pace is a pilot parameter. The estimates below suggest starting at 30 real seconds per village minute, which is two village days per real day.
+**A clock that advances independently.** Action requests run alongside the village clock. In OpenAI mode the default pace is 30 real seconds per village minute, or two village days per real day. The pilot will measure how that pace feels to viewers.
 
 **Standing instructions.** A standing instruction is a past model choice that the engine may repeat while the situation it answered still holds. It records:
 
@@ -129,7 +129,7 @@ A wait never stops the clock or anyone else. When the budget is short, pending r
 
 **Pilot parameters.** These are starting values to be tuned, not decisions: the clock pace; how long each kind of instruction stays valid; how far ahead the engine looks for a commitment that a routine would run into; the need levels that count as urgent; how long a reply may take before the situation is treated as changed; and how long a resident waits before their request is moved up the queue.
 
-**Also in this stage.** Send place names, not IDs, to both models. Add tests on the production decision path, including a moot that reaches quorum, using recorded or scripted choices so that every branch can be exercised without spending tokens.
+**Covered in Stage 0.** The action model sees place names. Scripted tests exercise a moot reaching quorum, superseded replies and standing instructions through the same action-selection code used in production.
 
 Done when: across a full pilot week the clock is never more than one tick late, including through a deliberate provider outage; no resident has followed a stale instruction; every activity has a recorded basis; and the share of boundaries that needed a fresh choice is known.
 
@@ -275,12 +275,12 @@ More than one village with a road between them. This multiplies everything above
 
 ## Cost and pacing
 
-**Measured.**
+**Pre-Stage 0 baseline.**
 
 - A resident reaches about 23 activity boundaries per village day. Eight residents reach roughly 184.
-- An action request is 589 tokens today.
+- The historical production sample used 589 tokens per action request.
 - The default budget is about 168,000 tokens a real day, which funds about 285 requests of that size.
-- So every boundary of one village day costs about 108,000 tokens for eight residents, and the budget can fund at most about 1.5 village days per real day. The live snapshot showed about 1.2.
+- Under the former one-request-per-boundary design, those assumptions imply about 108,000 tokens per village day for eight residents. Spending limited the pace to roughly 1.5 village days per real day.
 
 **What can be avoided.** These follow from the measured mix, which is a local-rule mix and will differ in production.
 
@@ -299,7 +299,7 @@ More than one village with a road between them. This multiplies everything above
 
 **Estimate for eight residents, per village day.**
 
-| | Today | Pilot, low | Pilot, high |
+| | Pre-Stage 0 estimate | Pilot, low | Pilot, high |
 | --- | --- | --- | --- |
 | Action requests | 184 | 40 | 80 |
 | Action tokens | 108,000 | 36,000 | 96,000 |
@@ -310,12 +310,12 @@ More than one village with a road between them. This multiplies everything above
 
 | Clock pace | Village days per real day | Action tokens per real day, low to high | Against 168,000 |
 | --- | --- | --- | --- |
-| 49 seconds per village minute (the live snapshot) | 1.2 | 43,000 to 115,000 | Within |
+| 49 seconds (illustrative pace from one pre-Stage 0 tick) | 1.2 | 43,000 to 115,000 | Within |
 | 30 seconds | 2 | 72,000 to 192,000 | Within, except near the high case |
 | 20 seconds | 3 | 108,000 to 288,000 | Within only below the middle case |
 | 8 seconds | 7.5 | 270,000 to 720,000 | Over in every case |
 
-Thirty seconds per village minute is the proposed starting pace. A village day then lasts twelve real hours, so a promise due "by dusk tomorrow" resolves in under a real day, which fits a viewer who checks back tomorrow. If spending runs over, residents wait longer for fresh choices. The clock does not slow.
+Thirty seconds per village minute is the deployed code's default in OpenAI mode. At that pace a village day lasts twelve real hours. Budget pressure increases the wait for a fresh choice while the clock keeps its pace.
 
 **What the pilot measures.** The estimates above are replaced by these.
 

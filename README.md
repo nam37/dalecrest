@@ -1,6 +1,6 @@
 # Dalecrest
 
-Dalecrest is a medieval village you can watch in a browser. Its residents work, share food, form friendships, and remember encounters. Each has a persistent record in PostgreSQL. In the hosted village, gpt-6-luna chooses the next activity for each resident from actions they can actually take. [Watch the live village](https://dalecrest.trinsicstudios.com/).
+Dalecrest is a medieval village you can watch in a browser. Its residents work, share food, form friendships, and remember encounters. Each has a persistent record in PostgreSQL. In the hosted village, gpt-6-luna chooses among feasible actions. Residents can repeat a routine under a still-valid choice the model made earlier. [Watch the live village](https://dalecrest.trinsicstudios.com/).
 
 ## Run a village
 

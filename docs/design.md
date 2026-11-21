@@ -41,7 +41,7 @@ The VPS runs the application and a dedicated PostgreSQL 17 service in separate c
 
 The accepted design assigns personal goals to a general-purpose model, the choice of the next feasible action to the Decisions API, and the actual outcome to the simulation engine. A goal persists across activities until the resident has reason to reconsider it. The resident knowledge graph describes the evidence each role receives and the links PostgreSQL should preserve. [Resident knowledge graph](knowledge-graph.md)
 
-Today `gpt-6-luna` selects the next activity in OpenAI mode using predefined goals. General-purpose goal reviews are planned. The initial choice for that work is Claude Haiku 5.5 (`claude-haiku-5-5`) through Anthropic’s Messages API, using the backend environment variable `CLAUDE_KEY`. [Claude models and pricing](https://platform.claude.com/docs/en/models/overview) · [Messages API](https://platform.claude.com/docs/en/api/messages/create)
+Today `gpt-6-luna` makes fresh choices in OpenAI mode using predefined goals. A still-valid instruction can repeat a previous choice. General-purpose goal reviews are planned. The initial choice for that work is Claude Haiku 5.5 (`claude-haiku-5-5`) through Anthropic’s Messages API, using the backend environment variable `CLAUDE_KEY`. [Claude models and pricing](https://platform.claude.com/docs/en/models/overview) · [Messages API](https://platform.claude.com/docs/en/api/messages/create)
 
 ### 7. The ground is generated once and then owned by the village
 
