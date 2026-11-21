@@ -123,4 +123,32 @@ WHERE e.kind = 'observation' AND e.actor_ids = ARRAY['mabel']
 ORDER BY e.id DESC LIMIT 10;
 ```
 
-There is no automatic pruning. The normal PostgreSQL backup includes the trace tables and the activity log. Treat database access and backups as access to the complete model exchanges.
+## Trace a request and its reply
+
+The query follows the latest request Mabel actually delivered to Oswin. It returns the original count, the ask, any reply, any credited work and the stored model exchanges behind those events. Change the two IDs for a different pair. An ordinary shift can produce wood while the request stays unanswered. A missed visit has `delivered: false` and creates no request.
+
+```sql
+WITH latest AS (
+  SELECT outcome->>'requestId' AS request_id, outcome->'fact' AS fact
+  FROM dalecrest.events
+  WHERE outcome->>'verb' = 'ask' AND outcome->>'delivered' = 'true'
+    AND actor_ids = ARRAY['mabel','oswin']
+  ORDER BY id DESC LIMIT 1
+)
+SELECT e.minute, e.description, e.outcome, t.id AS trace, t.choice,
+       t.confidence, t.request_body, t.response_body
+FROM latest l
+JOIN dalecrest.events e ON e.outcome->>'requestId' = l.request_id
+  OR e.outcome->>'commitmentId' = l.request_id
+  OR (e.kind = 'observation' AND l.fact->>'topic' = 'oven'
+      AND e.actor_ids = ARRAY[l.fact->>'observerId']
+      AND e.minute = (l.fact->>'minute')::bigint)
+LEFT JOIN dalecrest.decision_traces t ON t.id = (e.outcome->>'traceId')::bigint
+ORDER BY e.minute, e.id;
+```
+
+An actor's `reports` retains the latest account heard on each topic with the original witness, speaker and times. `helpBook` holds each party's last known request status through its deadline. The requester learns of completed work if someone reports it. The village's active requests live in `world.state.helpRequests`. The event history survives expiry and is committed with the participants' state. Events for a missed conversation identify just the resident who sought the meeting.
+
+In an isolated rehearsal, Mabel counted nine measures of flour and no wood on 1 August 1312 at 07:04. Her fresh Luna choice was to visit Agnes (confidence 0.41). A scripted follow-up delivered the request to Oswin at 07:07. His own Luna choice was an ordinary woodcutting shift (confidence 0.51). He stacked three bundles at 10:14. His shift trace records the production, and the request trace still shows that Mabel was waiting for an answer.
+
+There is no automatic pruning of decision traces. The normal PostgreSQL backup includes the trace tables and the activity log. Treat database access and backups as access to the complete model exchanges.

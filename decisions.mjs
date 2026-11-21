@@ -1,4 +1,5 @@
 import { recalledOvenStores } from './engine/observations.mjs';
+import { socialContext, villageTime } from './engine/exchanges.mjs';
 
 export const DECISIONS_MODEL = 'gpt-6-luna';
 
@@ -13,18 +14,19 @@ export const DECISIONS_URL = 'https://api.openai.com/v1/decisions';
 
 // names maps a place ID to what residents call it, so a model never reads "cottage-3".
 export function actionDescription(action, names = {}) {
+  if (action.onSpot) return action.label + ' here (' + action.remaining + ' village minutes).';
   return action.label + ' at ' + (names[action.target]?.name || action.target) + ' (' + action.remaining + ' village minutes).';
 }
 
 export function actionBody(actor, world, menu, names = {}) {
-  const time = world.minute % 1440, last = actor.action.previous;
+  const last = actor.action.previous;
   const observation = {
     name: actor.name, role: actor.role, traits: actor.traits, goals: actor.goals,
     desires: actor.desires.map(({ focus, weight, target }) => ({ focus, weight, target })),
     needs: Object.fromEntries(Object.entries(actor.needs).map(([need, value]) => [need, Math.round(value)])),
     lastActivity: last && { kind: last.kind, label: last.label, place: names[last.target]?.name || last.target },
     whyThisIsAChoice: actor.action.why,
-    time: [Math.floor(time / 60), time % 60].map(n => String(n).padStart(2, '0')).join(':'),
+    time: villageTime(world.minute), ...socialContext(actor, world.minute),
     lastOvenCheck: recalledOvenStores(actor, world.minute), recentMemories: actor.memories.slice(-2).map(m => m.text)
   };
   const options = Array.from(menu, ([value, action]) => ({

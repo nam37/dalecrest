@@ -6,6 +6,7 @@ import * as civic from './engine/civic.mjs';
 import { newcomer, wantsNewcomer } from './engine/people.mjs';
 import * as standing from './engine/standing.mjs';
 import { atOven, inspectOven } from './engine/observations.mjs';
+import { conversationChoices, finishConversation, missedConversation, knownStores, noteWork, settleHelp, expireHelp } from './engine/exchanges.mjs';
 
 export const FOCUSES = ['work', 'social', 'rest', 'food'];
 export const DEFAULT_SEED = 26111;
@@ -208,7 +209,8 @@ function choose(actor, state, menu) {
     choices.push({ score: score + 4 * random(world), kind, label, reason, target, remaining: duration, ...extra });
   }
   const seen = actor.observations?.ovenStores;
-  const perceived = { ...world, supplies: { ...world.supplies, flour: seen?.flour, wood: seen?.wood } };
+  const known = knownStores(actor);
+  const perceived = { ...world, supplies: { ...world.supplies, flour: known?.flour, wood: known?.wood } };
   const jobsHere = jobOptions(actor, state, perceived, Boolean(menu));
   const duty = actor.traits.includes('steadfast') ? 5 : 0;
   const weary = (night ? 48 : 0) + Math.max(0, fatigue - 65);
@@ -239,7 +241,7 @@ function choose(actor, state, menu) {
   for (const other of actors) {
     if (other === actor || other.action.kind === 'rest' || other.action.kind === 'arrive') continue;
     const site = place(map, other.action.target);
-    if (!site || (menu && other.action.kind === 'waiting')) continue;
+    if (!site) continue;
     if (menu) {
       offer('social', 'Visiting ' + other.name, other.action.target, 28, 0, '', { friendId: other.id });
       continue;
@@ -267,6 +269,7 @@ function travel(actor, state, emit) {
     const found = route(map, [actor.position.x, actor.position.y], action.target);
     if (!found) {
       endShiftEarly(actor, state.world.minute, emit, 'blocked', 'the worksite could not be reached');
+      if (action.kind === 'conversation') missedConversation(actor, state.world.minute, emit, 'the meeting place could not be reached');
       action.remaining = 0;
       return false;
     }
@@ -299,8 +302,10 @@ function travel(actor, state, emit) {
 export function availableActions(actor, state) {
   const menu = new Map();
   choose(actor, state, menu);
+  conversationChoices(actor, state, menu);
   const reachable = new Map();
   for (const [id, action] of menu) {
+    if (action.onSpot) continue;
     if (!reachable.has(action.target)) reachable.set(action.target, Boolean(route(state.map, [actor.position.x, actor.position.y], action.target)));
     if (!reachable.get(action.target)) menu.delete(id);
   }
@@ -347,7 +352,7 @@ export function startChosen(actor, state, id, trace, pilot = standing.PILOT) {
   const action = availableActions(actor, state).get(id);
   if (!action) return null;
   const minute = state.world.minute, { since, why, previous } = actor.action;
-  actor.action = { ...action, phase: 'travelling', choiceId: id, decisionTraceId: trace.id,
+  actor.action = { ...action, phase: action.onSpot ? 'working' : 'travelling', choiceId: id, decisionTraceId: trace.id,
     basis: { kind: 'fresh', trace: trace.id, waited: minute - since, ...(why ? { why } : {}) },
     reason: 'Selected by ' + trace.model + ' after ' + previous.label + '.' };
   actor.plan = null;
@@ -360,7 +365,7 @@ const tracksShift = action => action.kind === 'work' && (action.job === 'bake' |
 
 function recordWork(actor, minute, emit, text, status, stockDelta, reason) {
   const { action } = actor;
-  const outcome = tracksShift(action) ? {
+  const outcome = tracksShift(action) || action.commitmentId ? {
     job: action.job, site: action.target, workerId: actor.id, helperIds: action.helpers || [],
     status, stockDelta, ...(reason && { reason }),
     ...(action.basis && { basis: action.basis.kind }),
@@ -372,8 +377,8 @@ function recordWork(actor, minute, emit, text, status, stockDelta, reason) {
 }
 
 function endShiftEarly(actor, minute, emit, status, reason) {
-  if (!tracksShift(actor.action)) return;
-  const task = actor.action.job === 'bake' ? 'baking' : 'woodcutting';
+  if (!tracksShift(actor.action) && !actor.action.commitmentId) return;
+  const task = { bake: 'baking', cut: 'woodcutting' }[actor.action.job] || jobs[actor.action.job].label.toLowerCase();
   recordWork(actor, minute, emit, actor.name + ' could not finish the ' + task + ' shift because ' + reason + '.', status, {}, reason);
 }
 
@@ -395,13 +400,17 @@ function finishShift(actor, world, emit) {
   for (const [item, change] of Object.entries(stockDelta)) world.supplies[item] += change;
   actor.lastJob = minute;
   if (actor.lastWorkDay !== Math.floor(minute / 1440)) { actor.daysWorked++; actor.lastWorkDay = Math.floor(minute / 1440); }
-  recordWork(actor, minute, emit, actor.name + ' ' + job.result + '.', 'completed', stockDelta);
+  const text = actor.name + ' ' + job.result + '.';
+  recordWork(actor, minute, emit, text, 'completed', stockDelta);
+  noteWork(actor, world, text, stockDelta);
+  if (actor.action.commitmentId) settleHelp(actor, world, stockDelta, emit);
 }
 
 function stepMinute(state, events, externalActions, records, pilot) {
   const { world, actors, map } = state;
   const minute = ++world.minute;
   const emit = (type, text, actorIds = [], outcome) => events.push({ type, minute, text, actorIds, ...(outcome && { outcome }) });
+  expireHelp(state, emit);
   if (minute % 1440 === 360) {
     civic.dawn(state);
     for (const [key, used] of Object.entries({ cloth: 1, repair: 2, water: actors.length })) world.supplies[key] = Math.max(0, world.supplies[key] - used);
@@ -417,6 +426,7 @@ function stepMinute(state, events, externalActions, records, pilot) {
   }
   civic.tick(state, emit, () => random(world), actor => {
     endShiftEarly(actor, minute, emit, 'interrupted', 'the village moot was about to begin');
+    if (actor.action.kind === 'conversation') missedConversation(actor, minute, emit, 'the village moot was about to begin');
   });
   for (const actor of actors) {
     const n = actor.needs;
@@ -445,7 +455,9 @@ function stepMinute(state, events, externalActions, records, pilot) {
       }
     }
     if (--action.remaining > 0) continue;
-    if (action.kind === 'inspect') {
+    if (action.kind === 'conversation') {
+      finishConversation(actor, state, emit);
+    } else if (action.kind === 'inspect') {
       inspectOven(actor, place(map, action.target), world, emit);
     } else if (action.kind === 'work' && action.job === 'build') {
       civic.labour(actor, state, emit);
@@ -474,12 +486,7 @@ function stepMinute(state, events, externalActions, records, pilot) {
     let text = speaker + ' exchanged news ' + where + '.';
     let bond = 3, type = 'social', raised;
     const details = {};
-    const shortage = Object.keys(world.capacity).find(k => {
-      if (k === 'flour' || k === 'wood') {
-        return [actor, other].some(a => a.observations?.ovenStores?.[k] < world.capacity[k] / 4);
-      }
-      return world.supplies[k] < world.capacity[k] / 4;
-    });
+    const shortage = Object.keys(world.capacity).find(k => k !== 'flour' && k !== 'wood' && world.supplies[k] < world.capacity[k] / 4);
     if (here?.kind === 'oven' && world.supplies.bread > 0 && Math.max(actor.needs.hunger, other.needs.hunger) > 40) {
       world.supplies.bread--;
       for (const a of [actor, other]) {

@@ -31,6 +31,10 @@ The backend checks for waiting residents every two seconds. A choice that someth
 
 ### 4. Preserve the exchange and observe the outcome separately
 
+Residents can tell neighbours about an oven reading or a completed shift. A low count can also give them a reason to ask a neighbour to cut wood, grind flour, gather barley or draw water. Counts of flour and wood come from oven inspections. Someone depositing barley or water sees the balance of that reserve. A report keeps the original witness and observation time through retellings. Walking to speak to someone can end in a missed visit. The recipient learns the news when the two meet within speaking distance.
+
+Each request asks for one shift's output within 24 village hours. The model can select an agreement, a refusal, an ordinary activity or, after agreeing, the shift naming the request. Only verified production on that named shift earns credit. Accepting, declining, reporting and fulfilling a request always require fresh choices. The current date and deadlines in model requests use the same calendar as the observatory. [Trace a request and its reply](decision-tracing.md#trace-a-request-and-its-reply)
+
 An actor’s current plan is overwritten by later plans. A chronicle entry alone cannot recover the exact prompt or the model’s confidence. Each OpenAI attempt therefore gets a durable trace ID before the HTTP call. The trace links the exact request and reply to the simulation’s subsequent activities and chronicle entries. Each direct action records its start and subsequent outcomes under the same trace ID. The trace is available through PostgreSQL and excluded from the public village snapshot. [Trace schema and queries](decision-tracing.md).
 
 ### 5. Deploy the application independently of the village data

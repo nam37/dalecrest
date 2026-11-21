@@ -1,5 +1,6 @@
 import { FOCUSES } from './sim.mjs';
 import { recalledOvenStores } from './engine/observations.mjs';
+import { socialContext, villageTime } from './engine/exchanges.mjs';
 import { snapshot, savePlan, claimAction, recordReply, recordTransportFailure, pendingDecision, applyRecordedDecision } from './db.mjs';
 import { sendDecision, DECISIONS_MODEL } from './decisions.mjs';
 import { hourlyActionBudget } from './action-turns.mjs';
@@ -59,7 +60,7 @@ export async function planOnce() {
       name: actor.name, role: actor.role, background: actor.backstory, traits: actor.traits,
       goals: actor.goals, desires: actor.desires, needs: actor.needs, currentActivity: actor.action.label,
       recentMemories: actor.memories.slice(-4), knownPeople,
-      hour: Math.floor(world.minute / 60) % 24, lastOvenCheck: recalledOvenStores(actor, world.minute)
+      time: villageTime(world.minute), lastOvenCheck: recalledOvenStores(actor, world.minute), ...socialContext(actor, world.minute)
     };
     const response = await fetch(new URL('/api/chat', base), {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
