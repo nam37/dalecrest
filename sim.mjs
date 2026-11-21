@@ -4,6 +4,7 @@ import { generateMap } from './engine/worldgen.mjs';
 import { place, placesOf, route } from './engine/roads.mjs';
 import * as civic from './engine/civic.mjs';
 import { newcomer, wantsNewcomer } from './engine/people.mjs';
+import * as standing from './engine/standing.mjs';
 
 export const FOCUSES = ['work', 'social', 'rest', 'food'];
 export const DEFAULT_SEED = 26111;
@@ -282,15 +283,56 @@ export function availableActions(actor, state) {
   return menu;
 }
 
-function waitForDecision(actor, minute) {
-  if (actor.action.kind === 'waiting') return;
-  const { kind, label, target } = actor.action;
+// A resident with a real choice to make waits for it where they stand. The clock and everyone else carry on.
+function waitForDecision(actor, minute, why) {
+  if (actor.action.kind === 'waiting') return false;
+  const { kind, label, target, job } = actor.action;
   actor.action = { kind: 'waiting', phase: 'waiting', label: 'Choosing the next activity', target, remaining: 0,
-    since: minute, previous: { kind, label, target }, reason: 'Waiting for a decision from gpt-6-luna.' };
+    since: minute, previous: { kind, label, target, ...(job ? { job } : {}) }, why, reason: 'Waiting for a decision from gpt-6-luna.' };
   actor.plan = null;
+  return true;
 }
 
-function stepMinute(state, events, externalActions) {
+const brief = ({ kind, label, target, job }) => ({ kind, label, target, ...(job ? { job } : {}) });
+
+// One activity boundary in the model-driven village. Routine follows a standing instruction a model
+// already gave. Anything else waits for a fresh decision. A resident who is already waiting is
+// reconsidered each minute, so nightfall can send them to bed on a valid instruction.
+function atBoundary(actor, state, records, pilot) {
+  const minute = state.world.minute, waiting = actor.action.kind === 'waiting';
+  const finished = waiting ? actor.action.previous : actor.action;
+  const verdict = standing.consider(actor, state, availableActions(actor, state), finished, pilot);
+  for (const end of verdict.ended) records?.push({ actorId: actor.id, minute, basis: 'instruction_ended', routine: end.routine, reason: end.reason, traceId: end.trace });
+  if (!verdict.follow) {
+    if (waitForDecision(actor, minute, verdict.fresh)) records?.push({ actorId: actor.id, minute, basis: 'waiting', reason: verdict.fresh, action: brief(finished) });
+    return;
+  }
+  const { routine, id, action, instruction } = verdict.follow;
+  const waited = waiting ? minute - actor.action.since : 0;
+  instruction.uses++;
+  actor.action = { ...action, phase: 'travelling', choiceId: id,
+    basis: { kind: 'standing', routine, trace: instruction.trace, since: instruction.since, ...(waited ? { waited } : {}) },
+    reason: 'Following a choice made earlier for this routine.' };
+  records?.push({ actorId: actor.id, minute, basis: 'standing', routine, traceId: instruction.trace, waited, action: brief(actor.action) });
+}
+
+// Starts an action the Decisions API chose, if the engine still offers it, and keeps the choice as
+// the standing instruction for the routine it answers. Returns null when it can no longer start.
+export function startChosen(actor, state, id, trace, pilot = standing.PILOT) {
+  if (actor.action.kind !== 'waiting') return null;
+  const action = availableActions(actor, state).get(id);
+  if (!action) return null;
+  const minute = state.world.minute, { since, why, previous } = actor.action;
+  actor.action = { ...action, phase: 'travelling', choiceId: id, decisionTraceId: trace.id,
+    basis: { kind: 'fresh', trace: trace.id, waited: minute - since, ...(why ? { why } : {}) },
+    reason: 'Selected by ' + trace.model + ' after ' + previous.label + '.' };
+  actor.plan = null;
+  actor.lastModelPlanAt = actor.decidedAt = minute;
+  const kept = standing.keep(actor, state, action, trace.id, pilot);
+  return { action: actor.action, waited: minute - since, why, routine: kept ? standing.routineOf(action, minute) : null };
+}
+
+function stepMinute(state, events, externalActions, records, pilot) {
   const { world, actors, map } = state;
   const minute = ++world.minute;
   const emit = (type, text, actorIds = []) => events.push({ type, minute, text, actorIds });
@@ -316,7 +358,7 @@ function stepMinute(state, events, externalActions) {
     n.fatigue = clamp(n.fatigue + (resting ? -0.24 : action.kind === 'work' ? 0.074 : 0.043));
     n.loneliness = clamp(n.loneliness + (resting ? 0.006 : 0.043));
     if (action.remaining <= 0) {
-      if (externalActions) waitForDecision(actor, minute);
+      if (externalActions) atBoundary(actor, state, records, pilot);
       else choose(actor, state);
       continue;
     }
@@ -396,15 +438,18 @@ function stepMinute(state, events, externalActions) {
     emit(type, text, ids);
   }
   if (externalActions) {
-    for (const actor of actors) if (actor.action.remaining <= 0) waitForDecision(actor, minute);
+    // An activity that ended this minute is settled now, so routine carries straight on.
+    for (const actor of actors) if (actor.action.remaining <= 0 && actor.action.kind !== 'waiting') atBoundary(actor, state, records, pilot);
   }
 }
 
-export function stepVillage(state, { minutes = 5, externalActions = false } = {}) {
+// With externalActions the Decisions API chooses at each real choice and the engine never picks an
+// activity itself. records, when given, receives how each activity came about.
+export function stepVillage(state, { minutes = 5, externalActions = false, records = null, pilot = standing.PILOT } = {}) {
   if (!Number.isSafeInteger(minutes) || minutes < 0) throw new RangeError('minutes must be a nonnegative integer');
   normalize(state);
   const events = [];
-  for (let i = 0; i < minutes; i++) stepMinute(state, events, externalActions);
+  for (let i = 0; i < minutes; i++) stepMinute(state, events, externalActions, records, pilot);
   state.world.mapRevision = state.map.revision;
   return events;
 }

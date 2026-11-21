@@ -62,4 +62,27 @@ Older traces with a NULL `decision_since` used the priority planner. They show a
 | `transport_error` | The connection failed before a complete reply reached the application. |
 | `unknown` | A request remained unresolved for five real minutes, for example after a process interruption. Delivery and response are unknown. |
 
-There is no automatic pruning. The normal PostgreSQL backup includes both trace tables. Treat database access and backups as access to the complete model exchanges.
+## See how each activity began
+
+A resident starts an activity in one of two ways: on a fresh choice from the Decisions API, or by routine on a standing instruction that an earlier choice set. `dalecrest.activity_log` records which, in the same transaction as the activity.
+
+| `basis` | Meaning | Useful columns |
+| --- | --- | --- |
+| `waiting` | An activity ended and a fresh choice was needed. The resident began to wait. | `reason` says why this was a choice. `action` is what they had just finished. |
+| `fresh` | A reply was applied and the activity started. | `trace_id` is the exchange. `waited_minutes` is village time spent waiting. `routine` is the routine this choice now stands for, if any. |
+| `standing` | The activity started on a standing instruction. No request was made. | `trace_id` is the exchange that set the instruction. `waited_minutes` is above zero when the instruction came to cover a moment the resident was waiting in. |
+| `instruction_ended` | An instruction was dropped before it could be followed. | `routine` and `reason`: lapsed, goals changed, or ran its course. |
+
+`recorded_at` is wall-clock time, so the real length of a wait is the gap between a `waiting` row and the next `fresh` or `standing` row for the same resident. The resident's own record carries the same fact for the current activity under `action.basis`.
+
+```sql
+SELECT minute, basis, routine, reason, trace_id, waited_minutes, action->>'label' AS activity, recorded_at
+FROM dalecrest.activity_log
+WHERE actor_id = 'alice'
+ORDER BY id DESC
+LIMIT 30;
+```
+
+For the village as a whole, `node --env-file=.env tools/pilot-report.mjs 24` prints the share of activities by basis, fresh choices per resident per village day, why each was needed, real waiting time, spending, and how late the clock has ever run.
+
+There is no automatic pruning. The normal PostgreSQL backup includes the trace tables and the activity log. Treat database access and backups as access to the complete model exchanges.

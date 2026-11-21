@@ -88,6 +88,8 @@ Stages 0 and 1 together are the first milestone, the promise pilot. Sizes are re
 
 ### Stage 0. Liveness and meaningful choices (M)
 
+**Status · 21 November 2026.** Built on the `village-engine` branch and described in [design decision 3](design.md). It is not deployed, and its parameters are the untuned starting values. With a scripted stand-in answering in place of the Decisions API, 31% of activity boundaries needed a fresh choice, about 7 per resident per village day. That is a property of the rules and the stand-in, not a measurement of the model. Commitments other than the moot arrive with Stage 1.
+
 Let village time pass at a chosen pace, and spend action requests only where a resident has something to decide. This stage proposes how to tell a routine boundary from a real choice. The roles in the knowledge graph do not change. If the proposal is accepted, the "Who decides and when" table there gains the standing instruction.
 
 **A clock that advances independently.** The server advances village time on a fixed schedule. Requests to either model are sent and answered alongside it. A reply that takes five seconds, a provider outage and an empty budget all leave the clock running. The pace is a pilot parameter. The estimates below suggest starting at 30 real seconds per village minute, which is two village days per real day.

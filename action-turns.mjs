@@ -1,19 +1,8 @@
 import { DECISIONS_MODEL, DECISIONS_URL, actionBody, actionDescription } from './decisions.mjs';
-import { availableActions } from './sim.mjs';
-import { residentState } from './decision-trace.mjs';
+import { availableActions, startChosen, locationsOf } from './sim.mjs';
+import { residentState, writeActivities } from './decision-trace.mjs';
 
 export const hourlyActionBudget = Number(process.env.OPENAI_ACTION_TOKENS_PER_HOUR || 7000);
-
-// When a queue forms, stretch active shifts over the time it takes to fund new ones.
-export async function secondsPerQueuedMinute(db, population) {
-  if (!hourlyActionBudget) return 3;
-  const { rows: [recent] } = await db.query(`SELECT sum(cost)::float8 / nullif(sum(duration),0) AS tokens_per_minute
-    FROM (SELECT t.token_charge AS cost, (s.details#>>'{action,remaining}')::int AS duration
-      FROM dalecrest.decision_traces t JOIN dalecrest.decision_steps s ON s.trace_id=t.id AND s.kind='selected'
-      WHERE t.decision_since IS NOT NULL AND t.status='applied' ORDER BY t.id DESC LIMIT 24) samples`);
-  const expectedCost = recent.tokens_per_minute ?? 400 / 60;
-  return Math.min(60, Math.max(1, Math.ceil(3600 * population * expectedCost / hourlyActionBudget)));
-}
 
 // Both reservation and application run under the same world-row lock used by ticks.
 export async function reserveAction(db, village, hourlyBudget) {
@@ -27,12 +16,14 @@ export async function reserveAction(db, village, hourlyBudget) {
     const last = recent.get(actor.id);
     return Math.max(actor.action.since, Number(last?.observed_minute ?? 0));
   };
+  const pressing = actor => Number(Boolean(actor.action.why?.startsWith('would run into')));
   const eligible = waiting.filter(actor => {
     const last = recent.get(actor.id);
     if (!last) return true;
     if (['received','requested'].includes(last.status)) return false;
     return Number(last.decision_since) !== actor.action.since || !last.cooling;
-  }).sort((a,b) => turn(a) - turn(b));
+  // A choice that something is about to overtake is served first, then whoever has waited longest.
+  }).sort((a,b) => pressing(b) - pressing(a) || turn(a) - turn(b));
   if (!eligible.length) return;
   // A rolling hour limits total use. A smaller burst allowance spreads decisions across the hour.
   const { rows: [usage] } = await db.query(`SELECT coalesce(max(charged),0)::int AS spent,
@@ -43,7 +34,7 @@ export async function reserveAction(db, village, hourlyBudget) {
   const actor = eligible[0];
   const menu = availableActions(actor, village);
   if (!menu.size) return;
-  const body = actionBody(actor, village.world, menu);
+  const body = actionBody(actor, village.world, menu, locationsOf(village.map, village.actors));
   // Reserve before sending. The provider's reported total replaces this estimate when available.
   const estimate = Math.ceil(Buffer.byteLength(body) / 3) + 80;
   if (usage.spent + estimate > hourlyBudget || usage.debt + estimate > Math.max(estimate, hourlyBudget / 4)) return { budgetLimited: true };
@@ -60,16 +51,16 @@ export async function startChosenAction(db, trace, choice, village, recordEvents
   if (actor.action.kind !== 'waiting' || actor.action.since !== Number(trace.decision_since)) return { status: 'superseded' };
   const action = availableActions(actor, village).get(choice);
   const offered = JSON.parse(trace.request_body).questions[0].choices.find(option => option.value === choice);
-  if (!action || actionDescription(action) !== offered.description) return { status: 'unavailable' };
+  if (!action || actionDescription(action, locationsOf(village.map, village.actors)) !== offered.description) return { status: 'unavailable' };
   const minute = village.world.minute;
   const state = residentState(actor);
+  const started = startChosen(actor, village, choice, { id: trace.id, model: trace.model });
+  if (!started) return { status: 'unavailable' };
   await db.query(`UPDATE dalecrest.decision_traces SET ended_minute=$2,end_reason='replaced'
     WHERE actor_id=$1 AND status='applied' AND ended_minute IS NULL`, [actor.id, minute]);
-  actor.action = { ...action, phase: 'travelling', choiceId: choice, decisionTraceId: trace.id,
-    reason: 'Selected by ' + trace.model + ' after ' + actor.action.previous.label + '.' };
-  actor.plan = null;
-  actor.lastModelPlanAt = minute;
   await db.query('UPDATE dalecrest.actors SET state=$1 WHERE id=$2', [actor, actor.id]);
+  await writeActivities(db, [{ actorId: actor.id, minute, basis: 'fresh', routine: started.routine, reason: started.why,
+    traceId: trace.id, waited: started.waited, action: { kind: action.kind, label: action.label, target: action.target } }]);
   const [event] = await recordEvents(db, [{ minute, type: 'plan', actorIds: [actor.id],
     text: actor.name + ' chose the next activity: ' + action.label + '.' }]);
   await db.query(`INSERT INTO dalecrest.decision_steps(trace_id,minute,kind,details,event_id)

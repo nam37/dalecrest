@@ -6,6 +6,12 @@
       "runtimeExecutable": "node",
       "runtimeArgs": ["--env-file=.env", "tools/preview-village.mjs"],
       "port": 4174
+    },
+    {
+      "name": "dalecrest-standin",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["--env-file=.env", "tools/standin-village.mjs"],
+      "port": 4175
     }
   ]
 }

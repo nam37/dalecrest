@@ -16,7 +16,7 @@ To use an existing PostgreSQL server, set `DATABASE_URL` in the environment or a
 
 ## Enable model planning
 
-Local rules work as soon as the village starts. To enable Luna, set `PLANNER_PROVIDER=openai` and `OPENAI_API_KEY` in the server environment and restart the server. Each completed activity queues a decision. Requests share a rolling budget of 7,000 tokens per real hour by default, configurable with `OPENAI_ACTION_TOKENS_PER_HOUR`. Residents wait for Luna if the budget or provider is unavailable. To use a local Ollama installation, set `PLANNER_PROVIDER=ollama`, `OLLAMA_MODEL`, and `OLLAMA_BASE_URL`.
+Local rules work as soon as the village starts. To enable Luna, set `PLANNER_PROVIDER=openai` and `OPENAI_API_KEY` in the server environment and restart the server. Luna is asked whenever a resident has a real choice to make. Routine, such as a night's sleep, follows a choice Luna made earlier. Requests share a rolling budget of 7,000 tokens per real hour by default, configurable with `OPENAI_ACTION_TOKENS_PER_HOUR`. Village time advances at `VILLAGE_SECONDS_PER_MINUTE` real seconds per village minute, 30 by default with Luna enabled, whether or not replies arrive. A resident whose choice has not arrived waits where they are. To use a local Ollama installation, set `PLANNER_PROVIDER=ollama`, `OLLAMA_MODEL`, and `OLLAMA_BASE_URL`.
 
 ## Watch it grow
 
@@ -31,6 +31,14 @@ node --env-file=.env tools/preview-village.mjs
 ```
 
 `node tools/simulate.mjs 60` runs sixty village days without a database and prints what was decided and built.
+
+To watch the model-driven path without spending tokens, run a village whose decisions are answered by a script. It uses its own database and port 4175, and contacts no model.
+
+```powershell
+node --env-file=.env tools/standin-village.mjs
+```
+
+`node --env-file=.env tools/pilot-report.mjs` reports how activities began, how long residents waited and what was spent, for whichever village `DATABASE_URL` names.
 
 ## Explore the project
 

@@ -27,7 +27,22 @@ export async function initializeTraces(db) {
       event_id bigint REFERENCES dalecrest.events(id)
     );
     CREATE INDEX IF NOT EXISTS decision_steps_trace ON dalecrest.decision_steps (trace_id,minute,id);
+    -- How each activity came about: a fresh choice, a standing instruction, or a wait that preceded one.
+    CREATE TABLE IF NOT EXISTS dalecrest.activity_log (
+      id bigserial PRIMARY KEY, actor_id text NOT NULL, minute bigint NOT NULL,
+      basis text NOT NULL CHECK (basis IN ('fresh','standing','waiting','instruction_ended')),
+      routine text, reason text, trace_id bigint REFERENCES dalecrest.decision_traces(id),
+      waited_minutes integer, action jsonb, recorded_at timestamptz NOT NULL DEFAULT clock_timestamp()
+    );
+    CREATE INDEX IF NOT EXISTS activity_log_actor ON dalecrest.activity_log (actor_id,id DESC);
   `);
+}
+
+export async function writeActivities(db, records) {
+  if (!records.length) return;
+  await db.query(`INSERT INTO dalecrest.activity_log(actor_id,minute,basis,routine,reason,trace_id,waited_minutes,action)
+    SELECT "actorId",minute,basis,routine,reason,"traceId",waited,action FROM jsonb_to_recordset($1)
+    AS r("actorId" text, minute bigint, basis text, routine text, reason text, "traceId" bigint, waited integer, action jsonb)`, [JSON.stringify(records)]);
 }
 
 export function residentState(actor) {
@@ -35,8 +50,8 @@ export function residentState(actor) {
 }
 
 // Observe each real minute. Choosing the same activity again creates a new action object.
-export function advanceWithTraces(village, minutes, traces, externalActions = false) {
-  if (!traces.length) return { events: stepVillage(village, { minutes, externalActions }), steps: [] };
+export function advanceWithTraces(village, minutes, traces, externalActions = false, records = null) {
+  if (!traces.length) return { events: stepVillage(village, { minutes, externalActions, records }), steps: [] };
   const events = [], steps = [];
   const byActor = new Map(traces.map(t => [t.actor_id, t]));
   for (let i = 0; i < minutes; i++) {
@@ -48,11 +63,12 @@ export function advanceWithTraces(village, minutes, traces, externalActions = fa
         observed.push({ actor, trace, action: actor.action, phase: actor.action.phase, remaining: actor.action.remaining });
       }
     }
-    const tickEvents = stepVillage(village, { minutes: 1, externalActions });
+    const tickEvents = stepVillage(village, { minutes: 1, externalActions, records });
     events.push(...tickEvents);
     for (const { actor, trace, action, phase, remaining } of observed) {
       const add = kind => steps.push({ trace_id: trace.id, minute: next, kind, details: residentState(actor) });
-      if (actor.action !== action && actor.action.kind === 'waiting') {
+      // A chosen activity ends its trace whether the resident then waits or carries on by routine.
+      if (actor.action !== action && (actor.action.kind === 'waiting' || trace.decision_since != null)) {
         steps.push({ trace_id: trace.id, minute: next, kind: 'activity_ended', details: { ...residentState(actor), action: structuredClone(action) } });
         if (trace.decision_since != null) byActor.delete(actor.id);
       } else if (actor.action !== action) add('selected');

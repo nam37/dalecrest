@@ -128,9 +128,15 @@ function renderProfile(actor) {
     const waiting = block('Next decision', el('strong','activity','Waiting for gpt-6-luna'));
     if (activity.previous) waiting.append(el('p','reason','Last activity · '+activity.previous.label));
     if (Number.isFinite(activity.since)) waiting.append(el('p','goal','Queued '+date(activity.since)+' at '+time(activity.since)));
+    if (activity.why) waiting.append(el('p','reason','A choice, not routine · '+activity.why));
     detail.append(waiting);
   } else {
-    detail.append(block(activity.phase==='travelling'?'Walking to '+at:'At '+at,el('strong','activity',activity.label),el('p','reason',activity.reason)));
+    const doing = block(activity.phase==='travelling'?'Walking to '+at:'At '+at,el('strong','activity',activity.label),el('p','reason',activity.reason));
+    // How this activity came about: a fresh choice by the model, or routine on a choice it made earlier.
+    const basis = activity.basis;
+    if (basis?.kind === 'standing') doing.append(el('p','goal','Routine · on a choice made '+date(basis.since)+' at '+time(basis.since)));
+    else if (basis?.kind === 'fresh') doing.append(el('p','goal','Fresh choice'+(basis.waited ? ' · after waiting '+basis.waited+' village minutes' : '')));
+    detail.append(doing);
     if(actor.plan)detail.append(block(actor.plan.method==='choice'?'Model priority · '+actor.plan.focus:'Model intention',el('p','goal',actor.plan.reason)));
   }
   const event = state.events.find(e => e.type !== 'plan' && e.actorIds.includes(actor.id));

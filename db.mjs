@@ -1,8 +1,8 @@
 import pg from 'pg';
-import { reserveAction, startChosenAction, secondsPerQueuedMinute } from './action-turns.mjs';
+import { reserveAction, startChosenAction } from './action-turns.mjs';
 import { createVillage, stepVillage, adoptVillage, FOCUSES, DEFAULT_SEED } from './sim.mjs';
 import { DECISIONS_MODEL, DECISIONS_URL, interpretDecision } from './decisions.mjs';
-import { initializeTraces, advanceWithTraces, writeSteps, residentState } from './decision-trace.mjs';
+import { initializeTraces, advanceWithTraces, writeSteps, writeActivities, residentState } from './decision-trace.mjs';
 
 if (!process.env.DATABASE_URL) throw new Error('Set DATABASE_URL in .env to a PostgreSQL database before starting Dalecrest.');
 export const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 5, connectionTimeoutMillis: 5000 });
@@ -77,6 +77,10 @@ export async function initialize() {
       );
     `);
     await initializeTraces(db);
+    await db.query(`ALTER TABLE dalecrest.world ADD COLUMN IF NOT EXISTS ticks bigint NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS late_ms_max integer NOT NULL DEFAULT 0`);
+    // The clock stops with the server. Time it was down is not counted as the clock running late.
+    await db.query('UPDATE dalecrest.world SET next_tick = now() WHERE next_tick < now()');
     const seed = Number(process.env.VILLAGE_SEED) || DEFAULT_SEED;
     const stored = await db.query('SELECT state FROM dalecrest.world WHERE id=1 FOR UPDATE');
     if (stored.rowCount) {
@@ -133,6 +137,15 @@ export async function pendingDecision() {
   return r.rows[0]?.id;
 }
 
+// Village time advances on its own schedule, whatever the models are doing. The pace is a pilot
+// parameter: real seconds per village minute, 30 when the Decisions API chooses and 1 under local rules.
+function clockPace(direct) {
+  const set = Number(process.env.VILLAGE_SECONDS_PER_MINUTE);
+  const pace = set > 0 ? set : direct ? 30 : 1;
+  const minutes = Math.max(1, Math.round(3 / pace));
+  return { minutes, seconds: minutes * pace };
+}
+
 export async function advance() {
   // A step changes the held map in place, so a failed commit must not leave that copy behind.
   return transaction(tick).catch(error => { held = null; throw error; });
@@ -147,15 +160,18 @@ async function tick(db) {
   const traces = (await db.query(`SELECT id,actor_id,until_minute,decision_since FROM dalecrest.decision_traces
       WHERE status='applied' AND ended_minute IS NULL`)).rows;
   const direct = process.env.PLANNER_PROVIDER === 'openai';
-  const waiting = direct ? actors.filter(a => a.action.kind === 'waiting').length : 0;
-  const minutes = waiting === actors.length ? 0 : waiting ? 1 : 3;
-  const delay = minutes === 1 ? await secondsPerQueuedMinute(db, actors.length) : 3;
-  const { events, steps } = advanceWithTraces({ world, actors, map }, minutes, traces, direct);
-  await db.query("UPDATE dalecrest.world SET state=$1, next_tick=now()+make_interval(secs=>$2) WHERE id=1", [world, delay]);
+  const { minutes, seconds } = clockPace(direct);
+  const records = [];
+  const { events, steps } = advanceWithTraces({ world, actors, map }, minutes, traces, direct, records);
+  // The right-hand sides read the row as it was, so lateness is measured against the tick that was due.
+  await db.query(`UPDATE dalecrest.world SET state=$1, ticks=ticks+1,
+    late_ms_max=greatest(late_ms_max, least(extract(epoch FROM now()-next_tick)*1000, 2000000000)::int),
+    next_tick=now()+make_interval(secs=>$2) WHERE id=1`, [world, seconds]);
   await saveActors(db, actors);
   if (map.revision !== before) await saveMap(db, map);
   const chronicle = await recordEvents(db, events);
   await writeSteps(db, steps, chronicle, traces, world.minute);
+  await writeActivities(db, records);
 }
 
 // Observers only see committed maps. Capture one map and its residents in the same database snapshot.

@@ -9,22 +9,24 @@ const choices = [
 
 export const DECISIONS_URL = 'https://api.openai.com/v1/decisions';
 
-export function actionDescription(action) {
-  return action.label + ' at ' + action.target + ' (' + action.remaining + ' village minutes).';
+// names maps a place ID to what residents call it, so a model never reads "cottage-3".
+export function actionDescription(action, names = {}) {
+  return action.label + ' at ' + (names[action.target]?.name || action.target) + ' (' + action.remaining + ' village minutes).';
 }
 
-export function actionBody(actor, world, menu) {
-  const time = world.minute % 1440;
+export function actionBody(actor, world, menu, names = {}) {
+  const time = world.minute % 1440, last = actor.action.previous;
   const observation = {
     name: actor.name, role: actor.role, traits: actor.traits, goals: actor.goals,
     desires: actor.desires.map(({ focus, weight, target }) => ({ focus, weight, target })),
     needs: Object.fromEntries(Object.entries(actor.needs).map(([need, value]) => [need, Math.round(value)])),
-    lastActivity: actor.action.previous, position: actor.position,
+    lastActivity: last && { kind: last.kind, label: last.label, place: names[last.target]?.name || last.target },
+    whyThisIsAChoice: actor.action.why,
     time: [Math.floor(time / 60), time % 60].map(n => String(n).padStart(2, '0')).join(':'),
     stores: world.supplies, recentMemories: actor.memories.slice(-2).map(m => m.text)
   };
   const options = Array.from(menu, ([value, action]) => ({
-    value, description: actionDescription(action)
+    value, description: actionDescription(action, names)
   }));
   return JSON.stringify({
     model: DECISIONS_MODEL, input: [{ role: 'user', content: [{ type: 'input_json', data: observation }] }],
