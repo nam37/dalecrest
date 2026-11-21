@@ -1,12 +1,13 @@
 // All durable state is plain JSON. No wall-clock reads or process-local random state.
 // A village is { world, actors, map }: the map is the generated and grown ground they live on.
 import { generateMap } from './engine/worldgen.mjs';
-import { place, placesOf, route } from './engine/roads.mjs';
+import { place, placesOf, route, walkingSegment } from './engine/roads.mjs';
 import * as civic from './engine/civic.mjs';
 import { newcomer, wantsNewcomer } from './engine/people.mjs';
 import * as standing from './engine/standing.mjs';
 import { atOven, inspectOven } from './engine/observations.mjs';
 import { conversationChoices, finishConversation, missedConversation, recordPrivateReview, requestReviewMenu, knownStores, noteWork, settleHelp, expireHelp } from './engine/exchanges.mjs';
+import { weatherAt, dayTemp, daylight, chill, fuelPerHearth } from './engine/seasons.mjs';
 
 export const FOCUSES = ['work', 'social', 'rest', 'food'];
 export const DEFAULT_SEED = 26111;
@@ -84,7 +85,10 @@ function normalize({ world, actors, map }) {
   world.cooldown ??= {};
   world.lastArrival ??= world.minute;
   world.arrivals ??= 0;
+  world.coldHearths ??= [];
+  world.fuelCarry ??= 0;
   for (const actor of actors) {
+    actor.needs.cold ??= 0;
     if (!Array.isArray(actor.desires)) actor.desires = inferDesires(actor);
     if (!actor.action.reason) actor.action.reason = 'Continuing an activity chosen earlier in the day.';
   }
@@ -98,7 +102,7 @@ export function createVillage(seed = DEFAULT_SEED) {
     return {
       id, name, role, home, workplace, backstory, traits, trade,
       goals: [goal, 'Make time for ' + households.find(h => h[0] === friend)[1]],
-      needs: { hunger: 28 + i * 3, fatigue: 17 + i, loneliness: 19 + i * 5 },
+      needs: { hunger: 28 + i * 3, fatigue: 17 + i, loneliness: 19 + i * 5, cold: 0 },
       relationships: Object.fromEntries(households.filter(h => h[0] !== id).map(h => [h[0], h[0] === friend ? 57 : 18 + ((i + h[1].length) % 17)])),
       memories: [], plan: null, position: { x: at[0], y: at[1] },
       action: { kind: 'idle', label: 'Starting the day', reason: 'The morning bell has just rung.', target: workplace, phase: 'working', remaining: 0 },
@@ -158,8 +162,11 @@ function jobOptions(actor, state, perceived, allFeasible) {
   // When stores run low, anyone can lend a hand in the fields or coppice.
   const list = [...new Set([actor.trade, 'harvest', 'cut', 'draw'])];
   const options = [];
+  // The fields and the coppice are worked by daylight: from first light until half an hour before sunset.
+  const sun = daylight(perceived.minute), now = perceived.minute % 1440, light = now >= sun.sunrise - 30 && now <= sun.sunset - 30;
   for (const key of list) {
     const job = jobs[key];
+    if (!light && (job.at === 'field' || job.at === 'wood')) continue;
     if (stockObstacle(perceived, job, true)) continue;
     const material = Object.keys(job.makes)[0];
     const amount = perceived.supplies[material];
@@ -208,9 +215,10 @@ function choose(actor, state, menu) {
     }
     choices.push({ score: score + 4 * random(world), kind, label, reason, target, remaining: duration, ...extra });
   }
-  const seen = actor.observations?.ovenStores;
+  const seen = actor.observations?.ovenStores, hearth = actor.observations?.hearth;
   const known = knownStores(actor);
-  const perceived = { ...world, supplies: { ...world.supplies, flour: known?.flour, wood: known?.wood } };
+  const bare = hearth && !hearth.lit && hearth.minute > (known?.minute ?? -1);
+  const perceived = { ...world, supplies: { ...world.supplies, flour: known?.flour, wood: bare ? 0 : known?.wood } };
   const jobsHere = jobOptions(actor, state, perceived, Boolean(menu));
   const duty = actor.traits.includes('steadfast') ? 5 : 0;
   const weary = (night ? 48 : 0) + Math.max(0, fatigue - 65);
@@ -235,7 +243,11 @@ function choose(actor, state, menu) {
   }
   if (world.supplies.bread > 0 && oven) offer('food', 'Taking a loaf at the ' + (oven.id === 'oven' ? 'oven' : 'bakehouse'), oven.id, 17, hunger * 1.35 - 16, 'There is bread to be had and my hunger is ' + Math.round(hunger) + ' out of 100.');
   const lodging = civic.isLodger(actor, map);
-  offer('rest', (night ? 'Sleeping ' : 'Resting ') + (lodging ? 'at the hall' : 'at home'), actor.home, night ? 105 : 54, fatigue + (night ? 48 : -9), night ? 'It is time to sleep and recover for tomorrow.' : 'My fatigue has reached ' + Math.round(fatigue) + ' out of 100.');
+  // Someone chilled through goes home to the fire, if there is one.
+  const chilled = !night && actor.needs.cold > 45 && !world.coldHearths.includes(actor.home);
+  offer('rest', (night ? 'Sleeping ' : chilled ? 'Warming up ' : 'Resting ') + (lodging ? 'at the hall' : 'at home'), actor.home, night ? 105 : 54,
+    fatigue + (night ? 48 : -9) + (chilled ? (actor.needs.cold - 45) * 0.9 : 0),
+    night ? 'It is time to sleep and recover for tomorrow.' : chilled ? 'I am chilled through and there is a fire at home.' : 'My fatigue has reached ' + Math.round(fatigue) + ' out of 100.');
   // Seek a friend with a reachable destination. Recent pleasant meetings favor a return visit.
   let friend, best = -Infinity;
   for (const other of actors) {
@@ -276,19 +288,13 @@ function travel(actor, state, emit) {
     action.path = found.pts;
     if (found.direct && found.from && found.length >= 5 && found.byRoad > found.length * 1.25) action.across = found.from;
   }
-  let stride = actor.traits.includes('restless') ? 2.65 : 2.15;
-  while (action.path.length) {
-    const [x, y] = action.path[0];
-    const d = Math.hypot(x - actor.position.x, y - actor.position.y);
-    if (d > stride) {
-      actor.position.x += stride * (x - actor.position.x) / d;
-      actor.position.y += stride * (y - actor.position.y) / d;
-      return false;
-    }
+  const { points, passed } = walkingSegment(actor, action.path);
+  if (points.length) {
+    const [x, y] = points.at(-1);
     actor.position = { x, y };
-    stride -= d;
-    action.path.shift();
   }
+  action.path.splice(0, passed);
+  if (action.path.length) return false;
   delete action.path;
   if (action.across) {
     const from = action.across;
@@ -383,9 +389,57 @@ function endShiftEarly(actor, minute, emit, status, reason) {
   recordWork(actor, minute, emit, actor.name + ' could not finish the ' + task + ' shift because ' + reason + '.', status, {}, reason);
 }
 
-function finishShift(actor, world, emit) {
+const count = (n, word) => n + ' ' + word + (n === 1 ? '' : 's');
+const listed = names => names.length > 3 ? names.slice(0, 2).join(', ') + ' and ' + (names.length - 2) + ' others'
+  : names.length < 2 ? names.join('') : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
+
+// Under a roof: at home, at a meeting or the alehouse, or at an indoor trade.
+const indoors = action => action.phase === 'working' && (action.kind === 'rest' || action.kind === 'meeting'
+  || (action.kind === 'leisure' && action.target !== 'green') || (action.kind === 'work' && ['bake', 'weave', 'mill'].includes(action.job)));
+// Indoors with a fire going. A house that got no firewood this morning has none. The oven warms
+// whoever is baking, and the hall and alehouse keep a fire while the common store has wood.
+function byAFire(actor, world) {
+  const action = actor.action;
+  if (!indoors(action) || world.coldHearths.includes(action.target)) return false;
+  return action.target === actor.home || action.job === 'bake' || world.supplies.wood > 0;
+}
+
+// Each morning in cold weather every hearth takes its day's firewood from the common store: each
+// occupied house, and the hall while anyone lodges there. When the store runs short some go without,
+// and whose turn that is moves round the village from day to day.
+function fuelHearths({ world, actors, map }) {
+  const minute = world.minute, rate = fuelPerHearth(dayTemp(minute, map.seed));
+  const homes = [...new Set(actors.map(a => a.home))].sort();
+  world.coldHearths = [];
+  if (!rate) { world.fuelCarry = 0; return { taken: 0, cold: [], hearths: homes.length, lit: homes.length }; }
+  // A hearth may burn a fraction of a bundle. What is owed beyond whole bundles carries to tomorrow.
+  const want = homes.length * rate + world.fuelCarry, whole = Math.floor(want + 1e-9);
+  let lit = homes.length, taken = whole;
+  if (whole <= world.supplies.wood) world.fuelCarry = Math.round((want - whole) * 100) / 100;
+  else {
+    lit = Math.min(homes.length - 1, Math.floor(world.supplies.wood / rate + 1e-9));
+    taken = Math.min(world.supplies.wood, Math.ceil(lit * rate - 1e-9));
+    world.fuelCarry = 0;
+    const first = Math.floor(minute / 1440) % homes.length;
+    world.coldHearths = homes.map((_, i) => homes[(first + i) % homes.length]).slice(lit).sort();
+  }
+  world.supplies.wood -= taken;
+  for (const actor of actors) {
+    actor.observations ??= {};
+    actor.observations.hearth = { minute, lit: !world.coldHearths.includes(actor.home) };
+  }
+  return { taken, cold: world.coldHearths, hearths: homes.length, lit };
+}
+
+// Snow makes poor woodcutting: what lies under it is wet, and less comes home dry enough to burn.
+const snowedWood = [null,
+  { makes: { wood: 1 }, result: 'dug one bundle of dry wood out from under the snow' },
+  { makes: { wood: 2 }, result: 'stacked two bundles of wood, the rest too wet with snow to burn' }];
+
+function finishShift(actor, world, emit, sky) {
   const { job: key, target } = actor.action;
-  const job = jobs[key], minute = world.minute;
+  const minute = world.minute, dry = key !== 'cut' ? 3 : sky.lying > 0.5 ? 1 : sky.snow || sky.lying > 0.1 ? 2 : 3;
+  const job = dry < 3 ? { ...jobs[key], ...snowedWood[dry] } : jobs[key];
   const obstacle = stockObstacle(world, job);
   if (obstacle) {
     endShiftEarly(actor, minute, emit, 'blocked', obstacle);
@@ -412,10 +466,22 @@ function stepMinute(state, events, externalActions, records, pilot) {
   const minute = ++world.minute;
   const emit = (type, text, actorIds = [], outcome) => events.push({ type, minute, text, actorIds, ...(outcome && { outcome }) });
   expireHelp(state, emit);
+  const sky = weatherAt(minute, map.seed), bite = chill(sky.temp);
   if (minute % 1440 === 360) {
     civic.dawn(state);
     for (const [key, used] of Object.entries({ cloth: 1, repair: 2, water: actors.length })) world.supplies[key] = Math.max(0, world.supplies[key] - used);
-    emit('village', 'Dawn breaks. The households collect water and take what they need from the village stores.');
+    const burned = fuelHearths(state);
+    emit('village', 'Dawn breaks ' + sky.phrase + '. The households collect water and take what they need from the village stores'
+      + (burned.taken ? ', and carry home ' + count(burned.taken, 'bundle') + ' of firewood for their hearths.' : '.'));
+    if (burned.cold.length) {
+      const without = actors.filter(a => burned.cold.includes(a.home));
+      emit('village', 'There was firewood for only ' + burned.lit + ' of the ' + burned.hearths + ' hearths this morning. '
+        + listed(without.map(a => a.name)) + ' woke to a cold house.', without.map(a => a.id),
+        { hearths: burned.hearths, lit: burned.lit, firewoodTaken: burned.taken });
+      for (const actor of without) {
+        memory(actor, minute, actor.name + ' woke to a cold hearth. There was no firewood left in the common store.', [actor.id], 'observation', { shortage: 'wood' });
+      }
+    }
   }
   if (minute % 1440 === 540 && wantsNewcomer(state) && random(world) < 0.7) {
     const arrival = newcomer(state, () => random(world));
@@ -433,8 +499,11 @@ function stepMinute(state, events, externalActions, records, pilot) {
     const n = actor.needs;
     const action = actor.action;
     const resting = action.kind === 'rest' && action.phase === 'working';
+    const warm = bite > 0 && byAFire(actor, world);
     n.hunger = clamp(n.hunger + 0.042);
-    n.fatigue = clamp(n.fatigue + (resting ? -0.24 : action.kind === 'work' ? 0.074 : 0.043));
+    // Nobody sleeps well in a house without a fire.
+    n.fatigue = clamp(n.fatigue + (resting ? (bite && !warm && n.cold > 50 ? -0.15 : -0.24) : action.kind === 'work' ? 0.074 : 0.043));
+    n.cold = clamp(n.cold + (!bite ? -0.25 : warm ? -0.4 : bite * (indoors(action) ? 0.07 : sky.rain || sky.snow ? 0.15 : 0.11)));
     n.loneliness = clamp(n.loneliness + (resting ? 0.006 : 0.043));
     if (action.remaining <= 0) {
       if (externalActions) atBoundary(actor, state, records, pilot);
@@ -465,7 +534,7 @@ function stepMinute(state, events, externalActions, records, pilot) {
     } else if (action.kind === 'work' && action.job === 'build') {
       civic.labour(actor, state, emit);
     } else if (action.kind === 'work') {
-      finishShift(actor, world, emit);
+      finishShift(actor, world, emit, sky);
     } else if (action.kind === 'food' && world.supplies.bread >= 1) {
       world.supplies.bread--;
       n.hunger = clamp(n.hunger - 53);

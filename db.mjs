@@ -190,6 +190,9 @@ export async function snapshot({ withMap = false } = {}) {
     FROM dalecrest.world w WHERE w.id=1`, withMap ? [cached?.revision ?? null] : []);
   const state = result.rows[0];
   if (withMap) {
+    const pace = clockPace(process.env.PLANNER_PROVIDER === 'openai');
+    state.tickMinutes = pace.minutes;
+    state.tickMs = pace.seconds * 1000;
     state.map ??= cached;
     observerMap = state.map;
   }

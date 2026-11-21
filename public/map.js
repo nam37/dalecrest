@@ -3,13 +3,14 @@
 import { heightAt } from '/engine/terrain.mjs';
 import { rectPoly, rng, hash2, TAU } from '/engine/geom.mjs';
 import { createMotion } from '/motion.js';
-import { light, hearths, indoors } from '/ambient.js';
+import { light, hearths, indoors, yearLook, skyOver, blend } from '/ambient.js';
 
 const ink = '#524d3b', ground = '#e8e0bf';
 export const villageColors = ['#976048', '#65785a', '#b27a4b', '#537470', '#797291', '#856144', '#527997', '#957050'];
 const roofs = ['#a57456', '#a88c5d', '#aa7352', '#90907a', '#9c8259', '#b19769', '#a17c58', '#a96e50'];
 const fieldTones = ['#c4b77e', '#cbbd87', '#c4b07c', '#b9b18a', '#c7bc8c', '#c9b67c'];
 const leaf = ['#878e66', '#90946c', '#a0a17a', '#778460'], needle = ['#6f7d5c', '#667556', '#7a8663'];
+const russet = ['#b98a4e', '#c39c57', '#a9743f', '#b9a45c'], SNOW = '#f5f4ec';
 const WAYS = { road: [0.98, '#ead7b1'], lane: [0.66, '#e7d3ae'], path: [0.34, '#dccba3'], track: [0.22, '#d8c8a2'] };
 const tag = id => { let h = 0; for (const ch of id) h = (Math.imul(h, 31) + ch.charCodeAt(0)) >>> 0; return h; };
 
@@ -30,6 +31,15 @@ function disc(c, x, y, r, fill, stroke, width) {
   c.beginPath(); c.arc(x, y, r, 0, TAU);
   if (fill) { c.fillStyle = fill; c.fill(); }
   if (stroke) { c.strokeStyle = stroke; c.lineWidth = width; c.stroke(); }
+}
+
+// The river's centre line moved sideways: positive distances lie to the east of a south-flowing river.
+export function beside(river, offset) {
+  return river.map((p, i) => {
+    const a = river[Math.max(0, i - 1)], b = river[Math.min(river.length - 1, i + 1)];
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+    return [p[0] + (b[1] - a[1]) / len * offset, p[1] - (b[0] - a[0]) / len * offset];
+  });
 }
 
 // Joins each way's short edges back into one line so it can be drawn as a smooth stroke.
@@ -59,7 +69,7 @@ export function chains(map) {
   return out;
 }
 
-function building(c, p, line, lodgers) {
+function building(c, p, line, lodgers, snowed = color => color) {
   const [w, d] = [p.w, p.d], hw = w / 2, hd = d / 2;
   c.save();
   c.translate(p.x, p.y); c.rotate(p.a);
@@ -83,7 +93,7 @@ function building(c, p, line, lodgers) {
   // Light falls from the north-west, so the roof plane turned that way is the paler one.
   const sunny = Math.cos(p.a) * 0.7 - Math.sin(p.a) * 0.7 > 0 ? -1 : 1;
   const roof = p.kind === 'hall' ? '#8e7459' : p.kind === 'mill' ? '#9b7858' : p.kind === 'granary' ? '#a8935f' : p.kind === 'alehouse' ? '#9a6a4c' : roofs[h % roofs.length];
-  c.fillStyle = roof; c.fillRect(-hw, -hd, w, d);
+  c.fillStyle = snowed(roof); c.fillRect(-hw, -hd, w, d);
   c.fillStyle = '#fff5d02e'; c.fillRect(-hw, sunny < 0 ? -hd : 0, w, hd);
   c.fillStyle = '#3a2f2026'; c.fillRect(-hw, sunny < 0 ? 0 : -hd, w, hd);
   c.strokeStyle = '#695b4866'; c.lineWidth = line * 0.7;
@@ -114,12 +124,17 @@ function building(c, p, line, lodgers) {
 function paintPaper(c, map, look, scale) {
   const line = Math.max(0.085, 1.05 / scale);
   c.lineCap = 'round'; c.lineJoin = 'round';
-  c.fillStyle = ground; c.fillRect(-40, -40, map.w + 80, map.h + 80);
+  // The season and any lying snow change the colours the sheet is painted in.
+  const year = look.year || { leaf: 1, turn: 0, lush: 1, barley: null }, snow = look.snow || 0;
+  const snowed = (color, k = 0.82) => snow ? blend(color, SNOW, snow * k) : color;
+  c.fillStyle = snowed(blend('#e3dcc6', ground, year.lush)); c.fillRect(-40, -40, map.w + 80, map.h + 80);
   for (const [x, y, r, warm] of look.washes) {
     const g = c.createRadialGradient(x, y, 0, x, y, r);
     g.addColorStop(0, warm ? '#f7ebc74d' : '#a9ae7350'); g.addColorStop(1, '#e8e0bf00');
+    c.globalAlpha = (1 - snow * 0.85) * (warm ? 1 : 0.3 + 0.7 * year.lush);
     c.fillStyle = g; c.fillRect(x - r, y - r, r * 2, r * 2);
   }
+  c.globalAlpha = 1;
   // Hachures run downhill and thicken with the slope.
   c.lineWidth = line * 0.8;
   for (const [x, y, dx, dy, alpha] of look.hachures) {
@@ -138,16 +153,42 @@ function paintPaper(c, map, look, scale) {
   if (green) {
     c.save(); c.translate(green.x, green.y); c.rotate(green.a);
     c.beginPath(); c.ellipse(0, 0, green.rx, green.ry, 0, 0, TAU);
-    c.fillStyle = '#c9cf9a'; c.fill(); c.strokeStyle = '#9aa2767a'; c.lineWidth = line; c.stroke();
+    c.fillStyle = snowed(blend('#d2ceaa', '#c9cf9a', year.lush)); c.fill(); c.strokeStyle = '#9aa2767a'; c.lineWidth = line; c.stroke();
     c.restore();
   }
-  // River: bank, shallows, water and a few ripples.
+  // River: an earth bank, a pale strand, then water that deepens toward a channel that wanders
+  // from one side to the other. The current itself is drawn live, over this.
   const river = map.terrain.river, rw = map.terrain.riverWidth;
-  for (const [width, color] of [[rw + 1.0, '#929c82'], [rw + 0.6, '#d0d7b3'], [rw, '#a7c4b8']]) { curve(c, river); c.strokeStyle = color; c.lineWidth = width; c.stroke(); }
-  c.strokeStyle = '#d6e3d6'; c.lineWidth = line;
+  const band = (pts, width, color) => { curve(c, pts); c.strokeStyle = color; c.lineWidth = width; c.stroke(); };
+  band(river, rw + 1.5, '#8a957633');
+  band(river, rw + 1.05, '#8f9a7c');
+  band(river, rw + 0.7, '#dcdcb4');
+  band(river, rw + 0.18, '#bcd6c6');
+  band(river, rw * 0.84, '#a3c8be');
+  const channel = river.map((p, i) => {
+    const a = river[Math.max(0, i - 1)], b = river[Math.min(river.length - 1, i + 1)], len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+    const sway = Math.sin(i * 0.9 + (map.seed % 7)) * rw * 0.16;
+    return [p[0] + (b[1] - a[1]) / len * sway, p[1] - (b[0] - a[0]) / len * sway];
+  });
+  band(channel, rw * 0.5, '#8fbbb8');
+  band(channel, rw * 0.24, '#7fafb0');
+  // The west bank throws a little shade on the water and the east edge catches the light.
+  band(beside(river, -rw * 0.4), rw * 0.14, '#3f5f5c26');
+  band(beside(river, rw * 0.41), rw * 0.07, '#f4fbf266');
+  // Reeds and stones along both banks.
   for (let i = 1; i < river.length - 1; i++) {
-    const [x, y] = river[i], k = (hash2(map.seed, i, 3) - 0.5) * rw * 0.5;
-    c.beginPath(); c.moveTo(x + k, y - 0.7); c.quadraticCurveTo(x + k + 0.35, y, x + k, y + 0.8); c.stroke();
+    for (let j = 0; j < 4; j++) {
+      const roll = hash2(map.seed + 11, i * 4 + j, 9), side = roll < 0.5 ? -1 : 1, t = hash2(map.seed + 12, i * 4 + j, 4);
+      const a = river[i], b = river[i + 1], len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+      const nx = (b[1] - a[1]) / len, ny = -(b[0] - a[0]) / len;
+      const edge = rw / 2 + 0.12 + hash2(map.seed + 13, i, j) * 0.5;
+      const x = a[0] + (b[0] - a[0]) * t + nx * side * edge, y = a[1] + (b[1] - a[1]) * t + ny * side * edge;
+      if (hash2(map.seed + 14, i, j) < 0.62) {
+        c.strokeStyle = '#66754d'; c.lineWidth = line * 0.9; c.beginPath();
+        for (const lean of [-0.14, 0, 0.14]) { c.moveTo(x + lean * 0.6, y); c.lineTo(x + lean * 1.6, y - 0.42 - Math.abs(lean)); }
+        c.stroke();
+      } else disc(c, x, y, 0.1 + hash2(map.seed + 15, i, j) * 0.1, '#c9c3a2', '#8d8869', line * 0.6);
+    }
   }
   // Fields with furrows along their long side.
   places.filter(p => p.kind === 'field').forEach((f, i) => {
@@ -158,7 +199,9 @@ function paintPaper(c, map, look, scale) {
       return;
     }
     c.save();
-    trace(c, poly, true); c.fillStyle = f.stage === 1 ? '#c9b98f' : fieldTones[tag(f.id) % fieldTones.length]; c.fill();
+    // A worked field takes the colour of the barley's year, with a little of its own tone.
+    const tone = fieldTones[tag(f.id) % fieldTones.length];
+    trace(c, poly, true); c.fillStyle = snowed(f.stage === 1 ? '#c9b98f' : year.barley ? blend(year.barley, tone, 0.28) : tone); c.fill();
     c.strokeStyle = '#998b6c'; c.lineWidth = line * 1.2; c.stroke(); c.clip();
     c.translate(f.x, f.y); c.rotate(f.a);
     const until = f.stage === 1 ? 0 : f.d / 2;
@@ -174,7 +217,8 @@ function paintPaper(c, map, look, scale) {
     const side = (p.at[0] - p.x) * -Math.sin(p.a) + (p.at[1] - p.y) * Math.cos(p.a) > 0 ? 1 : -1;
     c.save(); c.translate(p.x, p.y); c.rotate(p.a);
     const y0 = -side * p.d / 2, deep = -side * 1.5, x0 = -p.w / 2 - 0.1, wide = p.w + 0.2;
-    c.fillStyle = tag(p.id) % 2 ? '#cfd29b88' : '#c8c58d88'; c.fillRect(x0, y0, wide, deep);
+    c.fillStyle = tag(p.id) % 2 ? '#cfd29b88' : '#c8c58d88'; c.globalAlpha = 0.35 + 0.65 * year.lush; c.fillRect(x0, y0, wide, deep); c.globalAlpha = 1;
+    if (snow) { c.fillStyle = SNOW; c.globalAlpha = snow * 0.7; c.fillRect(x0, y0, wide, deep); c.globalAlpha = 1; }
     c.strokeStyle = '#8f8a5c88'; c.lineWidth = line * 0.7; c.beginPath();
     for (let x = x0 + 0.3; x < x0 + wide; x += 0.42) { c.moveTo(x, y0 + deep * 0.15); c.lineTo(x, y0 + deep * 0.9); }
     c.stroke();
@@ -183,7 +227,7 @@ function paintPaper(c, map, look, scale) {
   }
   // Ways, narrowest first so the road lies over the lanes that join it.
   for (const kind of ['track', 'path', 'lane', 'road']) {
-    const [width, fill] = WAYS[kind];
+    const width = WAYS[kind][0], fill = snowed(WAYS[kind][1], 0.4);
     for (const pass of [0, 1]) {
       for (const way of look.chains) {
         if (way.kind !== kind) continue;
@@ -201,6 +245,7 @@ function paintPaper(c, map, look, scale) {
     if (kind !== 'bridge') continue;
     const A = map.nodes[a], B = map.nodes[b], len = Math.hypot(B[0] - A[0], B[1] - A[1]);
     c.save(); c.translate(A[0], A[1]); c.rotate(Math.atan2(B[1] - A[1], B[0] - A[0]));
+    c.fillStyle = '#2f454433'; c.fillRect(0.1, -0.36, len - 0.2, 1.3);
     c.fillStyle = '#b79a72'; c.fillRect(-0.05, -0.62, len + 0.1, 1.24);
     c.strokeStyle = '#7d6a4f'; c.lineWidth = line * 0.8; c.beginPath();
     for (let x = 0.2; x < len; x += 0.42) { c.moveTo(x, -0.6); c.lineTo(x, 0.6); }
@@ -217,28 +262,46 @@ function paintPaper(c, map, look, scale) {
       disc(c, p.x + 0.14, p.y + 0.17, 0.62, '#5a53392e'); disc(c, p.x, p.y, 0.58, '#beb294', ink, line * 1.2); disc(c, p.x, p.y, 0.32, '#6f7f7a', ink, line * 0.8);
       c.strokeStyle = '#6d6049'; c.lineWidth = line * 2; c.beginPath(); c.moveTo(p.x - 0.62, p.y); c.lineTo(p.x + 0.62, p.y); c.stroke();
     } else if (p.kind === 'oven' && p.stage === 2) {
-      building(c, { ...p, w: p.w * 0.6, x: p.x - Math.cos(p.a) * p.w * 0.2, y: p.y - Math.sin(p.a) * p.w * 0.2 }, line);
+      building(c, { ...p, w: p.w * 0.6, x: p.x - Math.cos(p.a) * p.w * 0.2, y: p.y - Math.sin(p.a) * p.w * 0.2 }, line, false, snowed);
       const ox = p.x + Math.cos(p.a) * p.w * 0.27, oy = p.y + Math.sin(p.a) * p.w * 0.27;
       disc(c, ox + 0.12, oy + 0.15, 0.62, '#5a53392e'); disc(c, ox, oy, 0.6, '#c2946e', ink, line * 1.2); disc(c, ox - 0.15, oy - 0.15, 0.2, '#d8b08a'); disc(c, ox, oy, 0.14, '#5f5142');
-    } else if (p.w && p.kind !== 'field') building(c, p, line, look.lodgers);
+    } else if (p.w && p.kind !== 'field') building(c, p, line, look.lodgers, snowed);
   }
   for (const [x, y, r, pine] of map.trees) {
     const k = hash2(map.seed, x * 10, y * 10);
-    disc(c, x + r * 0.28, y + r * 0.34, r * 0.92, '#5a533926');
+    if (pine || year.leaf > 0.3) disc(c, x + r * 0.28, y + r * 0.34, r * 0.92, '#5a533926');
     if (pine) {
       c.beginPath();
       for (let i = 0; i < 12; i++) { const a = i * TAU / 12 + k, rr = i % 2 ? r * 0.56 : r; c.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); }
-      c.closePath(); c.fillStyle = needle[Math.floor(k * 3)]; c.fill(); c.strokeStyle = '#566247'; c.lineWidth = line * 0.9; c.stroke();
+      c.closePath(); c.fillStyle = snowed(needle[Math.floor(k * 3)], 0.55); c.fill(); c.strokeStyle = '#566247'; c.lineWidth = line * 0.9; c.stroke();
       disc(c, x, y, r * 0.16, '#55603f');
     } else {
+      // Out of leaf, a broadleaved tree is its trunk and branches. The crown thickens over them in
+      // spring, turns in autumn and thins again as it falls.
+      if (year.leaf < 0.7) {
+        c.strokeStyle = snow > 0.4 ? '#8d8672' : '#7a6e55'; c.lineWidth = line * 1.1; c.beginPath();
+        for (let i = 0; i < 6; i++) {
+          const a = i * TAU / 6 + k * 6, rr = r * (0.62 + 0.3 * hash2(map.seed + 5, x * 10 + i, y * 10));
+          c.moveTo(x, y); c.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+          c.moveTo(x + Math.cos(a) * rr * 0.55, y + Math.sin(a) * rr * 0.55); c.lineTo(x + Math.cos(a + 0.5) * rr * 0.9, y + Math.sin(a + 0.5) * rr * 0.9);
+        }
+        c.stroke();
+        disc(c, x, y, r * 0.13, '#6b5f49');
+      }
+      if (year.leaf < 0.08) continue;
+      c.globalAlpha = Math.min(1, 0.25 + year.leaf * 0.85);
       // Seven lobes of uneven size. The outline starts on the first lobe and ends there, so the
       // crown closes on itself with no straight edge left over.
       const lobe = i => { const a = (i % 7) * TAU / 7 + k * 6, rr = r * (0.86 + 0.16 * Math.sin((i % 7) * 2.3 + k * 9)); return [a, rr]; };
       const [a0, r0] = lobe(0);
       c.beginPath(); c.moveTo(x + Math.cos(a0) * r0, y + Math.sin(a0) * r0);
       for (let i = 1; i <= 7; i++) { const [a, rr] = lobe(i); c.quadraticCurveTo(x + Math.cos(a - 0.45) * rr * 1.13, y + Math.sin(a - 0.45) * rr * 1.13, x + Math.cos(a) * rr, y + Math.sin(a) * rr); }
-      c.closePath(); c.fillStyle = leaf[Math.floor(k * 4)]; c.fill(); c.strokeStyle = '#687051'; c.lineWidth = line * 0.9; c.stroke();
+      // Each tree turns in its own week.
+      const turned = Math.min(1, Math.max(0, year.turn * 1.5 - hash2(map.seed + 6, x * 10, y * 10) * 0.5));
+      c.closePath(); c.fillStyle = snowed(blend(leaf[Math.floor(k * 4)], russet[Math.floor(k * 4)], turned), 0.5); c.fill();
+      c.strokeStyle = blend('#687051', '#8a6a3c', turned); c.lineWidth = line * 0.9; c.stroke();
       c.beginPath(); c.arc(x - r * 0.15, y - r * 0.15, r * 0.45, 3.5, 5.2); c.strokeStyle = '#b4b78e99'; c.stroke();
+      c.globalAlpha = 1;
     }
   }
 }
@@ -268,7 +331,17 @@ export function createMap(canvas, onSelect) {
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
   let map = null, look = null, locations = {}, actors = [], selectedId = null, frame = 0, stale = true, moved = false, clock = 720;
   let w = 0, h = 0, dpr = 1, hits = [], hover = null;
+  // The weather over the village now, and the houses that got no firewood this morning.
+  let wx = null, cold = [];
   const view = { x: 80, y: 60, scale: 6 };
+  // The sheet is repainted when the day changes or snow settles or goes.
+  function seasonal() {
+    if (!map || !look) return;
+    wx = skyOver(clock, map.seed);
+    const key = Math.floor(clock / 1440) + ':' + Math.round(wx.lying * 4);
+    if (key === look.key) return;
+    look.key = key; look.year = yearLook(clock); look.snow = Math.round(wx.lying * 4) / 4; stale = true;
+  }
   const pointers = new Map();
   let drag = null, engaged = false;
 
@@ -338,25 +411,56 @@ export function createMap(canvas, onSelect) {
   // Everything that moves or changes with the hour, drawn over the paper and under the residents.
   function ambient(time, sky, lit) {
     const k = view.scale;
-    if (sky.bright > 0.05) {
-      // Cloud shadows cross the parish from the west.
+    const cover = wx ? wx.cloud : 0.3;
+    if (sky.bright > 0.05 && cover > 0.05) {
+      // Cloud shadows cross the parish from the west, heavier the more cloud there is.
       for (let i = 0; i < 3; i++) {
-        const wx = ((i * 71 + time * 0.0016 * (1 + i * 0.3)) % (map.w + 90)) - 45, wy = 18 + i * 37 + Math.sin(time * 0.00004 + i * 2) * 8;
-        const [x, y] = toScreen(wx, wy), r = (24 + i * 5) * k;
+        const cx = ((i * 71 + time * 0.0016 * (1 + i * 0.3)) % (map.w + 90)) - 45, cy = 18 + i * 37 + Math.sin(time * 0.00004 + i * 2) * 8;
+        const [x, y] = toScreen(cx, cy), r = (24 + i * 5) * k;
         const g = c.createRadialGradient(x, y, 0, x, y, r);
-        g.addColorStop(0, 'rgba(58,52,34,' + (0.13 * sky.bright).toFixed(3) + ')'); g.addColorStop(1, 'rgba(58,52,34,0)');
+        g.addColorStop(0, 'rgba(58,52,34,' + (0.13 * sky.bright * (0.45 + cover * 1.1)).toFixed(3) + ')'); g.addColorStop(1, 'rgba(58,52,34,0)');
         c.save(); c.translate(x, y); c.scale(1, 0.55); c.translate(-x, -y); c.fillStyle = g; c.fillRect(x - r, y - r, r * 2, r * 2); c.restore();
       }
     }
-    // Light catching the river as it runs south.
+    // The current: long broken lines that travel downstream, each at its own pace.
+    const rw = map.terrain.riverWidth, calm = 0.5 + 0.5 * sky.bright;
     c.lineCap = 'round';
-    for (let i = 0; i < 16; i++) {
-      const f = (i / 16 + time * 0.000022) % 1, [wx, wy] = alongRiver(f);
-      const [x, y] = toScreen(wx + Math.sin(i * 7.3) * map.terrain.riverWidth * 0.28, wy);
-      if (x < -20 || y < -20 || x > w + 20 || y > h + 20) continue;
-      c.strokeStyle = 'rgba(240,248,240,' + (0.25 + 0.3 * Math.abs(Math.sin(time * 0.0016 + i * 1.9))).toFixed(3) + ')';
-      c.lineWidth = Math.max(1, k * 0.11);
-      c.beginPath(); c.moveTo(x, y - k * 0.5); c.quadraticCurveTo(x + k * 0.22, y, x, y + k * 0.5); c.stroke();
+    look.flow ??= [-0.3, -0.12, 0.07, 0.25, 0.36].map(f => beside(map.terrain.river, f * rw));
+    look.flow.forEach((pts, i) => {
+      c.beginPath();
+      pts.forEach(([wx, wy], n) => {
+        const [x, y] = toScreen(wx, wy);
+        if (!n) c.moveTo(x, y);
+        else { const [px, py] = toScreen(pts[n - 1][0], pts[n - 1][1]); c.quadraticCurveTo(px, py, (px + x) / 2, (py + y) / 2); }
+      });
+      c.setLineDash([k * (1.1 + i * 0.35), k * (1.9 + (i % 2)), k * 0.45, k * (2.6 - i * 0.2)]);
+      c.lineDashOffset = -time * 0.0011 * k * (0.75 + i * 0.13);
+      c.strokeStyle = 'rgba(240,249,243,' + ((i % 2 ? 0.5 : 0.36) * calm).toFixed(3) + ')';
+      c.lineWidth = Math.max(0.9, k * (i === 2 ? 0.085 : 0.06));
+      c.stroke();
+    });
+    c.setLineDash([]);
+    // Sun on the water, when there is sun.
+    if (sky.bright > 0.3 && cover < 0.7) {
+      for (let i = 0; i < 9; i++) {
+        const blink = Math.sin(time * 0.0013 + i * 2.4);
+        if (blink < 0.55) continue;
+        const [wx, wy] = alongRiver((i * 0.113 + Math.floor(time / 4200 + i) * 0.37) % 1);
+        const [x, y] = toScreen(wx + Math.sin(i * 5.1) * rw * 0.3, wy), r = k * 0.2 * (blink - 0.45) * 2;
+        c.strokeStyle = 'rgba(255,255,246,' + ((blink - 0.5) * 1.6).toFixed(3) + ')'; c.lineWidth = 1;
+        c.beginPath(); c.moveTo(x - r, y); c.lineTo(x + r, y); c.moveTo(x, y - r); c.lineTo(x, y + r); c.stroke();
+      }
+    }
+    // White water below the mill wheel.
+    for (const p of map.places) {
+      if (p.kind !== 'mill' || p.stage !== 2) continue;
+      const side = (p.at[0] - p.x) * -Math.sin(p.a) + (p.at[1] - p.y) * Math.cos(p.a) > 0 ? 1 : -1;
+      const fx = p.x + Math.sin(p.a) * side * (p.d / 2 + 0.75), fy = p.y - Math.cos(p.a) * side * (p.d / 2 + 0.75);
+      for (let i = 0; i < 4; i++) {
+        const f = (time * 0.0005 + i / 4) % 1, [x, y] = toScreen(fx + Math.sin(i * 2.1) * 0.25, fy + 0.5 + f * 2.2);
+        c.strokeStyle = 'rgba(250,253,248,' + ((1 - f) * 0.75 * calm).toFixed(3) + ')'; c.lineWidth = Math.max(1, k * 0.09);
+        c.beginPath(); c.arc(x, y, k * (0.22 + f * 0.4), Math.PI * 0.15, Math.PI * 0.85); c.stroke();
+      }
     }
     // Smoke from every hearth with someone at it.
     for (const p of lit) {
@@ -367,6 +471,41 @@ export function createMap(canvas, onSelect) {
         c.fillStyle = 'rgba(246,240,224,' + ((1 - f) * 0.5).toFixed(3) + ')';
         c.beginPath(); c.arc(x, y, (0.22 + f * 0.75) * k, 0, TAU); c.fill();
       }
+    }
+  }
+
+  // Cloud takes the warmth out of the light, and rain or snow greys it further.
+  function overcast(sky) {
+    const k = wx ? Math.max(wx.cloud * 0.5, wx.rain * 0.85, wx.snow * 0.6) * (0.35 + 0.65 * sky.bright) : 0;
+    if (k < 0.02) return;
+    c.save();
+    c.globalCompositeOperation = 'multiply';
+    c.fillStyle = blend('#ffffff', '#b4bcc4', k); c.fillRect(0, 0, w, h);
+    c.restore();
+  }
+
+  // Rain slants across the sheet from the west. Snow drifts down and sways.
+  function falling(time) {
+    if (!wx || !(wx.rain || wx.snow)) return;
+    const spanX = w + 80, spanY = h + 60;
+    if (wx.rain) {
+      const n = Math.round(w * h / 4200 * (0.3 + wx.rain)), len = 9 + wx.rain * 10;
+      c.strokeStyle = 'rgba(58,80,102,' + (0.3 + wx.rain * 0.22).toFixed(2) + ')'; c.lineWidth = 1.1; c.lineCap = 'round';
+      c.beginPath();
+      for (let i = 0; i < n; i++) {
+        const speed = 0.5 + hash2(7, i, 1) * 0.35;
+        const y = (hash2(7, i, 2) * spanY + time * speed) % spanY - 30, x = (hash2(7, i, 3) * spanX + time * speed * 0.24) % spanX - 40;
+        c.moveTo(x, y); c.lineTo(x + len * 0.24, y + len);
+      }
+      c.stroke();
+      return;
+    }
+    const n = Math.round(w * h / 3600 * (0.3 + wx.snow));
+    c.fillStyle = 'rgba(255,255,255,.96)'; c.strokeStyle = 'rgba(96,108,130,.42)'; c.lineWidth = 0.8;
+    for (let i = 0; i < n; i++) {
+      const speed = 0.026 + hash2(9, i, 1) * 0.03, sway = Math.sin(time * 0.0011 + i) * 9;
+      const y = (hash2(9, i, 2) * spanY + time * speed) % spanY - 30, x = (hash2(9, i, 3) * spanX + time * speed * 0.3) % spanX - 40 + sway;
+      c.beginPath(); c.arc(x, y, 1.1 + hash2(9, i, 4) * 1.5, 0, TAU); c.fill(); c.stroke();
     }
   }
 
@@ -441,7 +580,7 @@ export function createMap(canvas, onSelect) {
       p.setTransform(k, 0, 0, k, dpr * (w / 2 - view.x * view.scale), dpr * (h / 2 - view.y * view.scale));
       paintPaper(p, map, look, view.scale);
     }
-    const sky = light(clock), lit = hearths(map, actors), still = reduced.matches ? 0 : time;
+    const sky = light(clock), lit = hearths(map, actors, cold), still = reduced.matches ? 0 : time;
     c.setTransform(dpr, 0, 0, dpr, 0, 0);
     c.drawImage(paper, 0, 0, w, h);
     ambient(still, sky, lit);
@@ -463,8 +602,9 @@ export function createMap(canvas, onSelect) {
       label(p.stage < 2 && p.kind !== 'field' ? p.name + ' (building)' : p.name, x, y + drop, Math.max(13, Math.min(20, view.scale * 1.9)));
     }
     if (w > 560) rose();
+    overcast(sky);
     nightfall(sky, lit);
-    if (!reduced.matches) birds(time, sky);
+    if (!reduced.matches && !(wx?.rain || wx?.snow)) birds(time, sky);
     hits = [];
     const crowd = new Map(), markers = [];
     for (const [index, actor] of actors.entries()) {
@@ -498,6 +638,7 @@ export function createMap(canvas, onSelect) {
       }
       if (chosen) { c.textAlign = 'center'; label(actor.name.split(' ')[0] + (inside ? ' · indoors' : ''), x, y - (inside ? 14 : s + 9), 14, false); }
     }
+    falling(still);
     if (hover) {
       c.textAlign = 'left';
       const width = c.measureText(hover.text).width;
@@ -604,16 +745,20 @@ export function createMap(canvas, onSelect) {
       if (!look || next.seed !== map?.seed) look = prepare(next);
       map = next; locations = names;
       look.chains = chains(map);
+      seasonal();
       if (grew && !moved) fit();
       redraw();
     },
-    update(rows, id, names, motionMs, minute) {
+    // extras.coldHearths lists the houses with no fire today, which show no smoke and no lit window.
+    update(rows, id, names, motionMs, minute, extras) {
       if (Number.isFinite(minute)) clock = minute;
+      cold = extras?.coldHearths || [];
+      seasonal();
       actors = (rows || []).filter(a => Number.isFinite(a.position?.x));
       if (names) locations = names;
       const lodgers = actors.some(a => a.home === 'hall');
       if (look && look.lodgers !== lodgers) { look.lodgers = lodgers; stale = true; }
-      motion.update(actors, performance.now(), motionMs);
+      motion.update(actors, performance.now(), motionMs, extras?.liveTick);
       selectedId = id; schedule();
     },
     zoom, home, redraw,

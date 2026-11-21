@@ -2,6 +2,7 @@
 import { createVillage, stepVillage, locationsOf } from '/sim.mjs';
 import { createMap } from '/map.js';
 import { formatDate } from '/engine/calendar.mjs';
+import { skyOver } from '/ambient.js';
 
 const $ = id => document.getElementById(id);
 const el = (tag, cls, value) => { const node = document.createElement(tag); if (cls) node.className = cls; if (value !== undefined) node.textContent = value; return node; };
@@ -23,9 +24,12 @@ function show() {
   }
   if (!actors.some(a => a.id === selected)) selected = actors[0].id;
   const snapshot = structuredClone(actors);
-  map.update(snapshot, selected, names, undefined, world.minute);
-  if (mode === 'walk') walk?.update(snapshot, selected, world.minute);
+  const extras = { coldHearths: world.coldHearths || [] };
+  map.update(snapshot, selected, names, undefined, world.minute, extras);
+  if (mode === 'walk') walk?.update(snapshot, selected, world.minute, undefined, extras);
   $('day').textContent = time(world.minute);
+  $('weather').textContent = skyOver(world.minute, village.map.seed).label + ' · ' + world.supplies.wood + ' firewood'
+    + (extras.coldHearths.length ? ' · ' + extras.coldHearths.length + ' cold hearths' : '');
   $('people').textContent = actors.length + ' residents';
   $('map-count').textContent = actors.length + ' residents';
   const picker = $('pick-resident');

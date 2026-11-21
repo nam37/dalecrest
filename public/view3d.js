@@ -5,7 +5,7 @@ import { heightAt, isWater, WATER_LEVEL } from '/engine/terrain.mjs';
 import { hash2, rng, fbm, TAU } from '/engine/geom.mjs';
 import { createMotion } from '/motion.js';
 import { villageColors, chains } from '/map.js';
-import { light, hearths, indoors } from '/ambient.js';
+import { light, hearths, indoors, yearLook, skyOver, blend } from '/ambient.js';
 
 const roofs = ['#a57456', '#a88c5d', '#aa7352', '#90907a', '#9c8259', '#b19769', '#a17c58', '#a96e50'];
 const fieldTones = ['#c4b77e', '#cbbd87', '#c4b07c', '#b9b18a', '#c7bc8c', '#c9b67c'];
@@ -36,8 +36,11 @@ function gable(w, d, rise, over = 0.16) {
   g.computeVertexNormals();
   return g;
 }
+// Every roof material with the colour it was made in, so lying snow can whiten the roofs and leave again.
+const roofed = new Map();
 function roof(w, d, rise, color, y) {
   const m = new THREE.Mesh(gable(w, d, rise), mat(color, { side: THREE.DoubleSide }));
+  roofed.set(m.material, color);
   m.position.y = y; m.castShadow = m.receiveShadow = true;
   return m;
 }
@@ -251,6 +254,19 @@ export function createWalk(container, onSelect) {
   const figures = new Map(), wheels = [];
   let solids = [], grid = null, shadowSpan = 0;
   let map = null, terrainSeed = null, actors = [], selectedId = null, active = false, frame = 0, last = 0, clock = 600;
+  // The weather now, the houses with no fire today, and the parts of the scene the season recolours.
+  let wx = null, cold = [], seasonKey = '';
+  const dressed = { land: null, base: null, wet: null, fields: [], green: null, crowns: null, crownTones: [], cones: null, coneTones: [] };
+  // Rain is drawn as short falling strokes and snow as drifting points, both in a box that travels with the camera.
+  const DROPS = 900, FLAKES = 1100, SPAN = 26, TALL = 16;
+  const scatter = rng(53), dropAt = new Float32Array(DROPS * 3), flakeAt = new Float32Array(FLAKES * 3);
+  for (const list of [dropAt, flakeAt]) for (let i = 0; i < list.length; i += 3) { list[i] = scatter() * SPAN; list[i + 1] = scatter() * TALL; list[i + 2] = scatter() * SPAN; }
+  const rain = new THREE.LineSegments(new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(new Float32Array(DROPS * 6), 3)),
+    new THREE.LineBasicMaterial({ color: '#c9d6e2', transparent: true, opacity: 0.5, depthWrite: false, fog: false }));
+  const snowfall = new THREE.Points(new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(new Float32Array(FLAKES * 3), 3)),
+    new THREE.PointsMaterial({ color: '#ffffff', size: 0.07, transparent: true, opacity: 0.95, depthWrite: false, fog: false }));
+  rain.frustumCulled = snowfall.frustumCulled = false; rain.visible = snowfall.visible = false;
+  scene.add(rain, snowfall);
   const look = { yaw: 2.2, pitch: 0.3, dist: 4.4, target: new THREE.Vector3(80, 0, 60), ready: false, touched: -1e9 };
 
   // Height of the drawn ground. The mesh is flat between its vertices, so the exact height function can sit
@@ -294,6 +310,7 @@ export function createWalk(container, onSelect) {
     const ground = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }));
     ground.receiveShadow = true;
     land.add(ground);
+    dressed.land = ground; dressed.base = col.slice(); dressed.wet = grid.y.map(y => y < WATER_LEVEL ? 1 : 0); seasonKey = '';
     // The river is a ribbon just below the banks.
     const river = map.terrain.river, half = map.terrain.riverWidth / 2 + 1.4, wp = [], wi = [];
     for (let i = 0; i < river.length; i++) {
@@ -358,6 +375,7 @@ export function createWalk(container, onSelect) {
 
   function buildVillage() {
     dispose(built); dispose(names); wheels.length = 0;
+    dressed.fields = []; dressed.crownTones = []; dressed.coneTones = []; seasonKey = '';
     solids = map.places.filter(p => p.w && p.kind !== 'field' && p.stage === 2).map(p => ({
       id: p.id, x: p.x, y: p.y, c: Math.cos(p.a), s: Math.sin(p.a), hw: p.w / 2 + 0.3, hd: p.d / 2 + 0.3, top: heightAt(map, p.x, p.y) + 1.75,
     }));
@@ -377,7 +395,9 @@ export function createWalk(container, onSelect) {
     for (const p of map.places) {
       if (p.kind === 'green') {
         const disc = { x: p.x, y: p.y, w: p.rx * 2, d: p.ry * 2, a: p.a };
+        // The green and each field get a material of their own, so the season can recolour them.
         const m = draped(disc, '#b3c08a', 0.012);
+        m.material = m.material.clone(); dressed.green = m;
         const pos = m.geometry.attributes.position, c = Math.cos(p.a), s = Math.sin(p.a);
         // Pull the corners of the draped sheet in to an ellipse.
         for (let i = 0; i < pos.count; i++) {
@@ -389,7 +409,12 @@ export function createWalk(container, onSelect) {
         if (p.stage === 0) {
           const c = Math.cos(p.a), s = Math.sin(p.a);
           for (const [u, v] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { const x = p.x + u * p.w / 2 * c - v * p.d / 2 * s, z = p.y + u * p.w / 2 * s + v * p.d / 2 * c; built.add(box(0.06, 0.4, 0.06, '#7a6548', x, ground(x, z) + 0.2, z)); }
-        } else built.add(draped(p, p.stage === 1 ? '#b9a67c' : fieldTones[tag(p.id) % fieldTones.length], 0.016, p.stage === 2 ? furrowTexture() : null));
+        } else {
+          const tone = p.stage === 1 ? '#b9a67c' : fieldTones[tag(p.id) % fieldTones.length];
+          const m = draped(p, tone, 0.016, p.stage === 2 ? furrowTexture() : null);
+          if (p.stage === 2) { m.material = m.material.clone(); dressed.fields.push({ mesh: m, tone }); }
+          built.add(m);
+        }
       } else if (p.kind !== 'wood') {
         const g = buildPlace(p, map, glow);
         if (g.userData.wheel) wheels.push(g.userData.wheel);
@@ -424,40 +449,104 @@ export function createWalk(container, onSelect) {
       m4.compose(v.set(x, y + 0.3 * r, z), q, sc.set(r, r, r)); trunks.setMatrixAt(i, m4);
       if (pine) {
         m4.compose(v.set(x, y + 0.45 * r + 0.95 * r, z), q, sc.set(r, r * (0.9 + k * 0.4), r)); cones.setMatrixAt(pi, m4);
-        cones.setColorAt(pi++, tint.set(['#6f7d5c', '#667556', '#7a8663'][Math.floor(k * 3)]));
+        dressed.coneTones.push(['#6f7d5c', '#667556', '#7a8663'][Math.floor(k * 3)]);
+        cones.setColorAt(pi++, tint.set(dressed.coneTones[dressed.coneTones.length - 1]));
       } else {
         m4.compose(v.set(x, y + 0.55 * r + 0.62 * r, z), q, sc.set(r * 0.82, r * (0.72 + k * 0.25), r * 0.82)); crowns.setMatrixAt(li, m4);
-        crowns.setColorAt(li++, tint.set(['#879266', '#909a6c', '#9da67a', '#77885f'][Math.floor(k * 4)]));
+        dressed.crownTones.push([['#879266', '#909a6c', '#9da67a', '#77885f'][Math.floor(k * 4)], ['#b98a4e', '#c39c57', '#a9743f', '#b9a45c'][Math.floor(k * 4)], hash2(map.seed + 6, x * 10, z * 10)]);
+        crowns.setColorAt(li++, tint.set(dressed.crownTones[dressed.crownTones.length - 1][0]));
       }
     });
+    dressed.crowns = crowns; dressed.cones = cones;
     for (const mesh of [trunks, crowns, cones]) { mesh.castShadow = true; mesh.receiveShadow = true; mesh.frustumCulled = false; built.add(mesh); }
   }
 
+  // Recolours the land for the day of the year and for lying snow. Called when either changes.
+  function dress() {
+    const year = yearLook(clock), snow = Math.round(wx.lying * 4) / 4, WHITE = '#f4f5f2';
+    const snowed = (hex, k = 0.85) => snow ? blend(hex, WHITE, snow * k) : hex;
+    if (dressed.land) {
+      const colors = dressed.land.geometry.attributes.color, a = colors.array, base = dressed.base;
+      const dull = new THREE.Color('#b3ab84'), white = new THREE.Color(WHITE), c = new THREE.Color();
+      for (let i = 0; i < a.length; i += 3) {
+        c.setRGB(base[i], base[i + 1], base[i + 2]).lerp(dull, (1 - year.lush) * 0.8);
+        if (snow && !dressed.wet[i / 3]) c.lerp(white, snow * 0.92);
+        a[i] = c.r; a[i + 1] = c.g; a[i + 2] = c.b;
+      }
+      colors.needsUpdate = true;
+    }
+    dressed.green?.material.color.set(snowed(blend('#b9b48c', '#b3c08a', year.lush)));
+    for (const { mesh, tone } of dressed.fields) mesh.material.color.set(snowed(blend(year.barley, tone, 0.28)));
+    for (const [material, base] of roofed) material.color.set(snowed(base, 0.8));
+    // Out of leaf, a crown is a head of bare twigs.
+    dressed.crownTones.forEach(([green, russet, when], i) => {
+      const turned = Math.min(1, Math.max(0, year.turn * 1.5 - when * 0.5));
+      dressed.crowns.setColorAt(i, tint.set(snowed(blend('#8c7f68', blend(green, russet, turned), Math.min(1, year.leaf * 1.6)), 0.5)));
+    });
+    dressed.coneTones.forEach((green, i) => dressed.cones.setColorAt(i, tint.set(snowed(green, 0.55))));
+    for (const mesh of [dressed.crowns, dressed.cones]) if (mesh?.instanceColor) mesh.instanceColor.needsUpdate = true;
+  }
+
+  // Rain and snow fall through a box around the camera and wrap from its floor to its top.
+  function precipitation(now) {
+    rain.visible = wx.rain > 0; snowfall.visible = wx.snow > 0;
+    if (!rain.visible && !snowfall.visible) return;
+    const wrap = (v, span) => ((v % span) + span) % span;
+    const ox = camera.position.x - SPAN / 2, oy = camera.position.y - TALL * 0.35, oz = camera.position.z - SPAN / 2, t = now / 1000;
+    if (rain.visible) {
+      const a = rain.geometry.attributes.position.array, n = Math.round(DROPS * (0.3 + 0.7 * wx.rain));
+      for (let i = 0; i < n; i++) {
+        const x = ox + wrap(dropAt[i * 3] - ox + t * 1.6, SPAN), y = oy + wrap(dropAt[i * 3 + 1] - oy - t * 13, TALL), z = oz + wrap(dropAt[i * 3 + 2] - oz, SPAN);
+        a[i * 6] = x; a[i * 6 + 1] = y; a[i * 6 + 2] = z; a[i * 6 + 3] = x + 0.05; a[i * 6 + 4] = y - 0.42; a[i * 6 + 5] = z;
+      }
+      rain.geometry.setDrawRange(0, n * 2); rain.geometry.attributes.position.needsUpdate = true;
+    } else {
+      const a = snowfall.geometry.attributes.position.array, n = Math.round(FLAKES * (0.3 + 0.7 * wx.snow));
+      for (let i = 0; i < n; i++) {
+        a[i * 3] = ox + wrap(flakeAt[i * 3] - ox + t * 0.35 + Math.sin(t * 0.9 + i) * 0.25, SPAN);
+        a[i * 3 + 1] = oy + wrap(flakeAt[i * 3 + 1] - oy - t * (0.9 + (i % 5) * 0.12), TALL);
+        a[i * 3 + 2] = oz + wrap(flakeAt[i * 3 + 2] - oz, SPAN);
+      }
+      snowfall.geometry.setDrawRange(0, n); snowfall.geometry.attributes.position.needsUpdate = true;
+    }
+  }
+
   function sky(now, dt) {
-    const L = light(clock), lit = hearths(map, actors);
-    const top = col('#0a1230').lerp(col('#4c78ba'), L.bright).lerp(col('#6c6aa6'), L.dusk * 0.45);
-    const horizon = col('#263459').lerp(col('#cfe3ec'), L.bright).lerp(col('#f4b07a'), L.dusk * 0.8);
+    wx = skyOver(clock, map.seed);
+    const key = Math.floor(clock / 1440) + ':' + Math.round(wx.lying * 4);
+    if (key !== seasonKey) { seasonKey = key; dress(); }
+    const L = light(clock), lit = hearths(map, actors, cold);
+    // Cloud greys the sky and the light. Rain and snow close the distance in.
+    const murk = Math.max(wx.cloud * 0.75, wx.rain, wx.snow * 0.9), wet = Math.max(wx.rain, wx.snow);
+    const grey = col('#1b2130').lerp(col('#aeb6ba'), L.bright);
+    const top = col('#0a1230').lerp(col('#4c78ba'), L.bright).lerp(col('#6c6aa6'), L.dusk * 0.45).lerp(grey, murk * 0.85);
+    const horizon = col('#263459').lerp(col('#cfe3ec'), L.bright).lerp(col('#f4b07a'), L.dusk * 0.8 * (1 - murk * 0.7)).lerp(grey, murk * 0.6);
     dome.material.uniforms.top.value.copy(top); dome.material.uniforms.horizon.value.copy(horizon);
     scene.background.copy(horizon); scene.fog.color.copy(horizon);
-    scene.fog.near = 55 - 15 * L.dark; scene.fog.far = 190 - 20 * L.dark;
+    scene.fog.near = 55 - 15 * L.dark - 40 * wet; scene.fog.far = 190 - 20 * L.dark - 95 * wet;
     heavens.position.copy(camera.position);
-    stars.material.opacity = Math.max(0, Math.min(1, (L.dark - 0.45) * 2.2));
+    stars.material.opacity = Math.max(0, Math.min(1, (L.dark - 0.45) * 2.2)) * (1 - murk);
     const sunWay = new THREE.Vector3(Math.cos(Math.PI * L.p), Math.max(0.06, L.day * 0.95), 0.45 * Math.sin(Math.PI * L.p) + 0.2).normalize();
     const moonWay = new THREE.Vector3(-0.45, 0.72, 0.5).normalize();
-    for (const [disc, way, far, seen] of [[sunDisc, sunWay, 372, L.day > 0 ? 1 : 0], [sunHalo, sunWay, 374, L.day > 0 ? 0.14 + 0.22 * L.dusk : 0],
-      [moonDisc, moonWay, 372, Math.max(0, L.dark - 0.3) * 1.4], [moonHalo, moonWay, 374, Math.max(0, L.dark - 0.3) * 0.2]]) {
+    const clear = 1 - murk;
+    for (const [disc, way, far, seen] of [[sunDisc, sunWay, 372, L.day > 0 ? clear : 0], [sunHalo, sunWay, 374, L.day > 0 ? (0.14 + 0.22 * L.dusk) * clear : 0],
+      [moonDisc, moonWay, 372, Math.max(0, L.dark - 0.3) * 1.4 * clear], [moonHalo, moonWay, 374, Math.max(0, L.dark - 0.3) * 0.2 * clear]]) {
       disc.position.copy(way).multiplyScalar(far); disc.lookAt(0, 0, 0); disc.material.opacity = Math.min(1, seen); disc.visible = seen > 0.01;
     }
     sunDisc.material.color.copy(col('#ffb070').lerp(col('#fff6d2'), 1 - L.dusk));
     // By day the sun lights the parish. By night the same lamp is the moon, cool and bright enough to see by.
-    if (L.day > 0) { sun.position.copy(sunWay); sun.color.copy(col('#ffb877').lerp(col('#fff4dc'), 1 - L.dusk)); sun.intensity = 0.7 + 2.5 * L.bright; }
-    else { sun.position.copy(moonWay); sun.color.set('#9fb6ee'); sun.intensity = 1.25; }
-    hemi.color.copy(col('#8094cc').lerp(col('#f3f1e4'), L.bright));
-    hemi.groundColor.copy(col('#2c3554').lerp(col('#8f8a66'), L.bright));
-    hemi.intensity = 1.0 + 0.45 * L.bright;
+    // Under cloud the sun is weaker and the sky itself does more of the lighting.
+    if (L.day > 0) { sun.position.copy(sunWay); sun.color.copy(col('#ffb877').lerp(col('#fff4dc'), 1 - L.dusk)); sun.intensity = (0.7 + 2.5 * L.bright) * (1 - murk * 0.7); }
+    else { sun.position.copy(moonWay); sun.color.set('#9fb6ee'); sun.intensity = 1.25 * (1 - murk * 0.6); }
+    hemi.color.copy(col('#8094cc').lerp(col('#f3f1e4'), L.bright).lerp(col('#c4cace'), murk * 0.5 * L.bright));
+    hemi.groundColor.copy(col('#2c3554').lerp(col('#8f8a66'), L.bright).lerp(col('#d9dcd8'), wx.lying * 0.6 * L.bright));
+    hemi.intensity = 1.0 + 0.45 * L.bright + 0.25 * murk * L.bright;
     const nightly = Math.max(0, Math.min(1, (L.dark - 0.2) * 1.5));
     glow.emissiveIntensity = 1.15 * nightly;
     cloudMat.opacity = 0.9 - 0.35 * L.dark;
+    cloudMat.color.copy(col('#ffffff').lerp(col('#9aa2a8'), murk * 0.8));
+    clouds.visible = wx.cloud > 0.12;
+    precipitation(now);
     for (const cloud of clouds.children) { cloud.position.x += cloud.userData.speed * dt; if (cloud.position.x > 430) cloud.position.x = -270; }
     // Smoke rises from every hearth with someone at it, and its window glows after dark.
     let n = 0;
@@ -644,9 +733,10 @@ export function createWalk(container, onSelect) {
       buildVillage();
       start();
     },
-    update(rows, id, minute, motionMs) {
+    update(rows, id, minute, motionMs, extras) {
+      cold = extras?.coldHearths || [];
       actors = (rows || []).filter(a => Number.isFinite(a.position?.x));
-      motion.update(actors, performance.now(), motionMs);
+      motion.update(actors, performance.now(), motionMs, extras?.liveTick);
       if (id !== selectedId) look.touched = -1e9;
       selectedId = id;
       if (Number.isFinite(minute)) clock = minute;

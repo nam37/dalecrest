@@ -38,6 +38,12 @@ To watch the model-driven path without spending tokens, run a village whose deci
 node --env-file=.env tools/standin-village.mjs
 ```
 
+The village keeps a calendar and has weather. In cold weather every hearth burns firewood from the common store, so a hard winter can leave houses cold and the oven without fuel. To see winter without waiting for it, run a preview village that wakes on 1 January. It uses its own database and port 4176.
+
+```powershell
+node --env-file=.env tools/winter-village.mjs
+```
+
 `node --env-file=.env tools/pilot-report.mjs` reports how activities began, how long residents waited and what was spent, for whichever village `DATABASE_URL` names.
 
 ## Explore the project
