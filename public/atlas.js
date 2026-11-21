@@ -1,6 +1,7 @@
 // A village that lives only in this page: the same engine the server runs, stepped on demand.
 import { createVillage, stepVillage, locationsOf } from '/sim.mjs';
 import { createMap } from '/map.js';
+import { formatDate } from '/engine/calendar.mjs';
 
 const $ = id => document.getElementById(id);
 const el = (tag, cls, value) => { const node = document.createElement(tag); if (cls) node.className = cls; if (value !== undefined) node.textContent = value; return node; };
@@ -9,7 +10,7 @@ let village, selected, walk = null, mode = 'plan', revision = -1, log = [], runn
 
 function time(minute) {
   const hour = Math.floor(minute / 60) % 24;
-  return 'Day ' + (Math.floor(minute / 1440) + 1) + ' · ' + (hour % 12 || 12) + ':' + String(minute % 60).padStart(2, '0') + (hour < 12 ? ' am' : ' pm');
+  return formatDate(minute) + ' · ' + (hour % 12 || 12) + ':' + String(minute % 60).padStart(2, '0') + (hour < 12 ? ' am' : ' pm');
 }
 function show() {
   const { world, actors } = village, names = locationsOf(village.map, actors);

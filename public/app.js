@@ -1,4 +1,5 @@
 import { createMap } from './map.js';
+import { dateOf, formatDate } from '/engine/calendar.mjs';
 
 const $ = id => document.getElementById(id);
 const el = (tag, cls, value) => {
@@ -75,7 +76,11 @@ function time(minute) {
   const hour = Math.floor(minute / 60) % 24;
   return (hour % 12 || 12) + ':' + String(minute % 60).padStart(2,'0') + (hour < 12 ? ' am' : ' pm');
 }
-function date(minute) { return 'Day ' + (Math.floor(minute / 1440) + 1); }
+// A date as a neighbour would say it: "2 August", with the year only when it is not this one.
+function date(minute) {
+  const other = state && dateOf(minute).year !== dateOf(state.world.minute).year;
+  return formatDate(minute, other ? 'full' : 'day');
+}
 
 function portrait(actor) {
   const canvas = el('canvas','portrait');
@@ -210,12 +215,12 @@ function journal(target,events,withDay=false) {
   const fragment=document.createDocumentFragment();
   let day=null;
   for (const e of events) {
-    if (withDay && date(e.minute)!==day) { day=date(e.minute); fragment.append(el('h3','journal-day',day)); }
+    if (withDay && formatDate(e.minute)!==day) { day=formatDate(e.minute); fragment.append(el('h3','journal-day',formatDate(e.minute,'long'))); }
     const row=el('div','journal-row'), entry=el('p');
     entry.append(el('span','kind kind-'+e.type,kinds[e.type]||e.type),document.createTextNode(e.text));
     // In the short list on the village page, an entry from an earlier day says so.
-    const earlier = !withDay && state && date(e.minute) !== date(state.world.minute);
-    row.append(el('time','journal-time',(earlier ? date(e.minute)+' · ' : '')+time(e.minute)),entry);
+    const earlier = !withDay && state && formatDate(e.minute) !== formatDate(state.world.minute);
+    row.append(el('time','journal-time',(earlier ? formatDate(e.minute,'short')+' · ' : '')+time(e.minute)),entry);
     fragment.append(row);
   }
   if(!events.length)fragment.append(el('p','empty','Nothing of this kind in the latest 100 records.'));
@@ -237,7 +242,10 @@ function render() {
   const {world,actors,events,planner}=state;
   $('title').textContent=names[route];
   $('summary').textContent={village:actors.length+' residents living and working in a medieval parish.',residents:'The people, trades, and households of Dalecrest.',chronicle:'What has happened lately, from the latest 100 entries in the village records.'}[route];
-  $('day').textContent=date(world.minute); $('time').textContent=time(world.minute);
+  // The clock gives the date in full, with its weekday where there is room.
+  $('day').textContent=formatDate(world.minute, matchMedia('(max-width: 690px)').matches ? 'full' : 'long');
+  $('time').textContent=time(world.minute);
+  $('clock').title='Day '+dateOf(world.minute).villageDay+' since Dalecrest was founded';
   const hour=world.minute%1440, night=hour>=1260||hour<340;
   $('clock').classList.toggle('night',night); $('orb').textContent=night?'☾':'☼';
   // In the village the map is the page. Its title gives way and the clock moves onto the plate.
