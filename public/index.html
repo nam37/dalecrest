@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en"><head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#293d33"><title>Dalecrest · Village observatory</title>
+  <link rel="icon" href="/crest.svg"><link rel="stylesheet" href="/style.css">
+</head><body>
+  <header class="masthead"><div class="mast-inner">
+    <a href="#village" class="wordmark"><img src="/crest.svg" width="36" height="40" alt="">Dalecrest</a>
+    <nav aria-label="Observatory"><a href="#village">Village</a><a href="#residents">Residents</a><a href="#chronicle">Chronicle</a></nav>
+    <span id="connection" class="connection"><i></i> Connecting</span>
+  </div></header>
+  <main>
+    <div class="page-title"><div><h1 id="title">Village observatory</h1><p id="summary">Opening the village records…</p></div>
+      <div class="clock"><span class="sun" aria-hidden="true">☼</span><div><span id="day">Day —</span><strong id="time">—</strong></div></div>
+    </div>
+    <section id="village" class="view">
+      <div class="village-layout">
+        <article class="map-panel"><div class="panel-head"><h2>Village map</h2><button class="view-toggle" id="freeze" type="button" aria-pressed="false">Pause view</button></div>
+          <div class="map-area"><canvas id="map" aria-label="Map of Dalecrest. Select a villager on the map or in the village register."></canvas>
+            <div class="map-compass" aria-hidden="true"><b>N</b><span>✧</span></div>
+          </div>
+          <div class="map-key"><span><i class="key-resident"></i> Resident</span><span><i class="key-follow"></i> Selected resident</span><span id="map-count"></span></div>
+        </article>
+        <aside class="resident-panel"><div class="panel-head"><h2>Resident record</h2><select id="pick-resident" aria-label="Inspect resident"></select></div>
+          <div id="profile"></div>
+          <div class="tabs" aria-label="Resident record views"><button data-tab="life" aria-pressed="true">Life</button><button data-tab="memory" aria-pressed="false">Memory</button><button data-tab="data" aria-pressed="false">Data</button></div>
+          <div id="detail"></div>
+        </aside>
+      </div>
+      <div class="below-layout">
+        <section class="journal-preview"><div class="section-title"><h2>Village chronicle</h2><a href="#chronicle">View all</a></div><div id="recent-events"></div></section>
+        <section class="stores"><div class="section-title"><h2>Common stores</h2></div><div id="supplies"></div></section>
+      </div>
+    </section>
+    <section id="residents" class="view" hidden><div id="roster" class="roster"></div></section>
+    <section id="chronicle" class="view" hidden><div class="chronicle-head"><label>Show <select id="event-type"><option value="">All events</option><option value="social">Encounters</option><option value="work">Work</option><option value="meal">Meals</option><option value="plan">Model plans</option><option value="village">Village life</option></select></label></div><div id="all-events"></div></section>
+    <footer><span>Dalecrest village records</span><span id="planner-status"></span></footer>
+  </main>
+  <script type="module" src="/app.js"></script>
+</body></html>
