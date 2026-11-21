@@ -30,7 +30,7 @@ services:
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
       PLANNER_PROVIDER: ${PLANNER_PROVIDER:-ollama}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      OPENAI_DECISION_INTERVAL_SECONDS: ${OPENAI_DECISION_INTERVAL_SECONDS:-300}
+      OPENAI_ACTION_TOKENS_PER_HOUR: ${OPENAI_ACTION_TOKENS_PER_HOUR:-7000}
     depends_on:
       db: { condition: service_healthy }
     networks: [database, web]

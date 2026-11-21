@@ -72,10 +72,10 @@ function available(world, job) {
   return Object.entries(job.takes || {}).every(([k, n]) => world.supplies[k] >= n)
     && Object.entries(job.makes).every(([k, n]) => world.supplies[k] <= capacity[k] - n);
 }
-function jobChoice(actor, world) {
+function jobOptions(actor, world) {
   // When stores run low, anyone can lend a hand in the fields or coppice.
   const list = [...new Set([actor.trade, 'harvest', 'cut', 'draw'])];
-  let best = null;
+  const options = [];
   for (const key of list) {
     const job = jobs[key];
     if (!available(world, job)) continue;
@@ -84,17 +84,22 @@ function jobChoice(actor, world) {
     if (key !== actor.trade && shortage < 0.67) continue;
     const pledged = shortage > 0.5 && actor.memories.some(m => m.shortage === material && world.minute - m.minute < 480);
     const score = 22 + 33 * shortage + (actor.trade === key ? 13 : 0) + (pledged ? 12 : 0);
-    if (!best || best.score < score) best = { key, score };
+    options.push({ key, score });
   }
-  return best;
+  return options.sort((a, b) => b.score - a.score);
 }
-function choose(actor, actors, world) {
+function choose(actor, actors, world, menu) {
   const choices = [];
   const dayTime = world.minute % 1440;
   const night = dayTime >= 1260 || dayTime < 340;
   const { hunger, fatigue, loneliness } = actor.needs;
-  if (actor.plan && (!FOCUSES.includes(actor.plan.focus) || !Number.isFinite(actor.plan.until) || actor.plan.until <= world.minute)) actor.plan = null;
+  if (!menu && actor.plan && (!FOCUSES.includes(actor.plan.focus) || !Number.isFinite(actor.plan.until) || actor.plan.until <= world.minute)) actor.plan = null;
   function offer(kind, label, target, duration, score, reason, extra = {}) {
+    if (menu) {
+      const id = [kind, extra.job || extra.friendId, target].filter(Boolean).join(':');
+      menu.set(id, { kind, label, target, remaining: duration, ...extra });
+      return;
+    }
     score += desireWeight(actor, kind, extra.friendId || extra.job || target);
     if (actor.plan?.focus === kind) {
       score += 15;
@@ -102,8 +107,8 @@ function choose(actor, actors, world) {
     }
     choices.push({ score: score + 4 * random(world), kind, label, reason, target, remaining: duration, ...extra });
   }
-  const job = jobChoice(actor, world);
-  if (job) {
+  const jobsHere = jobOptions(actor, world);
+  for (const job of (menu ? jobsHere : jobsHere.slice(0, 1))) {
     const spec = jobs[job.key];
     const duty = actor.traits.includes('steadfast') ? 5 : 0;
     const material = Object.keys(spec.makes)[0];
@@ -117,20 +122,39 @@ function choose(actor, actors, world) {
   for (const other of actors) {
     if (other === actor || other.action.kind === 'rest') continue;
     const site = LOCATIONS[other.action.target];
-    if (!site) continue;
+    if (!site || (menu && other.action.kind === 'waiting')) continue;
+    if (menu) {
+      offer('social', 'Visiting ' + other.name, other.action.target, 28, 0, '', { friendId: other.id });
+      continue;
+    }
     const recent = actor.memories.slice(-5).some(m => m.kind === 'social' && m.actorIds.includes(other.id));
     const appeal = (actor.relationships[other.id] || 0) * 0.35 + desireWeight(actor, 'social', other.id) + (recent ? 6 : 0) - distance(actor.position, site) * 0.17 + random(world) * 16;
     if (appeal > best) { best = appeal; friend = other; }
   }
   if (friend) offer('social', 'Visiting ' + friend.name.split(' ')[0], friend.action.target, 28, loneliness + (actor.traits.includes('gregarious') ? 13 : 0) - (night ? 28 : 0), 'I could use some company and know where to find ' + friend.name + '.', { friendId: friend.id });
   offer('leisure', 'Walking on the green', 'green', 44, 30 + (actor.traits.includes('restless') ? 6 : 0) - (night ? 17 : 0), 'A walk on the green will ease my fatigue.');
+  if (menu) return;
   choices.sort((a, b) => b.score - a.score);
   const { score, ...chosen } = choices[0];
   chosen.phase = 'travelling';
   actor.action = chosen;
 }
 
-function stepMinute(world, actors, events) {
+export function availableActions(actor, state) {
+  const menu = new Map();
+  choose(actor, state.actors, state.world, menu);
+  return menu;
+}
+
+function waitForDecision(actor, minute) {
+  if (actor.action.kind === 'waiting') return;
+  const { kind, label, target } = actor.action;
+  actor.action = { kind: 'waiting', phase: 'waiting', label: 'Choosing the next activity', target, remaining: 0,
+    since: minute, previous: { kind, label, target }, reason: 'Waiting for a decision from gpt-6-luna.' };
+  actor.plan = null;
+}
+
+function stepMinute(world, actors, events, externalActions) {
   const minute = ++world.minute;
   const emit = (type, text, actorIds = []) => events.push({ type, minute, text, actorIds });
   if (minute % 1440 === 360) {
@@ -144,7 +168,11 @@ function stepMinute(world, actors, events) {
     n.hunger = clamp(n.hunger + 0.042);
     n.fatigue = clamp(n.fatigue + (resting ? -0.24 : action.kind === 'work' ? 0.074 : 0.043));
     n.loneliness = clamp(n.loneliness + (resting ? 0.006 : 0.043));
-    if (action.remaining <= 0) { choose(actor, actors, world); continue; }
+    if (action.remaining <= 0) {
+      if (externalActions) waitForDecision(actor, minute);
+      else choose(actor, actors, world);
+      continue;
+    }
     if (action.phase === 'travelling') {
       const site = LOCATIONS[action.target];
       const d = distance(actor.position, site);
@@ -220,15 +248,18 @@ function stepMinute(world, actors, events) {
     }
     emit('social', text, ids);
   }
+  if (externalActions) {
+    for (const actor of actors) if (actor.action.remaining <= 0) waitForDecision(actor, minute);
+  }
 }
 
-export function stepVillage({ world, actors }, { minutes = 5 } = {}) {
+export function stepVillage({ world, actors }, { minutes = 5, externalActions = false } = {}) {
   if (!Number.isSafeInteger(minutes) || minutes < 0) throw new RangeError('minutes must be a nonnegative integer');
   for (const actor of actors) {
     if (!Array.isArray(actor.desires)) actor.desires = inferDesires(actor);
     if (!actor.action.reason) actor.action.reason = 'Continuing an activity chosen earlier in the day.';
   }
   const events = [];
-  for (let i = 0; i < minutes; i++) stepMinute(world, actors, events);
+  for (let i = 0; i < minutes; i++) stepMinute(world, actors, events, externalActions);
   return events;
 }

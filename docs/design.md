@@ -17,15 +17,15 @@ FROM dalecrest.actors
 ORDER BY ordinal;
 ```
 
-### 3. Model priorities influence the next choice of activity
+### 3. Luna selects an executable action at each activity boundary
 
-The planner can submit a resident’s background, traits, desires, goals, needs, current activity, recent memories, relationships, hour, and shared supplies. Luna chooses among work, social contact, rest, and food. A valid choice adds weight to that priority for 360 village minutes. A resident can finish an activity already underway, meet someone en route, or pick another activity as their needs change. The simulation resolves travel, available supplies, proximity, and consequences. A note such as “At decision time, hunger was 73/100” is written by Dalecrest from the observation.
+With the OpenAI provider enabled, a resident finishes the current activity and waits for a decision. The engine lists actions that resident can start, including specific destinations, jobs and people. The request includes the finished activity, time, needs, traits, goals, desires, supplies and recent memories. Luna selects one menu ID. Under the same database lock as the village clock, Dalecrest checks the offered action is still available, starts it, and records the selection. The simulation resolves movement, encounters, material use and outcomes. An unavailable or invalid choice leaves the actor waiting for a fresh menu.
 
-Calls run asynchronously so the clock can advance while a request is in flight or the provider is unavailable. PostgreSQL reserves the next OpenAI request slot before sending, including for attempts that fail. The default spacing is 300 real seconds across the village. `OPENAI_DECISION_INTERVAL_SECONDS` configures it with a minimum of 20. A result more than 120 village minutes behind its observation is recorded as stale.
+The backend checks for waiting residents every two seconds, giving earlier turns preference. Failures have a one-minute per-turn cooldown. The village shares a default budget of 7,000 tokens per rolling real hour, close to the previous five-minute cadence at the observed 589 tokens per request. Set `OPENAI_ACTION_TOKENS_PER_HOUR` on the app to change it. The backend reserves an estimate before sending, then replaces it with the reported usage. A response can exceed its estimate. A quarter-hour of spending can be used in a burst and replenishes continuously. When at least half the residents are waiting, the clock advances one village minute per tick. It pauses if everyone is waiting. Other provider modes retain the local activity scoring system.
 
 ### 4. Preserve the exchange and observe the outcome separately
 
-An actor’s current plan is overwritten by later plans. A chronicle entry alone cannot recover the exact prompt or the model’s confidence. Each OpenAI attempt therefore gets a durable trace ID before the HTTP call. The trace links the exact request and reply to the simulation’s subsequent activities and chronicle entries. Several outcomes can follow a single choice. The trace is available through PostgreSQL and excluded from the public village snapshot. [Trace schema and queries](decision-tracing.md).
+An actor’s current plan is overwritten by later plans. A chronicle entry alone cannot recover the exact prompt or the model’s confidence. Each OpenAI attempt therefore gets a durable trace ID before the HTTP call. The trace links the exact request and reply to the simulation’s subsequent activities and chronicle entries. Each direct action records its start and subsequent outcomes under the same trace ID. The trace is available through PostgreSQL and excluded from the public village snapshot. [Trace schema and queries](decision-tracing.md).
 
 ### 5. Deploy the application independently of the village data
 
@@ -33,4 +33,4 @@ The VPS runs the application and a dedicated PostgreSQL 17 service in separate c
 
 ### 6. Choose the model by what the simulation needs back
 
-Use `gpt-6-luna` for the recurring choice among work, social contact, rest, and food. For a future task that needs an open-ended response, such as a villager reflecting on several memories, use Claude Haiku 5.5 (`claude-haiku-5-5`) through Anthropic’s Messages API. Haiku is the low-cost default for this work. Read its credential from the backend environment variable `CLAUDE_KEY`. The priority planner is currently the village’s only model-driven task. [Claude models and pricing](https://platform.claude.com/docs/en/models/overview) · [Messages API](https://platform.claude.com/docs/en/api/messages/create).
+Use `gpt-6-luna` for each resident’s next executable activity. For a future task that needs an open-ended response, such as a villager reflecting on several memories, use Claude Haiku 5.5 (`claude-haiku-5-5`) through Anthropic’s Messages API. Haiku is the low-cost default for this work. Read its credential from the backend environment variable `CLAUDE_KEY`. The activity planner is currently the village’s only model-driven task. [Claude models and pricing](https://platform.claude.com/docs/en/models/overview) · [Messages API](https://platform.claude.com/docs/en/api/messages/create).

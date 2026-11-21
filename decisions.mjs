@@ -9,6 +9,30 @@ const choices = [
 
 export const DECISIONS_URL = 'https://api.openai.com/v1/decisions';
 
+export function actionDescription(action) {
+  return action.label + ' at ' + action.target + ' (' + action.remaining + ' village minutes).';
+}
+
+export function actionBody(actor, world, menu) {
+  const time = world.minute % 1440;
+  const observation = {
+    name: actor.name, role: actor.role, traits: actor.traits, goals: actor.goals,
+    desires: actor.desires.map(({ focus, weight, target }) => ({ focus, weight, target })),
+    needs: Object.fromEntries(Object.entries(actor.needs).map(([need, value]) => [need, Math.round(value)])),
+    lastActivity: actor.action.previous, position: actor.position,
+    time: [Math.floor(time / 60), time % 60].map(n => String(n).padStart(2, '0')).join(':'),
+    stores: world.supplies, recentMemories: actor.memories.slice(-2).map(m => m.text)
+  };
+  const options = Array.from(menu, ([value, action]) => ({
+    value, description: actionDescription(action)
+  }));
+  return JSON.stringify({
+    model: DECISIONS_MODEL, input: [{ role: 'user', content: [{ type: 'input_json', data: observation }] }],
+    questions: [{ type: 'choice', name: 'next_action', choices: options,
+      instructions: 'Choose the one activity this resident will actually begin now. Consider their goals, needs (100 is urgent), time, memories and stores.' }]
+  });
+}
+
 export function decisionBody(observation) {
   return JSON.stringify({
     model: DECISIONS_MODEL,
@@ -32,14 +56,16 @@ export async function sendDecision(body, apiKey, request = fetch) {
     body: redacted ? text.replaceAll(apiKey, '[credential redacted]') : text, redacted };
 }
 
-export function interpretDecision(observation, reply) {
+export function interpretDecision(observation, reply, question = { name: 'priority', choices }) {
   if (reply.status < 200 || reply.status >= 300) return { status: 'http_error', error: 'OpenAI HTTP ' + reply.status };
   let parsed;
   try { parsed = JSON.parse(reply.body); } catch { return { status: 'invalid_response', error: 'Invalid JSON response' }; }
-  const answer = Array.isArray(parsed?.answers) && parsed.answers.find(a => a?.name === 'priority');
-  if (answer?.type === 'refusal') return { status: 'refused', error: 'OpenAI returned no valid priority' };
-  if (answer?.type !== 'choice' || !choices.some(c => c.value === answer.choice)) return { status: 'invalid_response', error: 'OpenAI returned no valid priority' };
+  const answer = Array.isArray(parsed?.answers) && parsed.answers.find(a => a?.name === question.name);
+  const invalid = 'OpenAI returned no valid ' + question.name;
+  if (answer?.type === 'refusal') return { status: 'refused', error: invalid };
+  if (answer?.type !== 'choice' || !question.choices.some(c => c.value === answer.choice)) return { status: 'invalid_response', error: invalid };
   const focus = answer.choice;
+  if (question.name === 'next_action') return { status: 'valid', focus, confidence: Number.isFinite(answer.confidence) ? answer.confidence : null };
   const need = { food: 'hunger', social: 'loneliness', rest: 'fatigue' }[focus];
   const reason = need ? 'At decision time, ' + need + ' was ' + Math.round(observation.needs[need]) + '/100.'
     : 'Recorded work goal: ' + observation.goals[0] + '.';

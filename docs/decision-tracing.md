@@ -1,6 +1,6 @@
 # Trace a villager’s decision
 
-Every new attempt to ask `gpt-6-luna` for a priority has one row in `dalecrest.decision_traces`. An applied priority also has a timeline in `dalecrest.decision_steps`. Read both with a PostgreSQL connection that has SELECT access. These queries run against stored history and never call the model. Earlier village history predates tracing and has no retained model exchange.
+Every new attempt to ask `gpt-6-luna` for a decision has one row in `dalecrest.decision_traces`. An applied decision also has a timeline in `dalecrest.decision_steps`. Read both with a PostgreSQL connection that has SELECT access. These queries run against stored history and never call the model. Earlier village history predates tracing and has no retained model exchange.
 
 ## Find an exchange
 
@@ -26,7 +26,7 @@ WHERE id = :trace_id;
 
 `request_body` is the serialized text posted to the endpoint, including the observation, question, instructions, and allowed choices. `response_body` stores the provider’s reply as text, preserving formatting, probability data, usage, unexpected fields, and non-JSON error bodies when returned. The Authorization header is never stored. If a provider echoes the server’s exact API key in its reply, Dalecrest masks it and sets `credential_redacted`.
 
-`confidence` is the numeric confidence Luna supplied for its priority answer. SQL NULL means no numeric confidence was available. The raw reply is the source for any additional scores or metadata. A confidence concerns the model’s choice. Whether a resident actually ate or rested is recorded by the simulation.
+`confidence` is the numeric confidence Luna supplied for its recorded answer. SQL NULL means no numeric confidence was available. The raw reply is the source for any additional scores or metadata. A confidence concerns the model’s choice. Whether a resident actually ate or rested is recorded by the simulation.
 
 ## Read what happened next
 
@@ -45,19 +45,20 @@ WHERE s.trace_id = :trace_id
 ORDER BY s.minute, s.id;
 ```
 
-Start with the action already underway when the plan took effect. The first `selected` row is the resident’s next choice. `arrived` records reaching the destination, and `activity_ended` records the activity timer reaching zero. A `chronicle` row links the event and its actual participants or outcome. For example, if Luna chose food, a selection to fetch a loaf shows intent and a meal entry shows the villager actually ate. Read events in village-minute order. Several observations can share a minute. The action snapshots also include position.
+For a direct action trace, `decision_since` is the village minute the actor entered the queue. The stored question is named `next_action`. Compare its returned `choice` to `details->'action'->>'choiceId'` on the `selected` step. They are committed together with the resident's new activity. The selection carries a chronicle event ID. Read later steps to see arrival, activity end and any meal, work or encounter. A successful start can still encounter a later shortage. The trace closes when that activity ends. The waiting snapshot includes the previous activity under `action.previous`.
 
-The trace follows that resident until the priority expires or another plan replaces it. An ongoing trace can gain more steps after the query. A trace can close without a matching action. The original decision, any competing activities, and the ending remain available.
+Older traces with a NULL `decision_since` used the priority planner. They show an intention and later activities until that intention expired or was replaced. Alice's original food priority is an example of that historical behavior.
 
 ## Understand incomplete attempts
 
 | Status | Meaning |
 | --- | --- |
-| `requested` | The request body and rate-limit slot were committed together. Delivery has not been confirmed. |
+| `requested` | The request body and its spending reservation were committed together. Delivery has not been confirmed. |
 | `received` | The complete reply was saved. The planner can resume processing it after restart without calling Luna again. |
-| `applied` | The plan and its start state were committed together. `end_reason` later records `expired` or `replaced`. |
-| `stale`, `superseded`, `actor_missing` | A valid answer arrived but the simulation could no longer apply it. |
+| `applied` | The selected action or historical priority was committed. Direct actions close with `activity_ended`. `end_reason` later records `expired` or `replaced`. |
+| `stale`, `superseded`, `actor_missing`, `unavailable` | A valid answer arrived but the simulation could no longer apply it. |
 | `http_error`, `refused`, `invalid_response` | An HTTP error, refusal, or unusable answer was retained for inspection. |
+| `late_response` | A response arrived after its attempt timed out. The raw exchange is retained. |
 | `transport_error` | The connection failed before a complete reply reached the application. |
 | `unknown` | A request remained unresolved for five real minutes, for example after a process interruption. Delivery and response are unknown. |
 

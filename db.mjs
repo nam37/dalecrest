@@ -1,4 +1,5 @@
 import pg from 'pg';
+import { reserveAction, startChosenAction } from './action-turns.mjs';
 import { createVillage, stepVillage, FOCUSES } from './sim.mjs';
 import { DECISIONS_MODEL, DECISIONS_URL, interpretDecision } from './decisions.mjs';
 import { initializeTraces, advanceWithTraces, writeSteps, residentState } from './decision-trace.mjs';
@@ -54,7 +55,7 @@ export async function initialize() {
     await initializeTraces(db);
     if ((await db.query('SELECT id FROM dalecrest.world WHERE id=1')).rowCount) return;
     const village = createVillage();
-    village.events.push(...stepVillage(village, { minutes: 105 }));
+    if (process.env.PLANNER_PROVIDER !== 'openai') village.events.push(...stepVillage(village, { minutes: 105 }));
     await db.query('INSERT INTO dalecrest.world(id, state) VALUES (1, $1)', [village.world]);
     for (const [ordinal, actor] of village.actors.entries()) {
       await db.query('INSERT INTO dalecrest.actors(id,ordinal,state) VALUES ($1,$2,$3)', [actor.id, ordinal, actor]);
@@ -75,9 +76,13 @@ export async function reserveDecision(seconds, actorId, minute, body) {
 }
 
 export async function recordReply(id, reply) {
-  await pool.query(`UPDATE dalecrest.decision_traces SET status='received', response_at=clock_timestamp(),
+  let tokens;
+  try { tokens = JSON.parse(reply.body)?.usage?.total_tokens; } catch { /* Error replies can be plain text. */ }
+  await pool.query(`UPDATE dalecrest.decision_traces SET
+    status=CASE WHEN status='unknown' AND decision_since IS NOT NULL THEN 'late_response' ELSE 'received' END,
+    token_charge=CASE WHEN token_charge IS NULL THEN NULL ELSE coalesce($6,token_charge) END, response_at=clock_timestamp(),
     http_status=$2, provider_request_id=$3, response_body=$4, credential_redacted=$5, error=NULL
-    WHERE id=$1 AND status IN ('requested','unknown')`, [id, reply.status, reply.requestId, reply.body, reply.redacted]);
+    WHERE id=$1 AND status IN ('requested','unknown')`, [id, reply.status, reply.requestId, reply.body, reply.redacted, Number.isSafeInteger(tokens) && tokens > 0 && tokens <= 2147483647 ? tokens : null]);
 }
 
 export async function recordTransportFailure(id) {
@@ -98,9 +103,12 @@ export async function advance() {
     if (!result.rowCount) return;
     const world = result.rows[0].state;
     const actors = (await db.query('SELECT state FROM dalecrest.actors ORDER BY ordinal')).rows.map(r => r.state);
-    const traces = (await db.query(`SELECT id,actor_id,until_minute FROM dalecrest.decision_traces
+    const traces = (await db.query(`SELECT id,actor_id,until_minute,decision_since FROM dalecrest.decision_traces
       WHERE status='applied' AND ended_minute IS NULL`)).rows;
-    const { events, steps } = advanceWithTraces({ world, actors }, 3, traces);
+    const direct = process.env.PLANNER_PROVIDER === 'openai';
+    const waiting = direct ? actors.filter(a => a.action.kind === 'waiting').length : 0;
+    const minutes = waiting === actors.length ? 0 : waiting * 2 >= actors.length ? 1 : 3;
+    const { events, steps } = advanceWithTraces({ world, actors }, minutes, traces, direct);
     await db.query("UPDATE dalecrest.world SET state=$1, next_tick=now()+interval '3 seconds' WHERE id=1", [world]);
     await db.query(`UPDATE dalecrest.actors a SET state = payload.actor
       FROM jsonb_array_elements($1::jsonb) AS payload(actor) WHERE a.id = payload.actor->>'id'`, [JSON.stringify(actors)]);
@@ -148,16 +156,32 @@ export async function savePlan(actorId, basedOn, focus, reason, model, method = 
   });
 }
 
+async function lockedVillage(db) {
+  const { rows: [row] } = await db.query('SELECT state FROM dalecrest.world WHERE id=1 FOR UPDATE');
+  const world = row.state;
+  const actors = (await db.query('SELECT state FROM dalecrest.actors ORDER BY ordinal')).rows.map(r => r.state);
+  return { world, actors };
+}
+
+export async function claimAction(hourlyBudget) {
+  return transaction(async db => reserveAction(db, await lockedVillage(db), hourlyBudget));
+}
+
 export async function applyRecordedDecision(id) {
   return transaction(async db => {
-    const minute = await lockClock(db);
+    const village = await lockedVillage(db);
+    const minute = village.world.minute;
     const trace = (await db.query(`SELECT * FROM dalecrest.decision_traces
       WHERE id=$1 AND status='received' FOR UPDATE`, [id])).rows[0];
     if (!trace) return;
-    const observation = JSON.parse(trace.request_body).input[0].content[0].data;
-    const parsed = interpretDecision(observation, {status: trace.http_status, body: trace.response_body});
-    const result = parsed.error ? parsed : await persistPlan(db, minute, trace.actor_id, Number(trace.observed_minute),
-      parsed.focus, parsed.reason, trace.model, 'choice');
+    const request = JSON.parse(trace.request_body);
+    const parsed = interpretDecision(request.input[0].content[0].data, {status: trace.http_status, body: trace.response_body}, request.questions[0]);
+    let result = parsed;
+    if (!parsed.error) {
+      result = trace.decision_since != null
+        ? await startChosenAction(db, trace, parsed.focus, village, recordEvents)
+        : await persistPlan(db, minute, trace.actor_id, Number(trace.observed_minute), parsed.focus, parsed.reason, trace.model, 'choice');
+    }
     await db.query(`UPDATE dalecrest.decision_traces SET status=$2, error=$3, choice=$4, confidence=$5,
       applied_minute=$6, until_minute=$7, state_at_application=$8 WHERE id=$1`,
       [id, result.status, parsed.error, parsed.focus, parsed.confidence, result.status === 'applied' ? minute : null, result.until, result.state]);

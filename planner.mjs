@@ -1,14 +1,15 @@
 import { FOCUSES } from './sim.mjs';
-import { snapshot, savePlan, reserveDecision, recordReply, recordTransportFailure, pendingDecision, applyRecordedDecision } from './db.mjs';
-import { decisionBody, sendDecision, DECISIONS_MODEL } from './decisions.mjs';
+import { snapshot, savePlan, claimAction, recordReply, recordTransportFailure, pendingDecision, applyRecordedDecision } from './db.mjs';
+import { sendDecision, DECISIONS_MODEL } from './decisions.mjs';
 import { setTimeout as delay } from 'node:timers/promises';
 
 const decisions = process.env.PLANNER_PROVIDER === 'openai';
 const model = decisions ? DECISIONS_MODEL : process.env.OLLAMA_MODEL?.trim();
 const key = process.env.OPENAI_API_KEY?.trim();
-const interval = Number(process.env.OPENAI_DECISION_INTERVAL_SECONDS || 300);
-if (decisions && (!Number.isSafeInteger(interval) || interval < 20)) throw new Error('Use an OpenAI planning interval of at least 20 seconds.');
-export const plannerStatus = { configured: Boolean(model), model: model || null, state: decisions && !key ? 'awaiting API key · local rules active' : model ? 'ready' : 'local rules' };
+const hourlyBudget = Number(process.env.OPENAI_ACTION_TOKENS_PER_HOUR || 7000);
+if (decisions && (!Number.isSafeInteger(hourlyBudget) || hourlyBudget < 0)) throw new Error('Set a nonnegative hourly action token budget.');
+export const plannerPollMs = decisions ? 2000 : 20000;
+export const plannerStatus = { configured: Boolean(model), model: model || null, state: decisions && !key ? 'awaiting API key · residents waiting' : model ? 'ready' : 'local rules' };
 const base = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
 const schema = {
   type: 'object', additionalProperties: false, required: ['focus', 'reason'],
@@ -30,22 +31,10 @@ export async function planOnce() {
       const pending = await pendingDecision();
       if (pending) { await finishDecision(pending); return; }
       if (!key) return;
-    }
-    const { world, actors } = await snapshot();
-    const actor = actors.filter(a => a.plan?.model !== model || a.plan.until <= world.minute)
-      .sort((a, b) => (a.lastModelPlanAt ?? -1) - (b.lastModelPlanAt ?? -1))[0];
-    if (!actor) return;
-    const knownPeople = actors.filter(a => a.id !== actor.id).map(a => ({ name: a.name, affinity: actor.relationships[a.id] }));
-    const observation = {
-      name: actor.name, role: actor.role, background: actor.backstory, traits: actor.traits,
-      goals: actor.goals, desires: actor.desires, needs: actor.needs, currentActivity: actor.action.label,
-      recentMemories: actor.memories.slice(-4), knownPeople,
-      hour: Math.floor(world.minute / 60) % 24, sharedStores: world.supplies
-    };
-    if (decisions) {
-      const body = decisionBody(observation);
-      const id = await reserveDecision(interval, actor.id, world.minute, body);
-      if (!id) return;
+      const ticket = await claimAction(hourlyBudget);
+      if (!ticket) return;
+      if (ticket.budgetLimited) { plannerStatus.state = 'waiting for token budget'; return; }
+      const { id, body } = ticket;
       let reply;
       try { reply = await sendDecision(body, key); }
       catch (error) { await recordTransportFailure(id); throw error; }
@@ -60,6 +49,17 @@ export async function planOnce() {
       await finishDecision(id);
       return;
     }
+    const { world, actors } = await snapshot();
+    const actor = actors.filter(a => a.plan?.model !== model || a.plan.until <= world.minute)
+      .sort((a, b) => (a.lastModelPlanAt ?? -1) - (b.lastModelPlanAt ?? -1))[0];
+    if (!actor) return;
+    const knownPeople = actors.filter(a => a.id !== actor.id).map(a => ({ name: a.name, affinity: actor.relationships[a.id] }));
+    const observation = {
+      name: actor.name, role: actor.role, background: actor.backstory, traits: actor.traits,
+      goals: actor.goals, desires: actor.desires, needs: actor.needs, currentActivity: actor.action.label,
+      recentMemories: actor.memories.slice(-4), knownPeople,
+      hour: Math.floor(world.minute / 60) % 24, sharedStores: world.supplies
+    };
     const response = await fetch(new URL('/api/chat', base), {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ model, stream: false, think: false, format: schema, options: { num_ctx: 4096, num_predict: 170 },
@@ -76,6 +76,6 @@ export async function planOnce() {
     plannerStatus.state = 'connected';
   } catch (error) {
     const status = decisions && /^OpenAI HTTP \d{3}$/.test(error.message) ? error.message : 'offline';
-    plannerStatus.state = status + ' · local rules active';
+    plannerStatus.state = status + (decisions ? ' · residents waiting' : ' · local rules active');
   } finally { inFlight = false; }
 }
