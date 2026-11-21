@@ -1,0 +1,4 @@
+dalecrest.trinsicstudios.com {
+    encode zstd gzip
+    reverse_proxy dalecrest-app:4173
+}

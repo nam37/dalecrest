@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+stack=/opt/stacks/dalecrest
+state=/opt/git-deploy/dalecrest
+repo="$state/repo.git"
+install -d -m 700 "$state" "$state/backups"
+exec 9>"$state/deploy.lock"
+flock -n 9 || exit 0
+if [[ ! -d "$repo" ]]; then git init -q --bare "$repo"; fi
+git --git-dir="$repo" fetch -q --depth=1 https://github.com/nam37/dalecrest.git refs/heads/main
+revision=$(git --git-dir="$repo" rev-parse --verify 'FETCH_HEAD^{commit}')
+previous=$(cat "$state/deployed-sha" 2>/dev/null || true)
+[[ "$revision" != "$previous" ]] || exit 0
+if [[ -f "$state/failed-sha" && "$(cat "$state/failed-sha")" == "$revision" && "${1:-}" != --retry ]]; then exit 0; fi
+echo "Deploying Dalecrest $revision"
+compose=(docker compose --project-directory "$stack" -f "$stack/compose.yaml")
+export DALECREST_RELEASE="$revision"
+if ! git --git-dir="$repo" archive "$revision" | docker build --label "org.opencontainers.image.revision=$revision" --tag "dalecrest-app:$revision" -; then
+  echo "$revision" > "$state/failed-sha"
+  exit 1
+fi
+"${compose[@]}" up -d --wait db
+dump="$state/backups/$(date -u +%Y%m%dT%H%M%SZ)-before-${revision:0:12}.dump"
+"${compose[@]}" exec -T db pg_dump -U postgres -d dalecrest -Fc --no-owner --no-privileges > "$dump.tmp"
+pg_restore_check() { "${compose[@]}" exec -T db pg_restore -l < "$1" > /dev/null; }
+pg_restore_check "$dump.tmp"
+mv "$dump.tmp" "$dump"
+if ! "${compose[@]}" up -d --no-deps --wait --wait-timeout 90 app; then
+  echo "$revision" > "$state/failed-sha"
+  if [[ -n "$previous" ]]; then
+    DALECREST_RELEASE="$previous" "${compose[@]}" up -d --no-deps --wait --wait-timeout 90 app
+  fi
+  exit 1
+fi
+echo "$revision" > "$state/deployed-sha.pending"
+mv "$state/deployed-sha.pending" "$state/deployed-sha"
+echo "Healthy Dalecrest release $revision"

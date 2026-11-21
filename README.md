@@ -2,6 +2,8 @@
 
 A browser observatory for eight autonomous villagers. Select a resident to see their activity, the reason for their choice, their memories, and their PostgreSQL record. The Chronicle shows the latest 100 events. Pausing the view freezes that browser’s snapshot while the village keeps running on the server.
 
+[Watch Dalecrest live](https://dalecrest.trinsicstudios.com/).
+
 ## Run on Windows
 
 With Node.js 22.14 or later installed, run this in PowerShell from the project directory, then open [the village](http://127.0.0.1:4173/).
@@ -30,3 +32,9 @@ ORDER BY ordinal;
 ```
 
 For an existing PostgreSQL installation or VPS, use Node.js 22.14 or later, run `npm ci`, and set `DATABASE_URL` to the intended PostgreSQL database. Its application role needs permission to create and manage the `dalecrest` schema. Configure a server-accessible Ollama endpoint if desired, then run `npm start`. The HTTP listener defaults to loopback on port 4173. A hosted deployment can put it behind a reverse proxy. Moving an existing village requires restoring a PostgreSQL dump of its database.
+
+## Production releases
+
+The VPS checks GitHub `main` about every two minutes. A new commit is built and tested in Docker. Before switching the app container, the deployer saves a PostgreSQL dump. It records the commit as deployed after the app can read the residents from the database. An unhealthy replacement triggers a return to the previous app image. Database restores are a separate operator action.
+
+The hosted village has its own PostgreSQL 17 container, application login, private network and persistent volume. Application releases reuse that volume. Caddy provides HTTPS. The files in `deploy/` describe the host configuration. Changes to those administrator-owned files require a separate install on the VPS.

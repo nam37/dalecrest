@@ -1,0 +1,49 @@
+name: dalecrest
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: dalecrest
+      POSTGRES_PASSWORD: ${PG_ADMIN_PASSWORD:?}
+      DALECREST_APP_PASSWORD: ${PG_APP_PASSWORD:?}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init-db.sh:/docker-entrypoint-initdb.d/10-dalecrest.sh:ro
+    networks: [database]
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres", "-d", "dalecrest"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 512m
+    logging: &logging
+      driver: local
+      options: { max-size: "10m", max-file: "3" }
+  app:
+    image: dalecrest-app:${DALECREST_RELEASE:-bootstrap}
+    container_name: dalecrest-app
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://dalecrest_app:${PG_APP_PASSWORD:?}@db:5432/dalecrest
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
+    depends_on:
+      db: { condition: service_healthy }
+    networks: [database, web]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4173/api/village').then(async r=>{if(!r.ok || !(await r.json()).actors.length) process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      start_period: 5s
+      retries: 5
+    logging: *logging
+networks:
+  database: { internal: true }
+  web: { external: true }
+volumes:
+  pgdata: {}
