@@ -93,6 +93,20 @@ The report counts completed village minutes when at least five people were waiti
 
 The first comparison window starts when each original resident has an entry in the activity log. The second looks back from the expansion for the same duration as the follow-up, up to the available history. A crowd that crosses a window boundary contributes only the minutes inside that window.
 
+#### First village hour after the expansion
+
+The live rollout began on 21 November 2026 at 6:25 p.m. Eastern. Reproduce the first village hour with `-v cutover=6220 -v through=6280`.
+
+| Live window | Village minutes with five or more waiting | Crowd stretches | Completed individual oven waits | Median real wait | Longest real wait |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Earlier history, minutes 5925–6219 | 28 of 295 (9.5%) | 3 | 15 | 13 min 58 s | 24 min 27 s |
+| Hour immediately before, 6160–6219 | 0 of 60 | 0 | 0 | — | — |
+| Hour after, 6220–6279 | 0 of 60 | 0 | 5 | 1.4 s | 1.7 s |
+
+The three earlier crowds lasted 8, 13 and 7 village minutes in chronological order. Measuring the overlaps from the activity timestamps gives real durations of 4 min 2 s, 6 min 32 s and 3 min 54 s. After the expansion, only one resident at a time waited at the oven. Individual waits cleared faster than in the longer baseline. Both adjacent hours had zero crowds, so the effect on crowd frequency is still uncertain.
+
+In the first 30 real minutes, the planner applied 17 decisions for nine residents, including both newcomers. The API reported 12,688 uncached input tokens, with zero cache writes or output tokens. That cost about $0.00127 at $0.10 per million. The preceding 30 real minutes had four decisions and 2,898 tokens. [Decisions pricing](https://developers.openai.com/api/docs/guides/decisions#pricing-and-availability)
+
 ## Inspect an oven or woodcutting shift
 
 Each new baking or woodcutting shift ends with a `work` chronicle entry. Its `outcome` JSONB records the job, intended site, worker, helpers recorded during that shift, and signed changes to common stores. A blocked or interrupted shift records its cause and an empty stock change. The tick commits this event with the inventory and resident state. Older entries have SQL NULL for `outcome`.

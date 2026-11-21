@@ -51,7 +51,7 @@ WITH clock AS (
 )
 SELECT p.label, p.start_minute, p.end_minute, p.end_minute-p.start_minute AS village_minutes,
   coalesce(r.crowded_minutes,0) AS crowded_minutes, coalesce(r.stretches,0) AS stretches,
-  coalesce(r.longest,0) AS longest_stretch_min, o.peak AS peak_waiting,
+  coalesce(r.longest,0) AS longest_stretch_min, o.peak AS peak_at_minute_end,
   s.completed AS oven_waits, s.median_seconds, s.longest_seconds, s.unfinished AS unresolved_oven_waits,
   s.all_completed, s.village_median_seconds, r.bouts
 FROM periods p
@@ -69,6 +69,7 @@ CROSS JOIN LATERAL (
     count(*) FILTER (WHERE next_minute<p.end_minute) AS all_completed,
     round((percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch FROM next_at-recorded_at))
       FILTER (WHERE next_minute<p.end_minute))::numeric,1) AS village_median_seconds
-  FROM waits WHERE minute>=p.start_minute AND minute<p.end_minute
+  FROM waits WHERE minute<p.end_minute
+    AND (minute>=p.start_minute OR next_minute IS NULL OR next_minute>=p.end_minute)
 ) s
 ORDER BY p.start_minute,p.end_minute;
