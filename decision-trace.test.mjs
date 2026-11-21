@@ -94,6 +94,12 @@ test('PostgreSQL preserves the trace, resumes a received reply, and links actual
     assert.equal(await db.claimAction(7000),undefined);
     await db.advance();
     assert.equal((await db.snapshot()).actors.find(a => a.id==='alice').action.kind,'waiting');
+    const beforeWait = (await db.snapshot()).world.minute;
+    await db.pool.query('UPDATE dalecrest.world SET next_tick=now()');
+    await db.advance();
+    const waitingState = await db.snapshot();
+    assert.equal(waitingState.world.minute,beforeWait+1);
+    assert.equal(waitingState.actors.find(a=>a.id==='alice').action.kind,'waiting');
     assert.deepEqual(await db.claimAction(0),{budgetLimited:true});
     const tickets2 = await Promise.all([db.claimAction(7000),db.claimAction(7000)]);
     const [first] = tickets2.filter(Boolean);

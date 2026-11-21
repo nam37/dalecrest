@@ -2,6 +2,19 @@ import { DECISIONS_MODEL, DECISIONS_URL, actionBody, actionDescription } from '.
 import { availableActions } from './sim.mjs';
 import { residentState } from './decision-trace.mjs';
 
+export const hourlyActionBudget = Number(process.env.OPENAI_ACTION_TOKENS_PER_HOUR || 7000);
+
+// When a queue forms, stretch active shifts over the time it takes to fund new ones.
+export async function secondsPerQueuedMinute(db, population) {
+  if (!hourlyActionBudget) return 3;
+  const { rows: [recent] } = await db.query(`SELECT sum(cost)::float8 / nullif(sum(duration),0) AS tokens_per_minute
+    FROM (SELECT t.token_charge AS cost, (s.details#>>'{action,remaining}')::int AS duration
+      FROM dalecrest.decision_traces t JOIN dalecrest.decision_steps s ON s.trace_id=t.id AND s.kind='selected'
+      WHERE t.decision_since IS NOT NULL AND t.status='applied' ORDER BY t.id DESC LIMIT 24) samples`);
+  const expectedCost = recent.tokens_per_minute ?? 400 / 60;
+  return Math.min(60, Math.max(1, Math.ceil(3600 * population * expectedCost / hourlyActionBudget)));
+}
+
 // Both reservation and application run under the same world-row lock used by ticks.
 export async function reserveAction(db, village, hourlyBudget) {
   const waiting = village.actors.filter(a => a.action.kind === 'waiting');

@@ -1,5 +1,5 @@
 import pg from 'pg';
-import { reserveAction, startChosenAction } from './action-turns.mjs';
+import { reserveAction, startChosenAction, secondsPerQueuedMinute } from './action-turns.mjs';
 import { createVillage, stepVillage, FOCUSES } from './sim.mjs';
 import { DECISIONS_MODEL, DECISIONS_URL, interpretDecision } from './decisions.mjs';
 import { initializeTraces, advanceWithTraces, writeSteps, residentState } from './decision-trace.mjs';
@@ -107,9 +107,10 @@ export async function advance() {
       WHERE status='applied' AND ended_minute IS NULL`)).rows;
     const direct = process.env.PLANNER_PROVIDER === 'openai';
     const waiting = direct ? actors.filter(a => a.action.kind === 'waiting').length : 0;
-    const minutes = waiting === actors.length ? 0 : waiting * 2 >= actors.length ? 1 : 3;
+    const minutes = waiting === actors.length ? 0 : waiting ? 1 : 3;
+    const delay = minutes === 1 ? await secondsPerQueuedMinute(db, actors.length) : 3;
     const { events, steps } = advanceWithTraces({ world, actors }, minutes, traces, direct);
-    await db.query("UPDATE dalecrest.world SET state=$1, next_tick=now()+interval '3 seconds' WHERE id=1", [world]);
+    await db.query("UPDATE dalecrest.world SET state=$1, next_tick=now()+make_interval(secs=>$2) WHERE id=1", [world, delay]);
     await db.query(`UPDATE dalecrest.actors a SET state = payload.actor
       FROM jsonb_array_elements($1::jsonb) AS payload(actor) WHERE a.id = payload.actor->>'id'`, [JSON.stringify(actors)]);
     const chronicle = await recordEvents(db, events);
