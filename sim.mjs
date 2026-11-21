@@ -144,7 +144,7 @@ function stocked(world, job) {
   return Object.entries(job.takes || {}).every(([k, n]) => world.supplies[k] >= n)
     && Object.entries(job.makes).every(([k, n]) => world.supplies[k] <= world.capacity[k] - n);
 }
-function jobOptions(actor, state) {
+function jobOptions(actor, state, allFeasible) {
   const { world } = state;
   // When stores run low, anyone can lend a hand in the fields or coppice.
   const list = [...new Set([actor.trade, 'harvest', 'cut', 'draw'])];
@@ -154,7 +154,7 @@ function jobOptions(actor, state) {
     if (!stocked(world, job)) continue;
     const material = Object.keys(job.makes)[0];
     const shortage = 1 - world.supplies[material] / world.capacity[material];
-    if (key !== actor.trade && shortage < 0.67) continue;
+    if (!allFeasible && key !== actor.trade && shortage < 0.67) continue;
     const site = workSite(actor, key, state);
     if (!site) continue;
     const pledged = shortage > 0.5 && actor.memories.some(m => m.shortage === material && world.minute - m.minute < 480);
@@ -194,7 +194,7 @@ function choose(actor, state, menu) {
     }
     choices.push({ score: score + 4 * random(world), kind, label, reason, target, remaining: duration, ...extra });
   }
-  const jobsHere = jobOptions(actor, state);
+  const jobsHere = jobOptions(actor, state, Boolean(menu));
   const duty = actor.traits.includes('steadfast') ? 5 : 0;
   const weary = (night ? 48 : 0) + Math.max(0, fatigue - 65);
   for (const job of (menu ? jobsHere : jobsHere.slice(0, 1))) {

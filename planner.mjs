@@ -1,13 +1,13 @@
 import { FOCUSES } from './sim.mjs';
 import { snapshot, savePlan, claimAction, recordReply, recordTransportFailure, pendingDecision, applyRecordedDecision } from './db.mjs';
 import { sendDecision, DECISIONS_MODEL } from './decisions.mjs';
+import { hourlyActionBudget } from './action-turns.mjs';
 import { setTimeout as delay } from 'node:timers/promises';
 
 const decisions = process.env.PLANNER_PROVIDER === 'openai';
 const model = decisions ? DECISIONS_MODEL : process.env.OLLAMA_MODEL?.trim();
 const key = process.env.OPENAI_API_KEY?.trim();
-const hourlyBudget = Number(process.env.OPENAI_ACTION_TOKENS_PER_HOUR || 7000);
-if (decisions && (!Number.isSafeInteger(hourlyBudget) || hourlyBudget < 0)) throw new Error('Set a nonnegative hourly action token budget.');
+if (decisions && (!Number.isSafeInteger(hourlyActionBudget) || hourlyActionBudget < 0)) throw new Error('Set a nonnegative hourly action token budget.');
 export const plannerPollMs = decisions ? 2000 : 20000;
 export const plannerStatus = { configured: Boolean(model), model: model || null, state: decisions && !key ? 'awaiting API key · residents waiting' : model ? 'ready' : 'local rules' };
 const base = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
@@ -31,7 +31,7 @@ export async function planOnce() {
       const pending = await pendingDecision();
       if (pending) { await finishDecision(pending); return; }
       if (!key) return;
-      const ticket = await claimAction(hourlyBudget);
+      const ticket = await claimAction(hourlyActionBudget);
       if (!ticket) return;
       if (ticket.budgetLimited) { plannerStatus.state = 'waiting for token budget'; return; }
       const { id, body } = ticket;
