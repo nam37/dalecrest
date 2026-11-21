@@ -162,6 +162,26 @@ export function route(map, from, targetId) {
   return { pts, length: byRoad, direct: false };
 }
 
+// Part of the route a resident can cover in the given number of village minutes.
+// Keep the waypoints as well as the endpoint so both the clock and the map follow the same turns.
+export function walkingSegment(actor, path, minutes = 1) {
+  let left = (actor.traits.includes('restless') ? 2.65 : 2.15) * minutes;
+  let from = [actor.position.x, actor.position.y], passed = 0;
+  const points = [];
+  for (const to of path) {
+    const length = dist(from, to);
+    if (length > left) {
+      points.push([from[0] + left * (to[0] - from[0]) / length, from[1] + left * (to[1] - from[1]) / length]);
+      break;
+    }
+    points.push(to);
+    passed++;
+    left -= length;
+    from = to;
+  }
+  return { points, passed };
+}
+
 // Walking distance between two places along the ways.
 export function walkLength(map, fromId, toId) {
   const a = place(map, fromId), b = place(map, toId);

@@ -1,6 +1,7 @@
 import { DECISIONS_MODEL, DECISIONS_URL, actionBody, actionDescription } from './decisions.mjs';
 import { availableActions, startChosen, locationsOf } from './sim.mjs';
 import { residentState, writeActivities } from './decision-trace.mjs';
+import { weatherAt } from './engine/seasons.mjs';
 
 export const hourlyActionBudget = Number(process.env.OPENAI_ACTION_TOKENS_PER_HOUR || 7000);
 
@@ -34,7 +35,7 @@ export async function reserveAction(db, village, hourlyBudget) {
   const actor = eligible[0];
   const menu = availableActions(actor, village);
   if (!menu.size) return;
-  const body = actionBody(actor, village.world, menu, locationsOf(village.map, village.actors));
+  const body = actionBody(actor, village.world, menu, locationsOf(village.map, village.actors), weatherAt(village.world.minute, village.map.seed).text);
   // Reserve before sending. The provider's reported total replaces this estimate when available.
   const estimate = Math.ceil(Buffer.byteLength(body) / 3) + 80;
   if (usage.spent + estimate > hourlyBudget || usage.debt + estimate > Math.max(estimate, hourlyBudget / 4)) return { budgetLimited: true };

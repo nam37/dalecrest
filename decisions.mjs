@@ -16,8 +16,10 @@ export function actionDescription(action, names = {}) {
   return action.label + ' at ' + (names[action.target]?.name || action.target) + ' (' + action.remaining + ' village minutes).';
 }
 
-export function actionBody(actor, world, menu, names = {}) {
-  const time = world.minute % 1440, last = actor.action.previous;
+// weather is what anyone out of doors can see and feel, in a few words. A resident also knows
+// whether their own hearth had firewood this morning.
+export function actionBody(actor, world, menu, names = {}, weather) {
+  const time = world.minute % 1440, last = actor.action.previous, hearth = actor.observations?.hearth;
   const observation = {
     name: actor.name, role: actor.role, traits: actor.traits, goals: actor.goals,
     desires: actor.desires.map(({ focus, weight, target }) => ({ focus, weight, target })),
@@ -25,6 +27,8 @@ export function actionBody(actor, world, menu, names = {}) {
     lastActivity: last && { kind: last.kind, label: last.label, place: names[last.target]?.name || last.target },
     whyThisIsAChoice: actor.action.why,
     time: [Math.floor(time / 60), time % 60].map(n => String(n).padStart(2, '0')).join(':'),
+    ...(weather && { weather }),
+    ...(hearth && world.minute - hearth.minute < 1440 && !hearth.lit && { ownHearth: 'Cold since this morning: there was no firewood left in the common store.' }),
     lastOvenCheck: recalledOvenStores(actor, world.minute), recentMemories: actor.memories.slice(-2).map(m => m.text)
   };
   const options = Array.from(menu, ([value, action]) => ({
@@ -33,7 +37,7 @@ export function actionBody(actor, world, menu, names = {}) {
   return JSON.stringify({
     model: DECISIONS_MODEL, input: [{ role: 'user', content: [{ type: 'input_json', data: observation }] }],
     questions: [{ type: 'choice', name: 'next_action', choices: options,
-      instructions: 'Choose the activity this resident will begin now. Weigh goals, needs (100 is urgent), time and memories. The last oven check is what they personally counted then. Null means they have not checked. Stocks can change.' }]
+      instructions: 'Choose the activity this resident will begin now. Weigh goals, needs (100 is urgent), time, weather and memories. The last oven check is what they personally counted then. Null means they have not checked. Stocks can change.' }]
   });
 }
 

@@ -166,6 +166,8 @@ The pilot uses the residents' existing goals. Goal reviews arrive in Stage 2.
 
 **Second proof: one ordinary pressure.** A staged shortage shows that the branches work. It does not show that the story will ever happen. In 60-day runs today the wood store never falls below 10, and never below 20 while a site is open. Choose one ordinary pressure, such as a building project that draws its timber when the footings are set instead of a bundle a shift, and test whether it produces a morning with flour and no wood without scripting. One pressure is enough for the pilot. Personal inventories, deliveries and prices wait until a second story needs them.
 
+**Status · 21 November 2026.** Winter fuel is the chosen pressure. It is built on the `winter-fuel` branch and is not deployed. Hearths draw firewood from the common store on cold mornings, and in seeded runs under local rules a morning with flour and no wood arises unscripted, with a baker learning of it by going to look. Whether it changes what the Decisions API chooses is not yet measured. [Design decision 11](design.md)
+
 Done when: the acceptance tests at the end of this document pass.
 
 ### Stage 2. Goals and memory (M)
@@ -357,3 +359,5 @@ The central test: **can someone follow Mabel, return the next day, and tell whet
 7. **When the pilot reaches the live village.** It is proved in a test village. Moving it to the live one changes what residents know about the stores.
 8. **Whether residents die**, and whether the live village is migrated or a new one is founded when Stage 3 changes the economy.
 9. **How far visitors may reach.** Stage 7 can stop at any step. Letters are the first with real moderation work.
+10. **How long a year is.** Stage 3 proposes a year of about 48 village days. The calendar and the weather now keep the real year of 365, which at two village days to a real day takes six real months. One of the two has to give.
+11. **Whether the wood store grows with the village.** It holds 32 bundles at any size. With winter fuel that is about a day's burning for thirty hearths in frost, so a large village cannot lay in wood for a cold spell.

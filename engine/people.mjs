@@ -75,7 +75,7 @@ export function newcomer(state, random) {
     id, name: full, role: pick(roles), home: 'hall', workplace, trade, traits,
     backstory: name + ' walked in from ' + pick(TOWNS) + ' after ' + pick(REASONS) + '. ' + name + ' ' + craft + '.',
     goals: [goal, 'Find a place among the households of Dalecrest'],
-    needs: { hunger: 38 + Math.floor(random() * 20), fatigue: 30 + Math.floor(random() * 20), loneliness: 45 + Math.floor(random() * 20) },
+    needs: { hunger: 38 + Math.floor(random() * 20), fatigue: 30 + Math.floor(random() * 20), loneliness: 45 + Math.floor(random() * 20), cold: 0 },
     relationships: {}, memories: [], plan: null, position: start,
     action: { kind: 'arrive', label: 'Coming up the road to Dalecrest', reason: 'Word on the road was that Dalecrest had bread and work to spare.', target: 'hall', phase: 'travelling', remaining: 25 },
     lastChat: world.minute, lastJob: world.minute, daysWorked: 0, lastWorkDay: -1, arrived: world.minute,

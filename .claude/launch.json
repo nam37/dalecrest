@@ -12,6 +12,12 @@
       "runtimeExecutable": "node",
       "runtimeArgs": ["--env-file=.env", "tools/standin-village.mjs"],
       "port": 4175
+    },
+    {
+      "name": "dalecrest-winter",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["--env-file=.env", "tools/winter-village.mjs"],
+      "port": 4176
     }
   ]
 }

@@ -20,5 +20,5 @@ console.log('\nAfter ' + days + ' days (' + Math.round(performance.now() - start
 console.log('places', kinds, 'roads', map.roads.map(r => r.name || 'path').join(', '));
 console.log('supplies', world.supplies, 'capacity', world.capacity);
 console.log('fields', world.fields, 'strain', world.strain, 'projects', world.projects.length, 'proposals', world.proposals.map(p => p.key + ':' + p.supporters.length).join(' '));
-console.log('needs avg', ['hunger', 'fatigue', 'loneliness'].map(k => k + ' ' + Math.round(actors.reduce((s, a) => s + a.needs[k], 0) / actors.length)).join(', '));
+console.log('needs avg', ['hunger', 'fatigue', 'loneliness', 'cold'].map(k => k + ' ' + Math.round(actors.reduce((s, a) => s + a.needs[k], 0) / actors.length)).join(', '));
 console.log('events', counts, 'map bytes', JSON.stringify(map).length, 'nodes', map.nodes.length);

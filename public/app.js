@@ -1,5 +1,6 @@
 import { createMap } from './map.js';
 import { dateOf, formatDate } from '/engine/calendar.mjs';
+import { light, skyOver } from '/ambient.js';
 
 const $ = id => document.getElementById(id);
 const el = (tag, cls, value) => {
@@ -64,7 +65,7 @@ const whyText = why => !why ? '' : whys[why] || (why.startsWith('would run into'
 function doing(actor) {
   const activity = actor.action, at = state.locations[activity.target]?.name || activity.target;
   if (activity.kind === 'waiting') return 'Deciding what to do next';
-  return activity.phase === 'travelling' ? activity.label + ' · on the way to ' + at : activity.label;
+  return activity.phase === 'travelling' ? 'Walking to ' + at : activity.label;
 }
 function chip(kind, text, title) {
   const node = el('span', 'basis basis-' + kind, text);
@@ -164,7 +165,9 @@ function renderProfile(actor) {
     if (since || last) waiting.append(el('p','reason',[since,last].filter(Boolean).join(' · ')));
     detail.append(waiting);
   } else {
-    const now = block(activity.phase==='travelling'?'Walking to '+at:'At '+at,el('strong','activity',activity.label));
+    const travelling = activity.phase === 'travelling';
+    const now = block(travelling ? 'On the way' : 'At '+at, el('strong','activity',doing(actor)));
+    if (travelling) now.append(el('p','reason','On arrival · '+activity.label));
     // How this activity came about: a fresh choice by the model, or routine on a choice it made earlier.
     const basis = activity.basis;
     if (basis?.kind === 'standing') {
@@ -246,17 +249,24 @@ function render() {
   $('day').textContent=formatDate(world.minute, matchMedia('(max-width: 690px)').matches ? 'full' : 'long');
   $('time').textContent=time(world.minute);
   $('clock').title='Day '+dateOf(world.minute).villageDay+' since Dalecrest was founded';
-  const hour=world.minute%1440, night=hour>=1260||hour<340;
-  $('clock').classList.toggle('night',night); $('orb').textContent=night?'☾':'☼';
+  // The season and the weather sit under the hour, and the mark beside them follows the sky.
+  const night=light(world.minute).night, sky=state.map?skyOver(world.minute,state.map.seed):null;
+  $('clock').classList.toggle('night',night); $('orb').textContent=sky?.snow?'❄':sky?.rain?'☂':night?'☾':sky?.sky==='overcast'?'☁':'☼';
+  $('weather').textContent=sky?sky.label:'';
+  $('weather').title=sky?'About '+Math.round(sky.temp)+'°C as we would measure it':'';
+  const extras={coldHearths:world.coldHearths||[]};
   // In the village the map is the page. Its title gives way and the clock moves onto the plate.
   $('page-title').hidden=route==='village';
   $('planner-status').textContent=planner.configured?'Planner · '+planner.model+' · '+planner.state:'Planner · local decision rules';
   if(route==='village'){
     const actor=actors.find(a=>a.id===selected)||actors[0]; selected=actor.id;
-    const motionMs = frozen ? 0 : Math.max(250, Math.min(60000, state.nextTickInMs));
-    map.update(actors,selected,state.locations,motionMs,world.minute);
+    const motionMs = frozen ? 0 : Math.max(1, state.tickDueAt - performance.now());
+    if (state.tickMs > 0 && state.tickMinutes > 0) {
+      extras.liveTick = { map: ground, minute: world.minute, minutes: state.tickMinutes, ms: state.tickMs, endsAt: state.tickDueAt };
+    }
+    map.update(actors,selected,state.locations,motionMs,world.minute,extras);
     if(walk&&viewMode==='walk'){
-      walk.update(actors,selected,world.minute,motionMs);
+      walk.update(actors,selected,world.minute,motionMs,extras);
       $('walk-caption').textContent='Following '+actor.name+' · '+doing(actor);
     }
     renderProfile(actor);renderAffairs();
@@ -268,6 +278,9 @@ function render() {
       amount.append(el('small','',' / '+(world.capacity?.[key]??capacity[key])));
       row.append(el('span','',name),amount);return row;
     }));
+    // A morning when the woodpile did not go round is worth saying where the firewood is counted.
+    const without=extras.coldHearths.length;
+    if(without) $('supplies').append(el('p','affair-note','No firewood reached '+without+(without===1?' hearth':' hearths')+' this morning.'));
   }else if(route==='residents')roster();
   else journal($('all-events'),shown(events,$('event-type').value),true);
 }
@@ -290,6 +303,7 @@ async function refresh(){
     const res=await fetch('/api/village?mapRevision='+(latest?.map.revision ?? -1),{signal:AbortSignal.timeout(9000)});
     if(!res.ok)throw new Error();
     const next=await res.json();
+    next.tickDueAt = performance.now() + next.nextTickInMs;
     next.map ??= latest?.map;
     if (!next.map || next.map.revision !== next.world.mapRevision) throw new Error('Village map revision mismatch');
     latest=next;
