@@ -46,9 +46,9 @@ export async function currentMap() {
 
 async function recordEvents(db, events) {
   if (!events.length) return [];
-  const result = await db.query(`INSERT INTO dalecrest.events(minute, kind, actor_ids, description)
-    SELECT e.minute, e.type, e."actorIds", e.text FROM jsonb_to_recordset($1::jsonb)
-    AS e(minute bigint, type text, "actorIds" text[], text text) RETURNING id, minute, actor_ids`, [JSON.stringify(events)]);
+  const result = await db.query(`INSERT INTO dalecrest.events(minute, kind, actor_ids, description, outcome)
+    SELECT e.minute, e.type, e."actorIds", e.text, e.outcome FROM jsonb_to_recordset($1::jsonb)
+    AS e(minute bigint, type text, "actorIds" text[], text text, outcome jsonb) RETURNING id, minute, actor_ids`, [JSON.stringify(events)]);
   return result.rows;
 }
 
@@ -69,6 +69,7 @@ export async function initialize() {
         id bigserial PRIMARY KEY, minute bigint NOT NULL, kind text NOT NULL,
         actor_ids text[] NOT NULL, description text NOT NULL
       );
+      ALTER TABLE dalecrest.events ADD COLUMN IF NOT EXISTS outcome jsonb;
       CREATE TABLE IF NOT EXISTS dalecrest.map (
         id integer PRIMARY KEY CHECK (id = 1), revision bigint NOT NULL, state jsonb NOT NULL
       );
