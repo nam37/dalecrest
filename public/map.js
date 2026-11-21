@@ -312,7 +312,7 @@ export function createMap(canvas, onSelect) {
     for (const p of map.places) {
       if (p.kind === 'cottage' || !p.name || (p.kind === 'well' && view.scale < 11)) continue;
       const [x, y] = toScreen(p.x, p.y);
-      const drop = p.kind === 'field' ? 0 : p.kind === 'well' ? -1.3 * view.scale - 4 : p.kind === 'green' ? p.ry * 0.55 * view.scale : ((p.d || 2.4) / 2 + 0.9) * view.scale + 4;
+      const drop = p.kind === 'field' ? 0 : p.kind === 'well' ? -1.3 * view.scale - 4 : p.kind === 'green' ? (p.ry + 1) * view.scale + 3 : ((p.d || 2.4) / 2 + 0.9) * view.scale + 4;
       label(p.stage < 2 && p.kind !== 'field' ? p.name + ' (building)' : p.name, x, y + drop, Math.max(11, Math.min(17, view.scale * 1.7)));
     }
     hits = [];
@@ -334,7 +334,13 @@ export function createMap(canvas, onSelect) {
       disc(c, x, y + 1, r + 1, '#483d3445');
       disc(c, x, y, r, actor.color || villageColors[index % villageColors.length], '#fff5d9', 1.8);
       disc(c, x, y, r + 1, null, '#5d5341', 0.85);
+      // A resident making up their mind carries a small question mark.
+      if (actor.action?.kind === 'waiting') {
+        disc(c, x + r, y - r, 5.2, '#fffdf2', '#5d5341', 0.9);
+        c.font = '700 8px Georgia, serif'; c.fillStyle = '#5d5341'; c.textAlign = 'center'; c.fillText('?', x + r, y - r + 0.5);
+      }
       hits.push({ id: actor.id, name: actor.name, x, y });
+      if (actor.id === selectedId) { c.textAlign = 'center'; label(actor.name.split(' ')[0], x, y - r - 11, 12.5, false); }
     }
     if (hover) {
       c.textAlign = 'left';

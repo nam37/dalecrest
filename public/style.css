@@ -20,3 +20,16 @@
 .affair{display:grid;grid-template-columns:minmax(0,1fr) 64px auto;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid #e5e6da;font-size:.9rem}.affair.talk{grid-template-columns:minmax(0,1fr) auto}.affair:last-child{border:0}.affair .num{color:var(--muted);font-size:.8rem;white-space:nowrap}.affair-note{font-size:.9rem;line-height:1.4;padding:4px 0 9px;color:var(--pine)}
 @media(max-width:690px){.side-stack{gap:12px}.view-switch button{padding:6px 10px}#map-hint{display:none}}
 .atlas-form{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:13px 19px;border-bottom:1px solid var(--rule);font-size:.9rem;color:var(--muted)}.atlas-form input{width:7.2em;font:inherit;padding:5px 7px;border:1px solid #c8cebe;border-radius:5px;background:#fff}.atlas-form select{font:inherit;max-width:11em;padding:4px;border:1px solid var(--rule);border-radius:4px;background:#f6f6ee}.atlas-area{height:clamp(420px,46vw,640px)}#log{max-height:420px;overflow:auto}
+
+.map-area{height:clamp(430px,40vw,600px)}
+.basis{display:inline-block;margin:2px 0 6px;padding:2px 8px;border-radius:999px;font:600 .72rem/1.5 "Segoe UI",system-ui,sans-serif;letter-spacing:.02em;border:1px solid}
+.basis-standing{background:#eef1e4;border-color:#cfd7bd;color:#4b5e46}.basis-fresh{background:#f6ecd9;border-color:#e0cba0;color:#7a5a24}.basis-waiting{background:#f3e6e0;border-color:#dfc3b6;color:#8a4a34}
+.detail-block .reason+.reason{margin-top:3px}
+.need.urgent .track i{background:var(--rust)}.need.urgent .num{color:var(--rust);font-weight:600}
+.journal-day{font:600 .76rem/1.4 Consolas,monospace;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin:16px 0 2px;padding-bottom:6px;border-bottom:1px solid var(--rule)}.journal-day:first-child{margin-top:6px}.journal-day+.journal-row{border-top:0}
+.kind-civic,.kind-build,.kind-arrival{color:var(--rust)}.kind-plan,.kind-meal,.kind-work{color:#8a8672}
+.card-doing{font-size:.86rem;color:var(--pine);margin:-4px 0 9px;padding:3px 8px;background:#f0f2e8;border-radius:4px}
+.key-deciding{display:inline-grid;place-items:center;width:13px;height:13px;border-radius:50%;background:#fffdf2;border:1px solid #5d5341;font:700 9px/1 Georgia,serif;font-style:normal;color:#5d5341}
+.atlas-area{height:clamp(420px,46vw,640px)}
+@media(max-width:850px){.map-area{height:440px}}
+@media(max-width:690px){.map-area{height:clamp(300px,78vw,440px)}.panel-head{flex-wrap:wrap}.map-key{gap:7px 14px}}

@@ -24,9 +24,9 @@
             <div class="map-zoom"><button type="button" id="zoom-in" aria-label="Zoom in">+</button><button type="button" id="zoom-out" aria-label="Zoom out">−</button><button type="button" id="zoom-home" aria-label="Show the whole village">⌂</button></div>
             <p id="walk-caption" class="walk-caption" hidden></p>
           </div>
-          <div class="map-key"><span><i class="key-resident"></i> Resident</span><span><i class="key-follow"></i> Selected resident</span><span id="map-hint">Drag to pan · click, then scroll to zoom</span><span id="map-count"></span></div>
+          <div class="map-key"><span class="plan-only"><i class="key-resident"></i> Resident</span><span class="plan-only"><i class="key-follow"></i> Selected</span><span class="plan-only"><i class="key-deciding">?</i> Deciding</span><span id="map-hint">Drag to pan · click, then scroll to zoom</span><span id="map-count"></span></div>
         </article>
-        <aside class="resident-panel"><div class="panel-head"><h2>Resident record</h2><select id="pick-resident" aria-label="Inspect resident"></select></div>
+        <aside class="resident-panel"><div class="panel-head"><h2>Resident</h2><select id="pick-resident" aria-label="Inspect resident"></select></div>
           <div id="profile"></div>
           <div class="tabs" aria-label="Resident record views"><button data-tab="life" aria-pressed="true">Life</button><button data-tab="memory" aria-pressed="false">Memory</button><button data-tab="data" aria-pressed="false">Data</button></div>
           <div id="detail"></div>
@@ -39,7 +39,7 @@
       </div>
     </section>
     <section id="residents" class="view" hidden><div id="roster" class="roster"></div></section>
-    <section id="chronicle" class="view" hidden><div class="chronicle-head"><label>Show <select id="event-type"><option value="">All events</option><option value="social">Encounters</option><option value="work">Work</option><option value="meal">Meals</option><option value="plan">Model decisions</option><option value="civic">Village affairs</option><option value="build">Building</option><option value="arrival">Arrivals</option><option value="village">Village life</option></select></label></div><div id="all-events"></div></section>
+    <section id="chronicle" class="view" hidden><div class="chronicle-head"><label>Show <select id="event-type"><option value="highlights">Highlights</option><option value="">Everything</option><option value="social">Encounters</option><option value="work">Work</option><option value="meal">Meals</option><option value="plan">Model decisions</option><option value="civic">Village affairs</option><option value="build">Building</option><option value="arrival">Arrivals</option><option value="village">Village life</option></select></label></div><div id="all-events"></div></section>
     <footer><span>Dalecrest village records</span><span id="planner-status"></span></footer>
   </main>
   <script type="module" src="/app.js"></script>

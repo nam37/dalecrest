@@ -31,6 +31,7 @@ async function show(mode) {
   $('map').hidden = mode !== 'plan'; $('walk').hidden = mode !== 'walk';
   document.querySelector('.map-zoom').hidden = document.querySelector('.map-compass').hidden = mode !== 'plan';
   $('walk-caption').hidden = mode !== 'walk';
+  for (const item of document.querySelectorAll('.plan-only')) item.hidden = mode !== 'plan';
   $('map-hint').textContent = mode === 'plan' ? 'Drag to pan · click, then scroll to zoom' : 'Drag to look around · click, then scroll to move closer · click a resident to follow';
   if (mode === 'walk' && !walk && !loadingWalk) {
     loadingWalk = true;
@@ -45,6 +46,29 @@ async function show(mode) {
   walk?.setActive(viewMode === 'walk' && route === 'village');
   if (viewMode === 'plan') map.redraw();
   render();
+}
+
+// Why a moment went to the model, in plain words. The engine's own phrases are kept as a fallback.
+const whys = {
+  'no instruction applies': 'Nothing already settled covers this moment.',
+  'instruction lapsed': 'An earlier choice for this routine has run out.',
+  'instruction goals changed': 'Their goals have changed since they last chose.',
+  'instruction ran its course': 'They have repeated this often enough to think again.',
+  'instructed action cannot start': 'What they usually do here is not possible now.',
+  'learned something new': 'They have heard something new.',
+  'two urgent needs': 'Two needs are pressing at once.',
+};
+const whyText = why => !why ? '' : whys[why] || (why.startsWith('would run into') ? 'Their routine ' + why + '.' : why[0].toUpperCase() + why.slice(1) + '.');
+// One line saying what a resident is doing, for cards and captions.
+function doing(actor) {
+  const activity = actor.action, at = state.locations[activity.target]?.name || activity.target;
+  if (activity.kind === 'waiting') return 'Deciding what to do next';
+  return activity.phase === 'travelling' ? activity.label + ' · on the way to ' + at : activity.label;
+}
+function chip(kind, text, title) {
+  const node = el('span', 'basis basis-' + kind, text);
+  if (title) node.title = title;
+  return node;
 }
 
 function time(minute) {
@@ -88,8 +112,11 @@ function block(label, ...children) {
 function choose(id) {
   if (!state?.actors.some(a=>a.id===id)) return;
   selected=id;
-  if (route!=='village') location.hash='village';
-  render();
+  const address='#village/'+id;
+  if (location.hash===address) { render(); return; }
+  // Moving between residents on the village page replaces the address instead of filling the history.
+  if (route==='village') { history.replaceState(null,'',address); navigate(); }
+  else location.hash=address;
 }
 function renderProfile(actor) {
   const traits=el('div','trait-list');
@@ -125,18 +152,24 @@ function renderProfile(actor) {
   const activity=actor.action;
   const at=state.locations[activity.target]?.name || activity.target;
   if (activity.kind === 'waiting') {
-    const waiting = block('Next decision', el('strong','activity','Waiting for gpt-6-luna'));
-    if (activity.previous) waiting.append(el('p','reason','Last activity · '+activity.previous.label));
-    if (Number.isFinite(activity.since)) waiting.append(el('p','goal','Queued '+date(activity.since)+' at '+time(activity.since)));
-    if (activity.why) waiting.append(el('p','reason','A choice, not routine · '+activity.why));
+    const waiting = block('At '+at, el('strong','activity','Deciding what to do next'), chip('waiting','Deciding','Waiting for a decision from the model'));
+    if (activity.why) waiting.append(el('p','reason',whyText(activity.why)));
+    const since = Number.isFinite(activity.since) ? 'Since '+date(activity.since)+' at '+time(activity.since) : '';
+    const last = activity.previous ? 'Last: '+activity.previous.label : '';
+    if (since || last) waiting.append(el('p','reason',[since,last].filter(Boolean).join(' · ')));
     detail.append(waiting);
   } else {
-    const doing = block(activity.phase==='travelling'?'Walking to '+at:'At '+at,el('strong','activity',activity.label),el('p','reason',activity.reason));
+    const now = block(activity.phase==='travelling'?'Walking to '+at:'At '+at,el('strong','activity',activity.label));
     // How this activity came about: a fresh choice by the model, or routine on a choice it made earlier.
     const basis = activity.basis;
-    if (basis?.kind === 'standing') doing.append(el('p','goal','Routine · on a choice made '+date(basis.since)+' at '+time(basis.since)));
-    else if (basis?.kind === 'fresh') doing.append(el('p','goal','Fresh choice'+(basis.waited ? ' · after waiting '+basis.waited+' village minutes' : '')));
-    detail.append(doing);
+    if (basis?.kind === 'standing') {
+      now.append(chip('standing','Routine','Following a choice the model made earlier'),
+        el('p','reason','Following the choice made '+date(basis.since)+' at '+time(basis.since)+'.'));
+    } else {
+      if (basis?.kind === 'fresh') now.append(chip('fresh','Fresh choice','Chosen by the model for this moment'));
+      now.append(el('p','reason',activity.reason+(basis?.waited ? ' Waited '+basis.waited+' village minutes for the answer.' : '')));
+    }
+    detail.append(now);
     if(actor.plan)detail.append(block(actor.plan.method==='choice'?'Model priority · '+actor.plan.focus:'Model intention',el('p','goal',actor.plan.reason)));
   }
   const event = state.events.find(e => e.type !== 'plan' && e.actorIds.includes(actor.id));
@@ -145,7 +178,7 @@ function renderProfile(actor) {
   detail.append(block('Desires',...(actor.desires||[]).map(d=>el('p','goal',d.label))));
   const needs=block('Current needs');
   for(const [key,val] of Object.entries(actor.needs)){
-    const n=Math.round(val), row=el('div','need'), track=el('span','track'), fill=el('i');
+    const n=Math.round(val), row=el('div',n>=70?'need urgent':'need'), track=el('span','track'), fill=el('i');
     fill.style.width=n+'%'; track.append(fill);
     row.append(el('span','',key[0].toUpperCase()+key.slice(1)),track,el('span','num',n));
     needs.append(row);
@@ -169,25 +202,33 @@ function renderAffairs() {
   if(!rows.length) rows.push(el('p','empty','Nothing is being built or argued over today.'));
   $('affairs').replaceChildren(...rows);
 }
+// Meals, shifts and the model's activity choices are the routine of the day. Highlights leave them out.
+const routine = new Set(['plan','meal','work']);
+const filters = { highlights: e => !routine.has(e.type), '': () => true };
+const shown = (events, filter) => events.filter(filters[filter] || (e => e.type === filter));
 function journal(target,events,withDay=false) {
   const fragment=document.createDocumentFragment();
+  let day=null;
   for (const e of events) {
+    if (withDay && date(e.minute)!==day) { day=date(e.minute); fragment.append(el('h3','journal-day',day)); }
     const row=el('div','journal-row'), entry=el('p');
-    entry.append(el('span','kind',kinds[e.type]||e.type),document.createTextNode(e.text));
-    row.append(el('time','journal-time',(withDay?date(e.minute)+' · ':'')+time(e.minute)),entry);
+    entry.append(el('span','kind kind-'+e.type,kinds[e.type]||e.type),document.createTextNode(e.text));
+    // In the short list on the village page, an entry from an earlier day says so.
+    const earlier = !withDay && state && date(e.minute) !== date(state.world.minute);
+    row.append(el('time','journal-time',(earlier ? date(e.minute)+' · ' : '')+time(e.minute)),entry);
     fragment.append(row);
   }
-  if(!events.length)fragment.append(el('p','empty','No matching events in the latest 100 records.'));
+  if(!events.length)fragment.append(el('p','empty','Nothing of this kind in the latest 100 records.'));
   target.replaceChildren(fragment);
 }
 function roster() {
-  const signature=state.actors.map(a=>[a.id,a.name,a.role,a.backstory]).join('|');
+  const signature=state.actors.map(a=>[a.id,a.name,a.role,a.backstory,doing(a)]).join('|');
   if(signature===rosterSignature)return;
   rosterSignature=signature;
   const cards=state.actors.map(a=>{
-    const card=el('article','resident-card'),btn=el('button','record-button','View record');
-    btn.type='button'; btn.setAttribute('aria-label','View '+a.name+'’s record'); btn.addEventListener('click',()=>choose(a.id));
-    card.append(who(a),el('p','bio',a.backstory),btn);return card;
+    const card=el('article','resident-card'),btn=el('button','record-button','Follow');
+    btn.type='button'; btn.setAttribute('aria-label','Follow '+a.name+' in the village'); btn.addEventListener('click',()=>choose(a.id));
+    card.append(who(a),el('p','card-doing',doing(a)),el('p','bio',a.backstory),btn);return card;
   });
   $('roster').replaceChildren(...cards);
 }
@@ -195,7 +236,7 @@ function render() {
   if(!state)return;
   const {world,actors,events,planner}=state;
   $('title').textContent=names[route];
-  $('summary').textContent={village:actors.length+' residents living and working in a medieval parish.',residents:'The people, trades, and households of Dalecrest.',chronicle:'The latest 100 entries from the village records.'}[route];
+  $('summary').textContent={village:actors.length+' residents living and working in a medieval parish.',residents:'The people, trades, and households of Dalecrest.',chronicle:'What has happened lately, from the latest 100 entries in the village records.'}[route];
   $('day').textContent=date(world.minute); $('time').textContent=time(world.minute);
   $('planner-status').textContent=planner.configured?'Planner · '+planner.model+' · '+planner.state:'Planner · local decision rules';
   if(route==='village'){
@@ -204,25 +245,25 @@ function render() {
     map.update(actors,selected,state.locations,motionMs);
     if(walk&&viewMode==='walk'){
       walk.update(actors,selected,world.minute,motionMs);
-      const activity = actor.action;
-      const caption = activity.phase === 'travelling' ? 'Walking to '+(state.locations[activity.target]?.name || activity.target)
-        : activity.kind === 'waiting' ? 'Waiting for gpt-6-luna' : activity.label;
-      $('walk-caption').textContent='Following '+actor.name+' · '+caption;
+      $('walk-caption').textContent='Following '+actor.name+' · '+doing(actor);
     }
     renderProfile(actor);renderAffairs();
     $('map-count').textContent=actors.length+' residents';
-    journal($('recent-events'),events.slice(0,4));
+    const notable=shown(events,'highlights');
+    journal($('recent-events'),(notable.length?notable:events).slice(0,5));
     $('supplies').replaceChildren(...Object.entries(stores).map(([key,name])=>{
       const row=el('div','supply'),amount=el('strong','',world.supplies[key]);
       amount.append(el('small','',' / '+(world.capacity?.[key]??capacity[key])));
       row.append(el('span','',name),amount);return row;
     }));
   }else if(route==='residents')roster();
-  else journal($('all-events'),events.filter(e=>!$('event-type').value||e.type===$('event-type').value),true);
+  else journal($('all-events'),shown(events,$('event-type').value),true);
 }
 function navigate(){
-  const key=location.hash.slice(1);
+  // #village/agnes opens the village following Agnes.
+  const [key,who]=location.hash.slice(1).split('/');
   route=Object.hasOwn(names,key)?key:'village';
+  if(who) selected=who;
   for(const view of document.querySelectorAll('.view'))view.hidden=view.id!==route;
   for(const link of document.querySelectorAll('nav a')){
     if(link.hash==='#'+route)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');
