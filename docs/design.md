@@ -34,3 +34,27 @@ The VPS runs the application and a dedicated PostgreSQL 17 service in separate c
 ### 6. Choose the model by what the simulation needs back
 
 Use `gpt-6-luna` for the recurring choice among work, social contact, rest, and food. For a future task that needs an open-ended response, such as a villager reflecting on several memories, use Claude Haiku 5.5 (`claude-haiku-5-5`) through Anthropic’s Messages API. Haiku is the low-cost default for this work. Read its credential from the backend environment variable `CLAUDE_KEY`. The priority planner is currently the village’s only model-driven task. [Claude models and pricing](https://platform.claude.com/docs/en/models/overview) · [Messages API](https://platform.claude.com/docs/en/api/messages/create).
+
+### 7. The ground is generated once and then owned by the village
+
+The first map was a drawing: coordinates typed into the page, with a second copy of the eight sites in the simulation. Nothing could be built because nothing knew where anything was. The map is now one JSON document in `dalecrest.map`, generated from a seed by `engine/worldgen.mjs`. Roads come first: a through road, lanes out to the mill, fields and coppice, then buildings on lots along those ways, fields and woods. The document holds the road graph, every place with its footprint and door, the trees and the terrain parameters. Elevation and water are pure functions of those parameters, so no height grid is stored.
+
+The seed is used once. After founding, the stored document is the truth and the generator is never run again for that village, so improving the generator cannot reshuffle a village people are watching. `VILLAGE_SEED` chooses the seed for a new database. A database from before the map existed is given one at startup: residents keep their records, each household receives a cottage, and legacy site names are mapped to places.
+
+Residents walk the road graph. A route is stored with the action as a list of waypoints, which keeps the simulation resumable from JSON alone and lets the page animate walking along the lanes between snapshots. Where open ground is clearly shorter, residents cut across it. Twelve crossings between the same two places wear a path into the map.
+
+The map changes rarely and is larger than a resident record, so it has its own table and revision. The world row carries the current revision. The server holds one copy per process and reloads it when the revisions differ. The page fetches `/api/map` only when the revision in the snapshot changes.
+
+### 8. The village grows from what residents ask for
+
+New buildings should have a reason a visitor can read in the chronicle. Each resident derives concerns from their own circumstances: a lodger wants a cottage, a farmer knows how many mouths the fields can feed, the wellkeeper knows how far one well stretches. A concern is voiced in an ordinary conversation, which needs the two residents to be in the same place. The listener agrees or not, depending on shared need, friendship and temperament. A proposal with enough voices calls a moot at the hall that evening. Residents who attend vote, and an agreed work becomes a staked site on a lot chosen for its purpose. Building takes shifts of labour and bundles of wood from the common stores, with a limit on how many can work a site at once.
+
+The loop that drives it: a village with bread on the table, land to feed one more and room at the hall draws a traveller off the road. They take up the trade the village is shortest of and lodge at the hall, which starts the case for a cottage. More residents strain the fields, bins, well and oven in turn. When the lots near the green are taken, the residents stake out a new lane. Arrivals slow as the village grows and stop at 36 residents.
+
+The rules live in `engine/civic.mjs`, `engine/people.mjs` and `engine/sites.mjs`. They use the village's own seeded random state, so a stored village replays identically. Model planning does not take part in these decisions yet. A model arguing a case or casting a vote at the moot is a natural next step, and the proposal and moot records are shaped to allow it.
+
+### 9. Two views draw the same stored map
+
+The plan view in `public/map.js` draws the map in ink on parchment, in the manner of Watabou's village generator. The walking view in `public/view3d.js` raises the same footprints into low-poly buildings with three.js and follows the selected resident at eye level. Neither view holds layout of its own, so anything the village builds appears in both. A site shows as stakes, then a frame, then the finished building.
+
+three.js is an npm dependency served from `/vendor/`, so the page loads nothing from another host. The engine modules are served to the browser unchanged. `/atlas.html` uses them to found a village from any seed in the page and run it forward by days, which is the quickest way to judge the look of a grown village without waiting for one or touching a database.

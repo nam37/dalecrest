@@ -18,10 +18,24 @@ To use an existing PostgreSQL server, set `DATABASE_URL` in the environment or a
 
 Local rules work as soon as the village starts. To enable Luna, set `PLANNER_PROVIDER=openai` and `OPENAI_API_KEY` in the server environment and restart the server. Dalecrest sends at most one request per five minutes across the village by default. To use a local Ollama installation, set `PLANNER_PROVIDER=ollama`, `OLLAMA_MODEL`, and `OLLAMA_BASE_URL`.
 
+## Watch it grow
+
+The village map is generated from a seed and then belongs to the village. Residents raise concerns in conversation, settle them at a moot in the hall, and build what was agreed: cottages for newcomers, fields, a granary, wells, a bakehouse, an alehouse, and new lanes when the old ones fill up. The Village page shows the map, the works in progress and the proposals under discussion. Choose **Walk** above the map to follow the selected resident through the village in 3D.
+
+Open `/atlas.html` on a running server to found a village from any seed in the browser and advance it by days. Set `VILLAGE_SEED` before the first start to choose the seed of a new database.
+
+To try a change without touching your village, run a preview against a separate database on port 4174.
+
+```powershell
+node --env-file=.env tools/preview-village.mjs
+```
+
+`node tools/simulate.mjs 60` runs sixty village days without a database and prints what was decided and built.
+
 ## Explore the project
 
-- [Design decisions](docs/design.md) explains the village clock, resident records, model priorities, and deployment.
+- [Design decisions](docs/design.md) explains the village clock, resident records, model priorities, the generated map, village growth, and deployment.
 - [Trace a villager’s decision](docs/decision-tracing.md) shows how to read the exact Luna request, full reply, confidence, and subsequent actions in PostgreSQL.
 - [Deployment files](deploy/) describe the private PostgreSQL service, HTTPS routing, backup, health check, and GitHub auto-deploy.
 
-Run `npm test` for the simulation and planner tests. To include the PostgreSQL integration test, set `DALECREST_TEST_ADMIN_URL` to a development PostgreSQL connection with permission to create databases. The test creates and drops its own uniquely named database and uses a recorded fixture for the model reply.
+Run `npm test` for the simulation and planner tests. To include the PostgreSQL integration tests, set `DALECREST_TEST_ADMIN_URL` to a development PostgreSQL connection with permission to create databases. The test creates and drops its own uniquely named database and uses a recorded fixture for the model reply.

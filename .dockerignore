@@ -2,5 +2,7 @@
 !package.json
 !package-lock.json
 !*.mjs
+!engine/
+!engine/**
 !public/
 !public/**

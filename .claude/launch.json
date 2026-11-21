@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dalecrest-preview",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["--env-file=.env", "tools/preview-village.mjs"],
+      "port": 4174
+    }
+  ]
+}

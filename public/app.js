@@ -8,11 +8,45 @@ const el = (tag, cls, value) => {
   return node;
 };
 const names = { village: 'Village observatory', residents: 'Village residents', chronicle: 'Village chronicle' };
-const kinds = { village: 'Village', work: 'Work', meal: 'Meal', social: 'Encounter', plan: 'Intention' };
+const kinds = { village: 'Village', work: 'Work', meal: 'Meal', social: 'Encounter', plan: 'Intention', civic: 'Affairs', build: 'Building', arrival: 'Arrival' };
 const stores = { grain:'Barley', flour:'Flour', bread:'Bread', wood:'Firewood', cloth:'Linen', water:'Water', repair:'Building repairs' };
 const colors = ['#946344','#68764f','#a8654c','#456d65','#827892','#7c6043','#567895','#946e46'];
 let state, latest, frozen=false, selected='agnes', tab='life', route='village', rosterSignature='';
+let ground=null, groundRevision=null, fetching=false, viewMode='plan', walk=null;
 const map = createMap($('map'), choose);
+const capacity = { grain:44, flour:34, bread:32, wood:32, cloth:12, repair:14, water:28 };
+
+// The map only changes when the village builds something, so it is fetched apart from the snapshot.
+async function loadGround(revision) {
+  if (fetching || revision === groundRevision) return;
+  fetching = true;
+  try {
+    const res = await fetch('/api/map', { signal: AbortSignal.timeout(9000) });
+    if (!res.ok) throw new Error();
+    ground = await res.json(); groundRevision = revision;
+    map.setMap(ground, state?.locations);
+    walk?.setMap(ground);
+  } catch {} finally { fetching = false; }
+}
+async function show(mode) {
+  viewMode = mode;
+  for (const b of document.querySelectorAll('[data-view]')) b.setAttribute('aria-pressed', String(b.dataset.view === mode));
+  $('map').hidden = mode !== 'plan'; $('walk').hidden = mode !== 'walk';
+  document.querySelector('.map-zoom').hidden = document.querySelector('.map-compass').hidden = mode !== 'plan';
+  $('walk-caption').hidden = mode !== 'walk';
+  $('map-hint').textContent = mode === 'plan' ? 'Drag to pan · click, then scroll to zoom' : 'Drag to look around · click, then scroll to move closer · click a resident to follow';
+  if (mode === 'walk' && !walk) {
+    $('walk-caption').textContent = 'Opening the village at eye level…';
+    try {
+      const { createWalk } = await import('/view3d.js');
+      walk = createWalk($('walk'), choose);
+      if (ground) walk.setMap(ground);
+    } catch { $('walk-caption').textContent = 'This browser could not open the walking view.'; return; }
+  }
+  walk?.setActive(mode === 'walk');
+  if (mode === 'plan') map.redraw();
+  render();
+}
 
 function time(minute) {
   const hour = Math.floor(minute / 60) % 24;
@@ -103,6 +137,23 @@ function renderProfile(actor) {
   }
   detail.append(needs);
 }
+function renderAffairs() {
+  const affairs=state.affairs||{works:[],talk:[]}, rows=[];
+  if(affairs.moot) rows.push(el('p','affair-note','The moot meets at the hall, '+date(affairs.moot)+' at '+time(affairs.moot)+'.'));
+  for(const work of affairs.works){
+    const row=el('div','affair'), track=el('span','track'), fill=el('i');
+    fill.style.width=Math.round(100*work.done/work.need)+'%'; track.append(fill);
+    row.append(el('span','affair-title',work.title+(work.where?' · '+work.where:'')),track,el('span','num',work.done+'/'+work.need));
+    rows.push(row);
+  }
+  for(const talk of affairs.talk){
+    const row=el('div','affair talk');
+    row.append(el('span','affair-title',talk.title),el('span','num',talk.voices+' of '+talk.needed+' voices'));
+    rows.push(row);
+  }
+  if(!rows.length) rows.push(el('p','empty','Nothing is being built or argued over today.'));
+  $('affairs').replaceChildren(...rows);
+}
 function journal(target,events,withDay=false) {
   const fragment=document.createDocumentFragment();
   for (const e of events) {
@@ -134,11 +185,18 @@ function render() {
   $('planner-status').textContent=planner.configured?'Planner · '+planner.model+' · '+planner.state:'Planner · local decision rules';
   if(route==='village'){
     const actor=actors.find(a=>a.id===selected)||actors[0]; selected=actor.id;
-    map.update(actors,selected);renderProfile(actor);
+    map.update(actors,selected,state.locations);
+    if(walk&&viewMode==='walk'){
+      walk.update(actors,selected,world.minute);
+      $('walk-caption').textContent='Following '+actor.name+' · '+actor.action.label;
+    }
+    renderProfile(actor);renderAffairs();
     $('map-count').textContent=actors.length+' residents';
     journal($('recent-events'),events.slice(0,4));
     $('supplies').replaceChildren(...Object.entries(stores).map(([key,name])=>{
-      const row=el('div','supply');row.append(el('span','',name),el('strong','',world.supplies[key]));return row;
+      const row=el('div','supply'),amount=el('strong','',world.supplies[key]);
+      amount.append(el('small','',' / '+(world.capacity?.[key]??capacity[key])));
+      row.append(el('span','',name),amount);return row;
     }));
   }else if(route==='residents')roster();
   else journal($('all-events'),events.filter(e=>!$('event-type').value||e.type===$('event-type').value),true);
@@ -159,6 +217,7 @@ async function refresh(){
     latest=await res.json();
     $('connection').className='connection online';$('connection').replaceChildren(el('i'),document.createTextNode('World online'));
     if(!frozen){state=latest;render();}
+    loadGround(latest.world.mapRevision);
   }catch{
     $('connection').className='connection';$('connection').replaceChildren(el('i'),document.createTextNode('Reconnecting'));
     if(!state)$('summary').textContent='Waiting for the village server. Reconnecting automatically…';
@@ -172,6 +231,10 @@ $('freeze').addEventListener('click',()=>{
   if(!frozen&&latest){state=latest;render();}
 });
 for(const btn of document.querySelectorAll('[data-tab]'))btn.addEventListener('click',()=>{tab=btn.dataset.tab;render();});
+for(const btn of document.querySelectorAll('[data-view]'))btn.addEventListener('click',()=>show(btn.dataset.view));
+$('zoom-in').addEventListener('click',()=>map.zoom(1.4));
+$('zoom-out').addEventListener('click',()=>map.zoom(1/1.4));
+$('zoom-home').addEventListener('click',()=>map.home());
 $('pick-resident').addEventListener('change',e=>choose(e.target.value));
 $('event-type').addEventListener('change',render);
 window.addEventListener('hashchange',navigate);

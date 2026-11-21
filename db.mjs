@@ -1,5 +1,5 @@
 import pg from 'pg';
-import { createVillage, stepVillage, FOCUSES } from './sim.mjs';
+import { createVillage, stepVillage, adoptVillage, FOCUSES, DEFAULT_SEED } from './sim.mjs';
 import { DECISIONS_MODEL, DECISIONS_URL, interpretDecision } from './decisions.mjs';
 import { initializeTraces, advanceWithTraces, writeSteps, residentState } from './decision-trace.mjs';
 
@@ -21,6 +21,25 @@ async function transaction(run) {
     db.release();
   }
 }
+
+// The map changes rarely, so each process keeps the revision it last read or wrote.
+let held = null;
+async function loadMap(db, revision) {
+  if (held?.revision === revision) return held;
+  const { rows } = await db.query('SELECT state FROM dalecrest.map WHERE id=1');
+  return held = rows[0]?.state ?? null;
+}
+async function saveMap(db, map) {
+  await db.query(`INSERT INTO dalecrest.map(id, revision, state) VALUES (1, $1, $2)
+    ON CONFLICT (id) DO UPDATE SET revision = excluded.revision, state = excluded.state`, [map.revision, map]);
+}
+async function saveActors(db, actors) {
+  await db.query(`INSERT INTO dalecrest.actors(id, ordinal, state)
+    SELECT payload.actor->>'id', payload.n - 1, payload.actor
+    FROM jsonb_array_elements($1::jsonb) WITH ORDINALITY AS payload(actor, n)
+    ON CONFLICT (id) DO UPDATE SET state = excluded.state`, [JSON.stringify(actors)]);
+}
+export async function currentMap(revision) { return loadMap(pool, revision); }
 
 async function recordEvents(db, events) {
   if (!events.length) return [];
@@ -47,18 +66,33 @@ export async function initialize() {
         id bigserial PRIMARY KEY, minute bigint NOT NULL, kind text NOT NULL,
         actor_ids text[] NOT NULL, description text NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS dalecrest.map (
+        id integer PRIMARY KEY CHECK (id = 1), revision bigint NOT NULL, state jsonb NOT NULL
+      );
       CREATE TABLE IF NOT EXISTS dalecrest.planner_limits (
         provider text PRIMARY KEY, next_request_at timestamptz NOT NULL
       );
     `);
     await initializeTraces(db);
-    if ((await db.query('SELECT id FROM dalecrest.world WHERE id=1')).rowCount) return;
-    const village = createVillage();
+    const seed = Number(process.env.VILLAGE_SEED) || DEFAULT_SEED;
+    const stored = await db.query('SELECT state FROM dalecrest.world WHERE id=1 FOR UPDATE');
+    if (stored.rowCount) {
+      // A village founded before the map existed keeps its residents and gains the ground under them.
+      if ((await db.query('SELECT id FROM dalecrest.map WHERE id=1')).rowCount) return;
+      const world = stored.rows[0].state;
+      const actors = (await db.query('SELECT state FROM dalecrest.actors ORDER BY ordinal')).rows.map(r => r.state);
+      const map = adoptVillage({ world, actors }, seed);
+      await db.query('UPDATE dalecrest.world SET state=$1 WHERE id=1', [world]);
+      await saveActors(db, actors);
+      await saveMap(db, map);
+      await recordEvents(db, [{ minute: world.minute, type: 'village', actorIds: [], text: 'The parish was surveyed, and every lane, field and cottage of Dalecrest set down on a new map.' }]);
+      return;
+    }
+    const village = createVillage(seed);
     village.events.push(...stepVillage(village, { minutes: 105 }));
     await db.query('INSERT INTO dalecrest.world(id, state) VALUES (1, $1)', [village.world]);
-    for (const [ordinal, actor] of village.actors.entries()) {
-      await db.query('INSERT INTO dalecrest.actors(id,ordinal,state) VALUES ($1,$2,$3)', [actor.id, ordinal, actor]);
-    }
+    await saveActors(db, village.actors);
+    await saveMap(db, village.map);
     await recordEvents(db, village.events);
   });
 }
@@ -93,20 +127,24 @@ export async function pendingDecision() {
 }
 
 export async function advance() {
-  return transaction(async db => {
-    const result = await db.query('SELECT state FROM dalecrest.world WHERE id=1 AND next_tick <= now() FOR UPDATE SKIP LOCKED');
-    if (!result.rowCount) return;
-    const world = result.rows[0].state;
-    const actors = (await db.query('SELECT state FROM dalecrest.actors ORDER BY ordinal')).rows.map(r => r.state);
-    const traces = (await db.query(`SELECT id,actor_id,until_minute FROM dalecrest.decision_traces
+  // A step changes the held map in place, so a failed commit must not leave that copy behind.
+  return transaction(tick).catch(error => { held = null; throw error; });
+}
+async function tick(db) {
+  const result = await db.query('SELECT state FROM dalecrest.world WHERE id=1 AND next_tick <= now() FOR UPDATE SKIP LOCKED');
+  if (!result.rowCount) return;
+  const world = result.rows[0].state;
+  const actors = (await db.query('SELECT state FROM dalecrest.actors ORDER BY ordinal')).rows.map(r => r.state);
+  const map = await loadMap(db, world.mapRevision);
+  const before = map.revision;
+  const traces = (await db.query(`SELECT id,actor_id,until_minute FROM dalecrest.decision_traces
       WHERE status='applied' AND ended_minute IS NULL`)).rows;
-    const { events, steps } = advanceWithTraces({ world, actors }, 3, traces);
-    await db.query("UPDATE dalecrest.world SET state=$1, next_tick=now()+interval '3 seconds' WHERE id=1", [world]);
-    await db.query(`UPDATE dalecrest.actors a SET state = payload.actor
-      FROM jsonb_array_elements($1::jsonb) AS payload(actor) WHERE a.id = payload.actor->>'id'`, [JSON.stringify(actors)]);
-    const chronicle = await recordEvents(db, events);
-    await writeSteps(db, steps, chronicle, traces, world.minute);
-  });
+  const { events, steps } = advanceWithTraces({ world, actors, map }, 3, traces);
+  await db.query("UPDATE dalecrest.world SET state=$1, next_tick=now()+interval '3 seconds' WHERE id=1", [world]);
+  await saveActors(db, actors);
+  if (map.revision !== before) await saveMap(db, map);
+  const chronicle = await recordEvents(db, events);
+  await writeSteps(db, steps, chronicle, traces, world.minute);
 }
 
 export async function snapshot() {

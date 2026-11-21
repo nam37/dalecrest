@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en"><head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#293d33"><title>Dalecrest · Atlas</title>
+  <link rel="icon" href="/crest.svg"><link rel="stylesheet" href="/style.css">
+</head><body>
+  <header class="masthead"><div class="mast-inner">
+    <a href="/" class="wordmark"><img src="/crest.svg" width="36" height="40" alt="">Dalecrest</a>
+    <nav aria-label="Observatory"><a href="/#village">Village</a><a href="/atlas.html" aria-current="page">Atlas</a></nav>
+    <span class="connection online"><i></i> Runs in this browser</span>
+  </div></header>
+  <main>
+    <div class="page-title"><div><h1>Atlas</h1><p id="summary">Found a village from any seed and run it forward to see how it grows. Nothing here touches the live village.</p></div>
+      <div class="clock"><span class="sun" aria-hidden="true">☼</span><div><span id="day">Day 1</span><strong id="people">8 residents</strong></div></div>
+    </div>
+    <div class="village-layout">
+      <article class="map-panel"><div class="panel-head"><h2>Village map</h2>
+          <div class="view-switch" role="group" aria-label="How to view the village"><button type="button" data-view="plan" aria-pressed="true">Map</button><button type="button" data-view="walk" aria-pressed="false">Walk</button></div></div>
+        <div class="map-area atlas-area"><canvas id="map" aria-label="Map of the generated village."></canvas>
+          <div id="walk" hidden></div>
+          <div class="map-zoom"><button type="button" id="zoom-in" aria-label="Zoom in">+</button><button type="button" id="zoom-out" aria-label="Zoom out">−</button><button type="button" id="zoom-home" aria-label="Show the whole village">⌂</button></div>
+        </div>
+        <div class="map-key"><span><i class="key-resident"></i> Resident</span><span><i class="key-follow"></i> Selected resident</span><span id="map-count"></span></div>
+      </article>
+      <aside class="resident-panel"><div class="panel-head"><h2>Founding</h2></div>
+        <div class="atlas-form">
+          <label>Seed <input id="seed" type="number" min="1" max="4294967295" value="26111"></label>
+          <button class="view-toggle" id="found" type="button">Found village</button>
+          <button class="view-toggle" id="random" type="button">Random seed</button>
+        </div>
+        <div class="atlas-form">
+          <button class="view-toggle" id="day1" type="button">Advance a day</button>
+          <button class="view-toggle" id="day10" type="button">Advance ten days</button>
+          <button class="view-toggle" id="run" type="button" aria-pressed="false">Run</button>
+          <label>Follow <select id="pick-resident"></select></label>
+        </div>
+        <div id="detail"><div class="eyebrow">What the village did</div><div id="log"></div></div>
+      </aside>
+    </div>
+    <footer><span>Dalecrest atlas</span><span id="built"></span></footer>
+  </main>
+  <script type="module" src="/atlas.js"></script>
+</body></html>

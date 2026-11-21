@@ -3,6 +3,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --no-audit --no-fund
 COPY *.mjs ./
+COPY engine/ ./engine/
 COPY public/ ./public/
 USER node
 RUN npm test
