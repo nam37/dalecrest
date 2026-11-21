@@ -30,3 +30,7 @@ An actor’s current plan is overwritten by later plans. A chronicle entry alone
 ### 5. Deploy the application independently of the village data
 
 The VPS runs the application and a dedicated PostgreSQL 17 service in separate containers. The database uses a private network and persistent volume. Caddy serves the observatory over HTTPS. A systemd timer polls GitHub `main` about every two minutes. The deployer builds and tests the candidate, takes a database dump, switches the application container, and checks that it can read the residents. A failed health check can roll back the app image. Restoring village data is a separate operator decision. Administered host files and their installation paths are described in [the deployment scripts](../deploy/).
+
+### 6. Choose the model by what the simulation needs back
+
+Use `gpt-6-luna` for the recurring choice among work, social contact, rest, and food. For a future task that needs an open-ended response, such as a villager reflecting on several memories, use Claude Haiku 5.5 (`claude-haiku-5-5`) through Anthropic’s Messages API. Haiku is the low-cost default for this work. Read its credential from the backend environment variable `CLAUDE_KEY`. The priority planner is currently the village’s only model-driven task. [Claude models and pricing](https://platform.claude.com/docs/en/models/overview) · [Messages API](https://platform.claude.com/docs/en/api/messages/create).
