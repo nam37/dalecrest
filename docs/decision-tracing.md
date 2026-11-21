@@ -85,6 +85,14 @@ LIMIT 30;
 
 For the village as a whole, `node --env-file=.env tools/pilot-report.mjs 24` prints the share of activities by basis, fresh choices per resident per village day, why each was needed, real waiting time, spending, and how late the clock has ever run.
 
+### Compare common oven waits across a release
+
+Run `psql -v cutover=6220 -f tools/oven-waits.sql` against the village database. Minute 6220 was the expansion from eight residents to ten. Add `-v through=MINUTE` to reproduce a reading at a fixed endpoint.
+
+The report counts completed village minutes when at least five people were waiting at the common oven. Cooking, eating, visiting and walking are active time. It also measures real seconds from entering a wait to the next activity. Completed waits must start and end inside the reporting window. The unresolved count shows waits still pending at its end. For a wait ending on a fresh choice, the resident's recorded position establishes the location. For a wait ending on a standing instruction, the report uses the logged target.
+
+The first comparison window starts when each original resident has an entry in the activity log. The second looks back from the expansion for the same duration as the follow-up, up to the available history. A crowd that crosses a window boundary contributes only the minutes inside that window.
+
 ## Inspect an oven or woodcutting shift
 
 Each new baking or woodcutting shift ends with a `work` chronicle entry. Its `outcome` JSONB records the job, intended site, worker, helpers recorded during that shift, and signed changes to common stores. A blocked or interrupted shift records its cause and an empty stock change. The tick commits this event with the inventory and resident state. Older entries have SQL NULL for `outcome`.
