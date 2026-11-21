@@ -34,6 +34,9 @@ node --env-file=.env tools/preview-village.mjs
 
 ## Explore the project
 
+- [Roadmap](docs/roadmap.md) is the canonical plan. It reviews the village as it runs today and sets out the stages ahead, beginning with the Mabel–Oswin promise pilot.
+- [Resident knowledge graph](docs/knowledge-graph.md) is the accepted architecture for how residents form goals, choose actions, and learn from the results.
+- [Give Dalecrest residents something worth following](docs/proposal-village-life.md) is design background: the proposal that argued for the promise pilot. Where it differs from the roadmap, the roadmap governs.
 - [Design decisions](docs/design.md) explains the village clock, resident records, model-selected activities, the generated map, village growth, and deployment.
 - [Trace a villager’s decision](docs/decision-tracing.md) shows how to read the exact Luna request, full reply, confidence, and subsequent actions in PostgreSQL.
 - [Deployment files](deploy/) describe the private PostgreSQL service, HTTPS routing, backup, health check, and GitHub auto-deploy.

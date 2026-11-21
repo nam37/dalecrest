@@ -1,6 +1,6 @@
 # Dalecrest design decisions
 
-These decisions describe the running village. When a change alters a decision, record the reason here and update any affected operator instructions.
+These decisions describe the running village. When a change alters a decision, record the reason here and update any affected operator instructions. Planned changes are in the [roadmap](roadmap.md) and are not described here until they are built.
 
 ### 1. The village clock belongs to the server
 
@@ -33,7 +33,9 @@ The VPS runs the application and a dedicated PostgreSQL 17 service in separate c
 
 ### 6. Choose the model by what the simulation needs back
 
-Use `gpt-6-luna` for each resident’s next executable activity. For a future task that needs an open-ended response, such as a villager reflecting on several memories, use Claude Haiku 5.5 (`claude-haiku-5-5`) through Anthropic’s Messages API. Haiku is the low-cost default for this work. Read its credential from the backend environment variable `CLAUDE_KEY`. The activity planner is currently the village’s only model-driven task. [Claude models and pricing](https://platform.claude.com/docs/en/models/overview) · [Messages API](https://platform.claude.com/docs/en/api/messages/create).
+The accepted design assigns personal goals to a general-purpose model, the choice of the next feasible action to the Decisions API, and the actual outcome to the simulation engine. A goal persists across activities until the resident has reason to reconsider it. The resident knowledge graph describes the evidence each role receives and the links PostgreSQL should preserve. [Resident knowledge graph](knowledge-graph.md)
+
+Today `gpt-6-luna` selects the next activity in OpenAI mode using predefined goals. General-purpose goal reviews are planned. The initial choice for that work is Claude Haiku 5.5 (`claude-haiku-5-5`) through Anthropic’s Messages API, using the backend environment variable `CLAUDE_KEY`. [Claude models and pricing](https://platform.claude.com/docs/en/models/overview) · [Messages API](https://platform.claude.com/docs/en/api/messages/create)
 
 ### 7. The ground is generated once and then owned by the village
 
