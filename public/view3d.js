@@ -5,6 +5,7 @@ import { heightAt, isWater, WATER_LEVEL } from '/engine/terrain.mjs';
 import { hash2, rng, fbm, TAU } from '/engine/geom.mjs';
 import { createMotion } from '/motion.js';
 import { villageColors, chains } from '/map.js';
+import { light, hearths, indoors } from '/ambient.js';
 
 const roofs = ['#a57456', '#a88c5d', '#aa7352', '#90907a', '#9c8259', '#b19769', '#a17c58', '#a96e50'];
 const fieldTones = ['#c4b77e', '#cbbd87', '#c4b07c', '#b9b18a', '#c7bc8c', '#c9b67c'];
@@ -179,16 +180,68 @@ export function createWalk(container, onSelect) {
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   container.append(renderer.domElement);
+  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.1;
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#d7e3e0');
   scene.fog = new THREE.Fog('#d7e3e0', 55, 190);
+  // The sky is a dome that travels with the camera. Its two colours follow the hour.
+  const heavens = new THREE.Group();
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(392, 28, 16), new THREE.ShaderMaterial({
+    side: THREE.BackSide, depthWrite: false, fog: false,
+    uniforms: { top: { value: new THREE.Color('#4f79b8') }, horizon: { value: new THREE.Color('#cfe2ea') } },
+    vertexShader: 'varying float up; void main() { up = normalize(position).y; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: 'uniform vec3 top; uniform vec3 horizon; varying float up; void main() { float t = pow(clamp(up * 1.2 + 0.03, 0.0, 1.0), 0.6); gl_FragColor = vec4(mix(horizon, top, t), 1.0);\n#include <colorspace_fragment>\n}',
+  }));
+  const starAt = [], twinkle = rng(77);
+  for (let i = 0; i < 520; i++) {
+    const a = twinkle() * TAU, e = Math.asin(0.06 + twinkle() * 0.94);
+    starAt.push(Math.cos(a) * Math.cos(e) * 380, Math.sin(e) * 380, Math.sin(a) * Math.cos(e) * 380);
+  }
+  const stars = new THREE.Points(new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(starAt, 3)),
+    new THREE.PointsMaterial({ color: '#e6ecff', size: 1.7, sizeAttenuation: false, transparent: true, opacity: 0, fog: false, depthWrite: false }));
+  const orb = (radius, color) => new THREE.Mesh(new THREE.CircleGeometry(radius, 28), new THREE.MeshBasicMaterial({ color, fog: false, transparent: true, depthWrite: false, toneMapped: false }));
+  const sunDisc = orb(15, '#fff3c4'), sunHalo = orb(46, '#ffe9a8'), moonDisc = orb(10, '#eef2ff'), moonHalo = orb(30, '#b9c8f5');
+  sunHalo.material.opacity = 0.16; moonHalo.material.opacity = 0.14;
+  heavens.add(dome, stars, sunHalo, sunDisc, moonHalo, moonDisc);
+  scene.add(heavens);
+  // A few flat-bottomed clouds drift east, high over the parish.
+  const clouds = new THREE.Group(), puff = new THREE.IcosahedronGeometry(1, 1), cloudMat = new THREE.MeshLambertMaterial({ color: '#ffffff', transparent: true, opacity: 0.9, flatShading: true });
+  const drift = rng(31);
+  for (let i = 0; i < 11; i++) {
+    const cloud = new THREE.Group();
+    for (let j = 0, n = 3 + Math.floor(drift() * 4); j < n; j++) {
+      const ball = new THREE.Mesh(puff, cloudMat), r = 5 + drift() * 6;
+      ball.position.set((j - n / 2) * 6 + drift() * 3, drift() * 2, drift() * 6 - 3); ball.scale.set(r, r * 0.42, r * 0.8);
+      cloud.add(ball);
+    }
+    cloud.position.set(-260 + drift() * 680, 46 + drift() * 26, -200 + drift() * 520);
+    cloud.userData.speed = 0.5 + drift() * 0.7;
+    clouds.add(cloud);
+  }
+  scene.add(clouds);
+  // Hearth smoke and the glow of lit windows, drawn from small pools.
+  const smoke = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 0), new THREE.MeshLambertMaterial({ color: '#efe9da', transparent: true, opacity: 0.3, depthWrite: false, flatShading: true }), 240);
+  smoke.frustumCulled = false; smoke.count = 0; scene.add(smoke);
+  const glowTexture = (() => {
+    const canvas = document.createElement('canvas'); canvas.width = canvas.height = 64;
+    const c = canvas.getContext('2d'), g = c.createRadialGradient(32, 32, 0, 32, 32, 32);
+    g.addColorStop(0, 'rgba(255,214,140,1)'); g.addColorStop(0.3, 'rgba(255,180,90,.45)'); g.addColorStop(1, 'rgba(255,160,70,0)');
+    c.fillStyle = g; c.fillRect(0, 0, 64, 64);
+    return new THREE.CanvasTexture(canvas);
+  })();
+  const halos = [];
+  for (let i = 0; i < 48; i++) {
+    const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false }));
+    halo.visible = false; halos.push(halo); scene.add(halo);
+  }
+  const tint = new THREE.Color(), col = hex => tint.clone().set(hex), puffAt = new THREE.Matrix4(), puffTurn = new THREE.Quaternion(), puffPos = new THREE.Vector3(), puffSize = new THREE.Vector3();
   const camera = new THREE.PerspectiveCamera(52, 1, 0.05, 420);
   const hemi = new THREE.HemisphereLight('#f3f1e4', '#8f8a66', 1.4);
   const sun = new THREE.DirectionalLight('#fff3d6', 2.6);
   sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.0004;
   Object.assign(sun.shadow.camera, { left: -42, right: 42, top: 42, bottom: -42, near: 1, far: 320 });
   scene.add(hemi, sun, sun.target);
-  const glow = new THREE.MeshLambertMaterial({ color: '#4b4234', emissive: '#ffcf70', emissiveIntensity: 0 });
+  const glow = new THREE.MeshLambertMaterial({ color: '#4b4234', emissive: '#ffb04a', emissiveIntensity: 0 });
   const land = new THREE.Group(), built = new THREE.Group(), people = new THREE.Group(), names = new THREE.Group();
   scene.add(land, built, people, names);
   const ringMark = new THREE.Mesh(new THREE.RingGeometry(0.16, 0.21, 20), new THREE.MeshBasicMaterial({ color: '#f6e7b4', transparent: true, opacity: 0.9, depthWrite: false }));
@@ -217,7 +270,7 @@ export function createWalk(container, onSelect) {
     const margin = 64, cell = 1.5, nx = Math.ceil((map.w + margin * 2) / cell), nz = Math.ceil((map.h + margin * 2) / cell);
     grid = { margin, cell, nx, nz, y: new Float32Array((nx + 1) * (nz + 1)) };
     const pos = new Float32Array((nx + 1) * (nz + 1) * 3), col = new Float32Array(pos.length), index = [];
-    const grass = new THREE.Color('#aab37b'), dry = new THREE.Color('#c6c391'), lush = new THREE.Color('#8f9f69'), mud = new THREE.Color('#b9ad88'), bed = new THREE.Color('#8d9a84'), c = new THREE.Color();
+    const grass = new THREE.Color('#9fb267'), dry = new THREE.Color('#c8c486'), lush = new THREE.Color('#7c9a54'), mud = new THREE.Color('#b9ad88'), bed = new THREE.Color('#8d9a84'), c = new THREE.Color();
     for (let j = 0, k = 0; j <= nz; j++) {
       for (let i = 0; i <= nx; i++, k += 3) {
         const x = -margin + i * cell, z = -margin + j * cell, y = heightAt(map, x, z);
@@ -251,7 +304,7 @@ export function createWalk(container, onSelect) {
     }
     const wg = new THREE.BufferGeometry();
     wg.setAttribute('position', new THREE.Float32BufferAttribute(wp, 3)); wg.setIndex(wi); wg.computeVertexNormals();
-    land.add(new THREE.Mesh(wg, new THREE.MeshLambertMaterial({ color: '#8fb9b2', transparent: true, opacity: 0.86, side: THREE.DoubleSide })));
+    land.add(new THREE.Mesh(wg, new THREE.MeshLambertMaterial({ color: '#6fa9c0', transparent: true, opacity: 0.88, side: THREE.DoubleSide })));
   }
 
   // A strip of ground-hugging geometry along a line of map points.
@@ -306,7 +359,7 @@ export function createWalk(container, onSelect) {
   function buildVillage() {
     dispose(built); dispose(names); wheels.length = 0;
     solids = map.places.filter(p => p.w && p.kind !== 'field' && p.stage === 2).map(p => ({
-      x: p.x, y: p.y, c: Math.cos(p.a), s: Math.sin(p.a), hw: p.w / 2 + 0.3, hd: p.d / 2 + 0.3, top: heightAt(map, p.x, p.y) + 1.75,
+      id: p.id, x: p.x, y: p.y, c: Math.cos(p.a), s: Math.sin(p.a), hw: p.w / 2 + 0.3, hd: p.d / 2 + 0.3, top: heightAt(map, p.x, p.y) + 1.75,
     }));
     for (const way of chains(map)) {
       const pts = way.pts;
@@ -380,19 +433,51 @@ export function createWalk(container, onSelect) {
     for (const mesh of [trunks, crowns, cones]) { mesh.castShadow = true; mesh.receiveShadow = true; mesh.frustumCulled = false; built.add(mesh); }
   }
 
-  function sky() {
-    const m = clock % 1440;
-    const p = (m - 300) / 930, day = p > 0 && p < 1 ? Math.sin(Math.PI * p) : 0;
-    const bright = Math.min(1, day * 2.2), low = 1 - Math.min(1, day * 1.6);
-    const skyColor = new THREE.Color('#1c2636').lerp(new THREE.Color('#eac9a2'), Math.min(1, bright * 2)).lerp(new THREE.Color('#d7e3e0'), Math.max(0, bright * 2 - 1));
-    scene.background.copy(skyColor); scene.fog.color.copy(skyColor);
-    sun.color.set('#ffd9a0').lerp(new THREE.Color('#fff6e2'), 1 - low);
-    if (day > 0) sun.position.set(Math.cos(Math.PI * p), Math.max(0.12, day * 0.95), 0.45 * Math.sin(Math.PI * p) + 0.2);
-    else { sun.position.set(-0.4, 0.8, 0.5); sun.color.set('#8ea3c9'); }
-    sun.intensity = day > 0 ? 0.5 + 2.4 * bright : 0.5;
-    hemi.intensity = 0.42 + 1.05 * bright;
-    hemi.color.set('#56627a').lerp(new THREE.Color('#f3f1e4'), bright);
-    glow.emissiveIntensity = 1.6 * (1 - Math.min(1, bright * 1.5));
+  function sky(now, dt) {
+    const L = light(clock), lit = hearths(map, actors);
+    const top = col('#0a1230').lerp(col('#4c78ba'), L.bright).lerp(col('#6c6aa6'), L.dusk * 0.45);
+    const horizon = col('#263459').lerp(col('#cfe3ec'), L.bright).lerp(col('#f4b07a'), L.dusk * 0.8);
+    dome.material.uniforms.top.value.copy(top); dome.material.uniforms.horizon.value.copy(horizon);
+    scene.background.copy(horizon); scene.fog.color.copy(horizon);
+    scene.fog.near = 55 - 15 * L.dark; scene.fog.far = 190 - 20 * L.dark;
+    heavens.position.copy(camera.position);
+    stars.material.opacity = Math.max(0, Math.min(1, (L.dark - 0.45) * 2.2));
+    const sunWay = new THREE.Vector3(Math.cos(Math.PI * L.p), Math.max(0.06, L.day * 0.95), 0.45 * Math.sin(Math.PI * L.p) + 0.2).normalize();
+    const moonWay = new THREE.Vector3(-0.45, 0.72, 0.5).normalize();
+    for (const [disc, way, far, seen] of [[sunDisc, sunWay, 372, L.day > 0 ? 1 : 0], [sunHalo, sunWay, 374, L.day > 0 ? 0.14 + 0.22 * L.dusk : 0],
+      [moonDisc, moonWay, 372, Math.max(0, L.dark - 0.3) * 1.4], [moonHalo, moonWay, 374, Math.max(0, L.dark - 0.3) * 0.2]]) {
+      disc.position.copy(way).multiplyScalar(far); disc.lookAt(0, 0, 0); disc.material.opacity = Math.min(1, seen); disc.visible = seen > 0.01;
+    }
+    sunDisc.material.color.copy(col('#ffb070').lerp(col('#fff6d2'), 1 - L.dusk));
+    // By day the sun lights the parish. By night the same lamp is the moon, cool and bright enough to see by.
+    if (L.day > 0) { sun.position.copy(sunWay); sun.color.copy(col('#ffb877').lerp(col('#fff4dc'), 1 - L.dusk)); sun.intensity = 0.7 + 2.5 * L.bright; }
+    else { sun.position.copy(moonWay); sun.color.set('#9fb6ee'); sun.intensity = 1.25; }
+    hemi.color.copy(col('#8094cc').lerp(col('#f3f1e4'), L.bright));
+    hemi.groundColor.copy(col('#2c3554').lerp(col('#8f8a66'), L.bright));
+    hemi.intensity = 1.0 + 0.45 * L.bright;
+    const nightly = Math.max(0, Math.min(1, (L.dark - 0.2) * 1.5));
+    glow.emissiveIntensity = 1.15 * nightly;
+    cloudMat.opacity = 0.9 - 0.35 * L.dark;
+    for (const cloud of clouds.children) { cloud.position.x += cloud.userData.speed * dt; if (cloud.position.x > 430) cloud.position.x = -270; }
+    // Smoke rises from every hearth with someone at it, and its window glows after dark.
+    let n = 0;
+    lit.forEach((p, i) => {
+      const side = (p.at[0] - p.x) * -Math.sin(p.a) + (p.at[1] - p.y) * Math.cos(p.a) > 0 ? 1 : -1;
+      const base = heightAt(map, p.x, p.y), cx = p.x + Math.cos(p.a) * p.w * 0.28, cz = p.y + Math.sin(p.a) * p.w * 0.28;
+      for (let j = 0; j < 5 && n < 240; j++) {
+        const f = (now * 0.00012 + j / 5 + (i % 7) / 7) % 1, size = (0.07 + f * 0.3) * (1 - f * f);
+        puffAt.compose(puffPos.set(cx + f * 1.5 + Math.sin(f * 6 + j) * 0.12, base + 1.5 + f * 2.6, cz - f * 0.7), puffTurn, puffSize.set(size, size, size));
+        smoke.setMatrixAt(n++, puffAt);
+      }
+      const halo = halos[i];
+      if (halo) {
+        halo.visible = nightly > 0.05;
+        halo.position.set(p.x - Math.sin(p.a) * side * (p.d / 2 + 0.25), base + 0.45, p.y + Math.cos(p.a) * side * (p.d / 2 + 0.25));
+        halo.scale.setScalar(2.4); halo.material.opacity = 0.34 * nightly;
+      }
+    });
+    for (let i = lit.length; i < halos.length; i++) halos[i].visible = false;
+    smoke.count = n; smoke.instanceMatrix.needsUpdate = true;
     sun.position.normalize().multiplyScalar(140).add(look.target);
     sun.target.position.copy(look.target);
     const span = Math.min(44, Math.max(9, (look.reach || look.dist) * 3.2));
@@ -405,9 +490,10 @@ export function createWalk(container, onSelect) {
     }
   }
 
-  function inside(x, y, z) {
+  // The building a resident is standing at is left out, or its wall would block half of every orbit.
+  function inside(x, y, z, except) {
     for (const b of solids) {
-      if (y > b.top) continue;
+      if (y > b.top || b.id === except) continue;
       const dx = x - b.x, dz = z - b.y;
       if (Math.abs(dx * b.c + dz * b.s) < b.hw && Math.abs(-dx * b.s + dz * b.c) < b.hd) return true;
     }
@@ -440,6 +526,9 @@ export function createWalk(container, onSelect) {
       }
       const y = isWater(map, x, z, 0.5) ? 0.25 : ground(x, z) + 0.012;
       f.position.set(x, y, z);
+      // Someone at home is indoors. Their smoke and lit window stand in for them.
+      f.visible = !indoors(actor);
+      f.userData.label.userData.hidden = !f.visible && actor.id !== selectedId;
       let turn = -p.heading - f.rotation.y;
       turn = Math.atan2(Math.sin(turn), Math.cos(turn));
       f.rotation.y += turn * Math.min(1, dt * 8);
@@ -449,7 +538,7 @@ export function createWalk(container, onSelect) {
       f.userData.arms[1].rotation.z = working ? -0.9 + Math.sin(now / 260 + index + 1.3) * 0.5 : swing * 0.7;
       f.userData.label.position.set(x, y + 0.56 + (crowd.size % 2) * 0, z);
       f.userData.label.userData.always = actor.id === selectedId;
-      if (actor.id === selectedId) followed = { x, y, z, heading: p.heading, moving: p.moving };
+      if (actor.id === selectedId) followed = { x, y, z, heading: p.heading, moving: p.moving, at: p.moving ? null : actor.action.target };
     });
     for (const [id, f] of figures) if (!actors.some(a => a.id === id)) { people.remove(f); names.remove(f.userData.label); figures.delete(id); }
     if (followed) {
@@ -468,7 +557,7 @@ export function createWalk(container, onSelect) {
     // Pull the camera in rather than let a wall or roof come between it and the resident.
     let reach = look.dist;
     for (let s = 0.5; s < look.dist; s += 0.25) {
-      if (inside(look.target.x + dir[0] * s, look.target.y + dir[1] * s, look.target.z + dir[2] * s)) { reach = Math.max(0.45, s - 0.3); break; }
+      if (inside(look.target.x + dir[0] * s, look.target.y + dir[1] * s, look.target.z + dir[2] * s, followed?.at)) { reach = Math.max(0.45, s - 0.3); break; }
     }
     look.reach = look.reach === undefined ? reach : reach < look.reach ? reach : mix(look.reach, reach, Math.min(1, dt * 3));
     camera.position.set(look.target.x + look.reach * dir[0], look.target.y + look.reach * dir[1], look.target.z + look.reach * dir[2]);
@@ -476,13 +565,13 @@ export function createWalk(container, onSelect) {
     camera.lookAt(look.target);
     for (const s of names.children) {
       const d = s.position.distanceTo(camera.position);
-      s.visible = s.userData.always || d < s.userData.reach;
+      s.visible = !s.userData.hidden && (s.userData.always || d < s.userData.reach);
       // Names keep a steady size on screen: they shrink as the camera closes in and grow as it pulls away.
-      const size = s.userData.size * (s.userData.reach > 20 ? Math.max(1, d / 11) : Math.max(0.3, d / 5));
+      const size = s.userData.size * (s.userData.reach > 20 ? Math.max(0.42, d / 11) : Math.max(0.3, d / 5));
       s.scale.set(size * s.userData.aspect, size, 1);
     }
     for (const wheel of wheels) wheel.rotation.z += dt * 0.7 * wheel.userData.spin;
-    sky();
+    sky(now, dt);
     renderer.render(scene, camera);
     frame = requestAnimationFrame(render);
   }
