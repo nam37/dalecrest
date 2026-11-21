@@ -1,6 +1,7 @@
 import { FOCUSES } from './sim.mjs';
-import { snapshot, savePlan, reserveOpenAICall } from './db.mjs';
-import { choosePriority, DECISIONS_MODEL } from './decisions.mjs';
+import { snapshot, savePlan, reserveDecision, recordReply, recordTransportFailure, pendingDecision, applyRecordedDecision } from './db.mjs';
+import { decisionBody, sendDecision, DECISIONS_MODEL } from './decisions.mjs';
+import { setTimeout as delay } from 'node:timers/promises';
 
 const decisions = process.env.PLANNER_PROVIDER === 'openai';
 const model = decisions ? DECISIONS_MODEL : process.env.OLLAMA_MODEL?.trim();
@@ -15,10 +16,21 @@ const schema = {
 };
 let inFlight = false;
 
+async function finishDecision(id) {
+  const result = await applyRecordedDecision(id);
+  if (result?.error) throw new Error(result.error);
+  if (result?.status === 'applied') plannerStatus.state = 'connected';
+}
+
 export async function planOnce() {
-  if (!model || inFlight || (decisions && !key)) return;
+  if (!model || inFlight) return;
   inFlight = true;
   try {
+    if (decisions) {
+      const pending = await pendingDecision();
+      if (pending) { await finishDecision(pending); return; }
+      if (!key) return;
+    }
     const { world, actors } = await snapshot();
     const actor = actors.filter(a => a.plan?.model !== model || a.plan.until <= world.minute)
       .sort((a, b) => (a.lastModelPlanAt ?? -1) - (b.lastModelPlanAt ?? -1))[0];
@@ -31,10 +43,21 @@ export async function planOnce() {
       hour: Math.floor(world.minute / 60) % 24, sharedStores: world.supplies
     };
     if (decisions) {
-      if (!await reserveOpenAICall(interval)) return;
-      const { focus, reason } = await choosePriority(observation, key);
-      await savePlan(actor.id, world.minute, focus, reason, model, 'choice');
-      plannerStatus.state = 'connected';
+      const body = decisionBody(observation);
+      const id = await reserveDecision(interval, actor.id, world.minute, body);
+      if (!id) return;
+      let reply;
+      try { reply = await sendDecision(body, key); }
+      catch (error) { await recordTransportFailure(id); throw error; }
+      // Retry saving the same reply after a transient database disconnect.
+      for (let attempt = 1; ; attempt++) {
+        try { await recordReply(id, reply); break; }
+        catch (error) {
+          if (attempt === 3) throw error;
+          await delay(attempt * 1000);
+        }
+      }
+      await finishDecision(id);
       return;
     }
     const response = await fetch(new URL('/api/chat', base), {

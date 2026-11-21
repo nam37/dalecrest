@@ -1,42 +1,27 @@
 # Dalecrest
 
-A browser observatory for eight autonomous villagers. Select a resident to see their activity, the reason for their choice, their memories, and their PostgreSQL record. The Chronicle shows the latest 100 events. Pausing the view freezes that browser’s snapshot while the village keeps running on the server.
+Dalecrest is a medieval village you can watch in a browser. Its residents work, share food, form friendships, and remember encounters. Each has a persistent record in PostgreSQL. An optional language model picks a resident’s priority, and the simulation determines what happens when they try to act on it. [Watch the live village](https://dalecrest.trinsicstudios.com/).
 
-[Watch Dalecrest live](https://dalecrest.trinsicstudios.com/).
+## Run a village
 
-## Run on Windows
-
-With Node.js 22.14 or later installed, run this in PowerShell from the project directory, then open [the village](http://127.0.0.1:4173/).
+On Windows, install Node.js 22.14 or later and run this command from the repository in PowerShell.
 
 ```powershell
 .\tools\start-village.ps1
 ```
 
-On first launch the script installs Node dependencies, prepares a dedicated PostgreSQL cluster, and generates local database credentials. A new database starts with eight residents. Later launches resume the same village. The web server runs in that terminal, so you can close the browser while the simulation continues. Keep `.local/database` and the project’s private `.env` across restarts.
+The launcher installs the dependencies and prepares a dedicated local PostgreSQL cluster on first use. Open the [local observatory](http://127.0.0.1:4173/). Keep the server running for time to advance. Closing the browser or pausing its view leaves the simulation running. Keep the private `.env` and `.local/database` to resume the village after a restart.
 
-## How a villager makes a decision
+To use an existing PostgreSQL server, set `DATABASE_URL` in the environment or a project-local `.env`. The database must exist, and the application role must be able to create and manage the `dalecrest` schema. Then run `npm ci` and `npm start`. A new database starts with eight residents.
 
-The engine scores available activities using the resident’s weighted desires, needs, temperament, friendships, memories, and local model intention. A job consumes and produces goods. An encounter requires physical proximity and can change both residents’ memories and their relationship. Model intentions are generated asynchronously from that resident’s record and the village stores. The model selects one of four priorities (work, social contact, rest, or food) and explains why. The simulation checks prerequisites and applies each consequence.
+## Enable model planning
 
-To enable model planning, install a model in Ollama and add `OLLAMA_MODEL` and `OLLAMA_BASE_URL` to the generated `.env`, preserving its database settings. For example, set `OLLAMA_MODEL=gemma4:12b` and `OLLAMA_BASE_URL=http://127.0.0.1:11434` for a standard local Ollama service. The Windows launcher can also start a dedicated Ollama listener when configured for `http://127.0.0.1:11435`. Restart the web server after changing these settings. If the model is unavailable, ordinary decisions continue and the planner retries.
+Local rules work as soon as the village starts. To enable Luna, set `PLANNER_PROVIDER=openai` and `OPENAI_API_KEY` in the server environment and restart the server. Dalecrest sends at most one request per five minutes across the village by default. To use a local Ollama installation, set `PLANNER_PROVIDER=ollama`, `OLLAMA_MODEL`, and `OLLAMA_BASE_URL`.
 
-For OpenAI planning, set `PLANNER_PROVIDER=openai` and `OPENAI_API_KEY` in the server environment. Dalecrest sends the selected resident’s observation to the Decisions API. The `gpt-6-luna` model selects work, social contact, food, or rest. The interface displays the selected priority alongside a fact from the observation. Requests across the village are spaced at least five minutes apart by default, including failed attempts. PostgreSQL preserves that limit across restarts. Set `OPENAI_DECISION_INTERVAL_SECONDS` to adjust the interval. [OpenAI Decisions guide](https://developers.openai.com/api/docs/guides/decisions)
+## Explore the project
 
-## State and hosting
+- [Design decisions](docs/design.md) explains the village clock, resident records, model priorities, and deployment.
+- [Trace a villager’s decision](docs/decision-tracing.md) shows how to read the exact Luna request, full reply, confidence, and subsequent actions in PostgreSQL.
+- [Deployment files](deploy/) describe the private PostgreSQL service, HTTPS routing, backup, health check, and GitHub auto-deploy.
 
-PostgreSQL stores one JSONB document per resident in `dalecrest.actors.state`, the shared clock and supplies in `dalecrest.world`, and the chronological history in `dalecrest.events`. A tick commits all three together. Initialization seeds a new database once. Subsequent starts load its existing residents.
-
-```sql
-SELECT id, state->'desires' AS desires, state->'action' AS activity,
-       state->'plan' AS model_intention
-FROM dalecrest.actors
-ORDER BY ordinal;
-```
-
-For an existing PostgreSQL installation or VPS, use Node.js 22.14 or later, run `npm ci`, and set `DATABASE_URL` to the intended PostgreSQL database. Its application role needs permission to create and manage the `dalecrest` schema. Configure a server-accessible Ollama endpoint if desired, then run `npm start`. The HTTP listener defaults to loopback on port 4173. A hosted deployment can put it behind a reverse proxy. Moving an existing village requires restoring a PostgreSQL dump of its database.
-
-## Production releases
-
-The VPS checks GitHub `main` about every two minutes. A new commit is built and tested in Docker. Before switching the app container, the deployer saves a PostgreSQL dump. It records the commit as deployed after the app can read the residents from the database. An unhealthy replacement triggers a return to the previous app image. Database restores are a separate operator action.
-
-The hosted village has its own PostgreSQL 17 container, application login, private network and persistent volume. Application releases reuse that volume. Caddy provides HTTPS. The files in `deploy/` describe the host configuration. Changes to those administrator-owned files require a separate install on the VPS.
+Run `npm test` for the simulation and planner tests. To include the PostgreSQL integration test, set `DALECREST_TEST_ADMIN_URL` to a development PostgreSQL connection with permission to create databases. The test creates and drops its own uniquely named database and uses a recorded fixture for the model reply.
