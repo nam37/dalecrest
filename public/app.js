@@ -1,6 +1,7 @@
 import { createMap } from './map.js';
 import { dateOf, formatDate } from '/engine/calendar.mjs';
 import { light, skyOver } from '/ambient.js';
+import { residentCard, portrait as likeness, whyText, doing as doingAt } from '/card.js';
 
 const $ = id => document.getElementById(id);
 const el = (tag, cls, value) => {
@@ -12,10 +13,10 @@ const el = (tag, cls, value) => {
 const names = { village: 'Village observatory', residents: 'Village residents', chronicle: 'Village chronicle' };
 const kinds = { village: 'Village', work: 'Work', meal: 'Meal', social: 'Encounter', observation: 'Observation', plan: 'Decision', civic: 'Affairs', build: 'Building', arrival: 'Arrival' };
 const stores = { grain:'Barley', flour:'Flour', bread:'Bread', wood:'Firewood', cloth:'Linen', water:'Water', repair:'Building repairs' };
-const colors = ['#946344','#68764f','#a8654c','#456d65','#827892','#7c6043','#567895','#946e46'];
 let state, latest, frozen=false, selected='agnes', tab='life', route='village', rosterSignature='';
 let ground=null, viewMode='plan', walk=null, loadingWalk=false;
-const map = createMap($('map'), choose);
+const map = createMap($('map'), choose, (actor, others) => residentCard(actor, {
+  index: state.actors.findIndex(a => a.id === actor.id), names: state.locations, minute: state.world.minute, others }));
 const capacity = { grain:44, flour:34, bread:32, wood:32, cloth:12, repair:14, water:28 };
 
 function displayLatest() {
@@ -50,23 +51,7 @@ async function show(mode) {
   render();
 }
 
-// Why a moment went to the model, in plain words. The engine's own phrases are kept as a fallback.
-const whys = {
-  'no instruction applies': 'Nothing already settled covers this moment.',
-  'instruction lapsed': 'An earlier choice for this routine has run out.',
-  'instruction goals changed': 'Their goals have changed since they last chose.',
-  'instruction ran its course': 'They have repeated this often enough to think again.',
-  'instructed action cannot start': 'What they usually do here is not possible now.',
-  'learned something new': 'They have heard something new.',
-  'two urgent needs': 'Two needs are pressing at once.',
-};
-const whyText = why => !why ? '' : whys[why] || (why.startsWith('would run into') ? 'Their routine ' + why + '.' : why[0].toUpperCase() + why.slice(1) + '.');
-// One line saying what a resident is doing, for cards and captions.
-function doing(actor) {
-  const activity = actor.action, at = state.locations[activity.target]?.name || activity.target;
-  if (activity.kind === 'waiting') return 'Deciding what to do next';
-  return activity.phase === 'travelling' ? 'Walking to ' + at : activity.label;
-}
+const doing = actor => doingAt(actor, state.locations);
 function chip(kind, text, title) {
   const node = el('span', 'basis basis-' + kind, text);
   if (title) node.title = title;
@@ -83,26 +68,7 @@ function date(minute) {
   return formatDate(minute, other ? 'full' : 'day');
 }
 
-function portrait(actor) {
-  const canvas = el('canvas','portrait');
-  canvas.width=30; canvas.height=32; canvas.setAttribute('aria-hidden','true');
-  const ctx=canvas.getContext('2d');
-  const i=state.actors.findIndex(a=>a.id===actor.id);
-  const cloth=colors[i % colors.length];
-  const skin=['#c99873','#bb9270','#ce9d78','#bc8e6c','#bf926d','#aa7a55','#d6a77d','#c59a70'][i % 8];
-  const hair=['#62503c','#65594b','#6b4733','#584d3c','#765c4a','#67492e','#524633','#795b3c'][i % 8];
-  function r(x,y,w,h,color){ctx.fillStyle=color;ctx.fillRect(x,y,w,h);}
-  r(0,0,30,32,'#e3e1cd');
-  for(let x=0;x<30;x+=3) r(x,24+(x%4),1,8,'#d1d3b8');
-  r(3,28,24,4,cloth);r(6,25,18,6,cloth);r(10,23,10,6,cloth);r(12,21,6,4,skin);
-  r(8,9,14,11,hair);r(10,7,11,4,hair);r(10,12,11,9,skin);r(12,21,7,2,skin);
-  r(18,14,4,4,skin);r(19,15,1,1,'#4e4538');r(17,20,3,1,'#996e53');
-  r(8,12,3,7,hair);r(11,11,6,2,hair);r(10,25,2,7,'#ddd0ad');r(18,25,2,7,'#ddd0ad');
-  if (i%3===0) {r(7,9,16,3,'#bc985a');r(9,7,12,3,'#c3a467');r(11,5,8,3,'#c3a467');}
-  if (i%3===1) {r(7,9,15,3,cloth);r(9,6,11,4,cloth);r(10,18,3,5,hair);}
-  if (i%3===2) {r(8,9,12,4,'#dfd7bb');r(10,7,9,3,'#e9e2cb');r(7,12,4,10,'#d2c7a8');}
-  return canvas;
-}
+const portrait = actor => likeness(state.actors.findIndex(a => a.id === actor.id));
 
 function who(actor) {
   const row=el('div','profile-top'), text=el('div');

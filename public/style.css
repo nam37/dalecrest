@@ -120,6 +120,23 @@ h1 { font-size: clamp(2.2rem, 3.6vw, 3.5rem); line-height: 1.02; }
 .key-follow { background: #f7ecd0; outline: 1px solid var(--rust); outline-offset: 2px; }
 .key-deciding { display: inline-grid; place-items: center; width: 13px; height: 13px; border-radius: 50%; background: #fffdf2; border: 1px solid #5d5341; font: 700 9px/1 Georgia, serif; font-style: normal; color: #5d5341; }
 .walk-caption { left: 18px; bottom: 16px; max-width: calc(100% - 36px); padding: 7px 13px; background: #f9f2dce8; border: 1px solid #a99a72; font-style: italic; color: var(--ink); pointer-events: none; }
+/* The card that opens over a resident on the map. */
+.map-card { position: absolute; left: 0; top: 0; z-index: 5; width: min(318px, calc(100% - 16px)); padding: 13px 15px 11px; background: #fbf6e6; border: 1px solid #a99a72; box-shadow: 0 0 0 3px #f9f2dcb3, 0 0 0 4px #a99a7266, 0 16px 28px -12px #2b271dbb; pointer-events: none; animation: card-in .14s ease-out; }
+.map-card.pinned { pointer-events: auto; }
+.map-card::after { content: ""; position: absolute; left: var(--notch, 50%); bottom: -7px; width: 12px; height: 12px; margin-left: -6px; background: #fbf6e6; border: solid #a99a72; border-width: 0 1px 1px 0; transform: rotate(45deg); }
+.map-card.below::after { bottom: auto; top: -7px; border-width: 1px 0 0 1px; }
+.map-card-head { display: flex; align-items: center; gap: 12px; padding-right: 18px; }
+.map-card-head .portrait { width: 42px; height: 45px; }
+.map-card-head h3 { font: 400 1.3rem/1.15 var(--display); }
+.map-card-part { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--rule-soft); }
+.map-card-part .activity { font-size: 1.28rem; margin: 1px 0 2px; }
+.map-card-part .basis { margin: 3px 0 4px; }
+.map-card-part .reason + .reason { margin-top: 3px; }
+.map-card-others, .map-card-hint { margin-top: 8px; font-size: .86rem; font-style: italic; color: var(--muted); }
+.map-card.pinned .map-card-hint, .map-card:not(.pinned) .map-card-close { display: none; }
+.map-card-close { position: absolute; right: 5px; top: 3px; width: 28px; height: 28px; padding: 0; border: 0; background: none; font: 400 1.35rem/1 var(--display); color: var(--ink-soft); cursor: pointer; }
+.map-card-close:hover, .map-card-close:focus-visible { color: var(--rust); }
+@keyframes card-in { from { opacity: 0; } }
 
 /* The margin: one resident */
 .resident-panel { min-width: 0; display: flex; flex-direction: column; max-height: calc(var(--stage) + 14px); }

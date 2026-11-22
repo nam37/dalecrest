@@ -383,13 +383,26 @@ function prepare(map) {
   return look;
 }
 
-export function createMap(canvas, onSelect) {
+// describe(actor, others) returns what the card over a resident should say. Without it there is no card.
+export function createMap(canvas, onSelect, describe) {
   const c = canvas.getContext('2d');
   const paper = document.createElement('canvas');
   const motion = createMotion();
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
   let map = null, look = null, locations = {}, actors = [], selectedId = null, frame = 0, stale = true, moved = false, clock = 720;
   let w = 0, h = 0, dpr = 1, hits = [], hover = null;
+  // The card shows whoever the pointer rests on, or else whoever was last clicked.
+  let pinned = null, pointed = null, shown = null, cardStale = true, cardSize = [0, 0];
+  const card = describe ? document.createElement('div') : null, cardBody = document.createElement('div');
+  if (card) {
+    const close = document.createElement('button'), hint = document.createElement('p');
+    card.className = 'map-card'; card.hidden = true; card.setAttribute('role', 'group'); card.setAttribute('aria-label', 'Resident on the map');
+    close.type = 'button'; close.className = 'map-card-close'; close.textContent = '×'; close.setAttribute('aria-label', 'Close');
+    close.addEventListener('click', () => { pinned = null; schedule(); });
+    hint.className = 'map-card-hint'; hint.textContent = 'Click to keep this open';
+    card.append(close, cardBody, hint);
+    canvas.parentElement.append(card);
+  }
   // The weather over the village now, and the houses that got no firewood this morning.
   let wx = null, cold = [];
   const view = { x: 80, y: 60, scale: 6 };
@@ -645,7 +658,7 @@ export function createMap(canvas, onSelect) {
   let lastPaint = 0;
   function paint(time) {
     frame = 0;
-    if (!map || !w || canvas.offsetParent === null) return;
+    if (!map || !w || canvas.offsetParent === null) { if (card) { card.hidden = true; shown = null; } return; }
     // The scene moves gently, so about twenty frames a second is plenty.
     if (!stale && time - lastPaint < 46 && !reduced.matches) { schedule(); return; }
     lastPaint = time;
@@ -718,12 +731,34 @@ export function createMap(canvas, onSelect) {
       if (chosen) { c.textAlign = 'center'; label(actor.name.split(' ')[0] + (inside ? ' · indoors' : ''), x, y - (inside ? 14 : s + 9), 14, false); }
     }
     falling(still);
+    placeCard(markers, s);
     if (hover) {
       c.textAlign = 'left';
       const width = c.measureText(hover.text).width;
       label(hover.text, Math.min(w - width - 8, hover.x + 12), Math.max(12, hover.y - 12), 14, false);
     }
     if (!reduced.matches || motion.busy) schedule();
+  }
+  // The card rides above whoever it describes, and turns below them when there is no room overhead.
+  function placeCard(markers, s) {
+    if (!card) return;
+    const id = pointed ?? pinned, m = id && markers.find(k => k.actor.id === id), kept = Boolean(m) && id === pinned;
+    if (!m) { card.hidden = true; shown = null; return; }
+    if (shown !== id || cardStale || card.classList.contains('pinned') !== kept) {
+      const roof = indoors(m.actor) ? m.actor.action.target : null;
+      cardBody.replaceChildren(describe(m.actor, roof ? actors.filter(a => a !== m.actor && indoors(a) && a.action.target === roof) : []));
+      card.classList.toggle('pinned', kept);
+      shown = id; cardStale = false; card.hidden = false;
+      cardSize = [card.offsetWidth, card.offsetHeight];
+    }
+    const [cw, ch] = cardSize, gap = 14;
+    let top = m.y - s - gap - ch;
+    const below = top < 8;
+    if (below) top = Math.min(h - ch - 8, m.y + gap);
+    const left = Math.max(8, Math.min(w - cw - 8, m.x - cw / 2));
+    card.classList.toggle('below', below);
+    card.style.transform = 'translate(' + Math.round(left + canvas.offsetLeft) + 'px,' + Math.round(top + canvas.offsetTop) + 'px)';
+    card.style.setProperty('--notch', Math.max(18, Math.min(cw - 18, m.x - left)) + 'px');
   }
   function schedule() { if (!frame) frame = requestAnimationFrame(paint); }
   function redraw() { stale = true; schedule(); }
@@ -774,23 +809,37 @@ export function createMap(canvas, onSelect) {
       view.x = drag.x - dx / view.scale; view.y = drag.y - dy / view.scale;
       clampView(); canvas.style.cursor = 'grabbing'; redraw(); return;
     }
-    const hit = nearest(sx, sy, 15);
-    let text = hit?.name;
-    if (!text && map) {
-      const [wx, wy] = toWorld(sx, sy);
-      const p = map.places.find(q => q.w ? Math.abs((wx - q.x) * Math.cos(q.a) + (wy - q.y) * Math.sin(q.a)) < q.w / 2 && Math.abs(-(wx - q.x) * Math.sin(q.a) + (wy - q.y) * Math.cos(q.a)) < q.d / 2 : q.kind === 'well' && Math.hypot(wx - q.x, wy - q.y) < 0.8);
-      if (p) text = (locations[p.id]?.name || p.name || '') + (p.stage < 2 ? ' (being built)' : '');
-    }
-    canvas.style.cursor = hit ? 'pointer' : 'grab';
+    const hit = nearest(sx, sy, 15), p = hit ? null : placeAt(sx, sy);
+    const who = card ? hit?.id ?? lodger(p, false) : null;
+    let text = who ? null : hit?.name;
+    if (!text && !who && p) text = (locations[p.id]?.name || p.name || '') + (p.stage < 2 ? ' (being built)' : '');
+    canvas.style.cursor = hit || who ? 'pointer' : 'grab';
     const next = text ? { text, x: sx, y: sy } : null;
+    if (who !== pointed) { pointed = who; schedule(); }
     if (next?.text !== hover?.text || next) { hover = next; schedule(); }
+  }
+  function placeAt(sx, sy) {
+    if (!map) return null;
+    const [wx, wy] = toWorld(sx, sy);
+    return map.places.find(q => q.w ? Math.abs((wx - q.x) * Math.cos(q.a) + (wy - q.y) * Math.sin(q.a)) < q.w / 2 && Math.abs(-(wx - q.x) * Math.sin(q.a) + (wy - q.y) * Math.cos(q.a)) < q.d / 2 : q.kind === 'well' && Math.hypot(wx - q.x, wy - q.y) < 0.8) || null;
+  }
+  // Someone indoors is out of sight, so their house answers for them. A second click on the same
+  // house moves on to the next person under its roof.
+  function lodger(p, onward) {
+    const inside = p ? actors.filter(a => indoors(a) && a.action.target === p.id) : [];
+    if (!inside.length) return null;
+    const i = inside.findIndex(a => a.id === pinned);
+    return inside[i < 0 ? 0 : onward ? (i + 1) % inside.length : i].id;
   }
   function up(e) {
     const tapped = drag && !drag.far && pointers.size === 1;
     pointers.delete(e.pointerId);
     if (tapped) {
       const [sx, sy] = local(e), hit = nearest(sx, sy, e.pointerType === 'touch' ? 22 : 15);
-      if (hit) onSelect?.(hit.id);
+      const id = hit?.id ?? (card ? lodger(placeAt(sx, sy), true) : null);
+      // A click keeps the card open on that resident. A click on open ground puts it away.
+      if (card) { pinned = id; pointed = e.pointerType === 'mouse' ? id : null; cardStale = true; schedule(); }
+      if (id) onSelect?.(id);
     }
     if (!pointers.size) drag = null;
     canvas.style.cursor = 'grab';
@@ -802,7 +851,8 @@ export function createMap(canvas, onSelect) {
     const [sx, sy] = local(e);
     zoom(Math.exp(-e.deltaY * 0.0016), sx, sy);
   }
-  function leave() { engaged = false; if (hover) { hover = null; schedule(); } }
+  function leave() { engaged = false; if (hover || pointed) { hover = pointed = null; schedule(); } }
+  function key(e) { if (e.key === 'Escape' && pinned) { pinned = null; schedule(); } }
   function home() { moved = false; fit(); redraw(); }
 
   canvas.style.width = '100%'; canvas.style.height = '100%'; canvas.style.display = 'block'; canvas.style.touchAction = 'none'; canvas.style.cursor = 'grab';
@@ -813,6 +863,7 @@ export function createMap(canvas, onSelect) {
   canvas.addEventListener('pointerleave', leave);
   canvas.addEventListener('wheel', wheel, { passive: false });
   canvas.addEventListener('dblclick', home);
+  if (card) document.addEventListener('keydown', key);
   const observer = new ResizeObserver(resize);
   observer.observe(canvas);
   resize();
@@ -840,11 +891,15 @@ export function createMap(canvas, onSelect) {
       const lodgers = actors.some(a => a.home === 'hall');
       if (look && look.lodgers !== lodgers) { look.lodgers = lodgers; stale = true; }
       motion.update(actors, performance.now(), motionMs, extras?.liveTick);
+      // The card follows the map's own clicks. Choosing someone elsewhere on the page puts it away.
+      if (pinned && pinned !== id) pinned = null;
+      cardStale = true;
       selectedId = id; schedule();
     },
     zoom, home, redraw,
     destroy() {
       observer.disconnect(); cancelAnimationFrame(frame);
+      card?.remove(); document.removeEventListener('keydown', key);
       for (const [type, fn] of [['pointerdown', down], ['pointermove', move], ['pointerup', up], ['pointercancel', up], ['pointerleave', leave], ['wheel', wheel], ['dblclick', home]]) canvas.removeEventListener(type, fn);
     },
   };
