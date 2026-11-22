@@ -30,6 +30,20 @@ export const forageJobs = {
 const dayOf = minute => Math.floor(minute / 1440);
 const outingsToday = (actor, job, minute) => actor.outings?.[job] === dayOf(minute);
 
+const fishingPreference = { job: 'fish', reason: 'I enjoy fishing from the bank and would like to bring back fish for supper.' };
+const outingPreferences = new Map([
+  ['oswin', { job: 'hunt', reason: 'I enjoy looking for game in the coppice and would like to bring some back for the village.' }],
+  ['hugh', fishingPreference],
+  ['alice', fishingPreference],
+]);
+
+export function preferredOuting(actor, menu) {
+  const preference = outingPreferences.get(actor.id);
+  if (!preference) return;
+  const option = [...menu].find(([, action]) => action.kind === 'work' && action.job === preference.job);
+  if (option) return { choice: option[0], reason: preference.reason };
+}
+
 export function addFishingBank(map) {
   if (place(map, 'fishing-bank')) return;
   // Find a dry near-bank landing with a clear connection to a lane or path.
