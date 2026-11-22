@@ -24,7 +24,7 @@
               <button class="view-toggle" id="freeze" type="button" aria-pressed="false" title="Hold this view still. The village carries on.">Pause</button>
             </div>
             <div class="map-zoom"><button type="button" id="zoom-in" aria-label="Zoom in">+</button><button type="button" id="zoom-out" aria-label="Zoom out">−</button><button type="button" id="zoom-home" aria-label="Show the whole village">⌂</button></div>
-            <p id="walk-caption" class="walk-caption" hidden></p>
+            <div id="caption" class="scene-caption" hidden aria-live="polite"><div class="eyebrow" id="caption-kicker"></div><p id="caption-line"></p><p id="caption-why" class="reason"></p><button type="button" id="caption-back" class="where" hidden></button></div>
           <div class="map-key plan-only"><span class="plan-only"><i class="key-resident"></i> Resident</span><span class="plan-only"><i class="key-follow"></i> Selected</span><span class="plan-only"><i class="key-deciding">?</i> Deciding</span><span id="map-hint">Drag to pan · click, then scroll to zoom</span><span id="map-count"></span></div>
           </div>
         </article>

@@ -15,6 +15,8 @@ const stores = { grain:'Barley', flour:'Flour', bread:'Bread', wood:'Firewood', 
 const hallStores = { game:'Undressed game', meat:'Game meat', hide:'Raw hides', fish:'Fresh fish', cooked:'Cooked meals', preserved:'Preserved portions', leather:'Leather' };
 let state, latest, frozen=false, selected='agnes', tab='life', route='village', rosterSignature='';
 let ground=null, viewMode='plan', walk=null, loadingWalk=false;
+// The chronicle entry the walking view is holding on, if any.
+let held=null;
 const map = createMap($('map'), choose, {
   resident: (actor, others) => residentCard(actor, { index: state.actors.findIndex(a => a.id === actor.id), names: state.locations, minute: state.world.minute, others }),
   event: (events, spot) => eventCard(events, { names: state.locations, minute: state.world.minute, place: spot.id }),
@@ -35,25 +37,36 @@ async function show(mode) {
   for (const b of document.querySelectorAll('[data-view]')) b.setAttribute('aria-pressed', String(b.dataset.view === mode));
   $('map').hidden = mode !== 'plan'; $('walk').hidden = mode !== 'walk';
   document.querySelector('.map-zoom').hidden = mode !== 'plan';
-  $('walk-caption').hidden = mode !== 'walk';
   for (const item of document.querySelectorAll('.plan-only')) item.hidden = mode !== 'plan';
   $('map-hint').textContent = mode === 'plan' ? 'Drag to pan · click, then scroll to zoom' : 'Drag to look around · click, then scroll to move closer · click a resident to follow';
   if (mode === 'walk' && !walk && !loadingWalk) {
     loadingWalk = true;
-    $('walk-caption').textContent = 'Opening the village at eye level…';
+    caption({ line: 'Opening the village at eye level…' });
     try {
       const { createWalk } = await import('/view3d.js');
-      walk = createWalk($('walk'), choose);
+      walk = createWalk($('walk'), choose, note => locate(note.events[0]));
       if (ground) walk.setMap(ground);
-    } catch { $('walk-caption').textContent = 'This browser could not open the walking view.'; return; }
+    } catch { caption({ line: 'This browser could not open the walking view.' }); return; }
     finally { loadingWalk = false; }
   }
   walk?.setActive(viewMode === 'walk' && route === 'village');
+  // A spot being held on goes with the reader from one view to the other.
+  if (held && mode === 'plan') { map.focus(held); release(); }
   if (viewMode === 'plan') map.redraw();
   render();
 }
 
 const doing = actor => doingAt(actor, state.locations);
+// The plate's caption: a small heading, what is in view, a line of why, and a way back.
+function caption(c) {
+  $('caption').hidden = !c;
+  if (!c) return;
+  for (const [id, text] of [['caption-kicker', c.kicker], ['caption-line', c.line], ['caption-why', c.why], ['caption-back', c.back]]) {
+    $(id).hidden = !text;
+    if ($(id).textContent !== (text || '')) $(id).textContent = text || '';
+  }
+}
+function release() { held = null; walk?.hold(null); }
 function chip(kind, text, title) {
   const node = el('span', 'basis basis-' + kind, text);
   if (title) node.title = title;
@@ -85,6 +98,7 @@ function block(label, ...children) {
 }
 function choose(id) {
   if (!state?.actors.some(a=>a.id===id)) return;
+  release();
   selected=id;
   const address='#village/'+id;
   if (location.hash===address) { render(); return; }
@@ -209,12 +223,12 @@ function renderAffairs() {
 const routine = new Set(['plan','meal','work']);
 const filters = { highlights: e => !routine.has(e.type), '': () => true };
 const shown = (events, filter) => events.filter(filters[filter] || (e => e.type === filter));
-// Opens the village map on the spot where a chronicle entry happened.
+// Turns the village to the spot where a chronicle entry happened, in whichever view is open.
 function locate(event) {
   if (route !== 'village') { history.pushState(null, '', '#village/' + selected); navigate(); }
-  if (viewMode !== 'plan') show('plan');
-  map.focus(event);
-  $('map').scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  if (viewMode === 'walk' && walk) { held = event; walk.hold(event); render(); }
+  else map.focus(event);
+  document.querySelector('.map-area').scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
 }
 function journal(target,events,withDay=false) {
   // The list is left alone while it has nothing new to say, so a click on it is never lost to a redraw.
@@ -233,7 +247,7 @@ function journal(target,events,withDay=false) {
       entry.append(' ', a);
     }
     if (e.place) {
-      const where = el('button', 'where', 'Show on map');
+      const where = el('button', 'where', 'Show where');
       where.type = 'button';
       where.title = state.locations[e.place.id]?.name ? 'At ' + state.locations[e.place.id].name : 'Where this happened';
       where.addEventListener('click', () => locate(e));
@@ -286,8 +300,12 @@ function render() {
     map.update(actors,selected,state.locations,motionMs,world.minute,extras);
     if(walk&&viewMode==='walk'){
       walk.update(actors,selected,world.minute,motionMs,extras);
-      $('walk-caption').textContent='Following '+actor.name+' · '+doing(actor);
-    }
+      if(held){
+        const at=state.locations[held.place.id]?.name;
+        caption({kicker:(at?'At '+at:'Out of doors')+' · '+(formatDate(held.minute)===formatDate(world.minute)?'':date(held.minute)+', ')+time(held.minute),
+          line:held.text, back:'Back to '+actor.name.split(' ')[0]});
+      } else caption({kicker:'Following',line:actor.name+' · '+doing(actor)});
+    } else if(!loadingWalk) caption(null);
     renderProfile(actor);renderAffairs();
     $('map-count').textContent=actors.length+' residents';
     const notable=shown(events,'highlights');
@@ -347,6 +365,7 @@ $('zoom-in').addEventListener('click',()=>map.zoom(1.4));
 $('zoom-out').addEventListener('click',()=>map.zoom(1/1.4));
 $('zoom-home').addEventListener('click',()=>map.home());
 $('pick-resident').addEventListener('change',e=>choose(e.target.value));
+$('caption-back').addEventListener('click',()=>{release();render();});
 $('event-type').addEventListener('change',render);
 window.addEventListener('hashchange',navigate);
 navigate();refresh();

@@ -314,7 +314,7 @@ Presentation. The pilot delivers the first of it: links, the promise thread and 
 
 **Marked off · 21 November 2026.**
 
-- [ ] **Show events where they happen.** Not begun.
+- [x] **Show events where they happen.** Done. A note marks the spot on the map, and a staff with a pennant and a note marks it in the walking view. A chronicle entry turns either view to its place and gives its time. Seeing the village as it stood at that minute waits for Stage 6’s archive, and entries for a resident’s own decisions carry no place.
 - [ ] **A director.** Not begun.
 - [x] **Show the basis.** Done. The resident panel and the map card show the recorded reason for an activity or a wait. A deciding resident carries a question mark on the map and a hand on the chin in the walking view.
 - [x] **Dalecrest Daily.** Robin reports from around the village. Each morning’s edition includes his notes, village records and follow-ups.

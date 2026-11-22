@@ -7,6 +7,7 @@ import { createMotion } from '/motion.js';
 import { villageColors, chains } from '/map.js';
 import { makeFigure, poseFigure } from '/figure.js';
 import { light, hearths, indoors, yearLook, skyOver, blend } from '/ambient.js';
+import { kinds } from '/card.js';
 
 const roofs = ['#a57456', '#a88c5d', '#aa7352', '#90907a', '#9c8259', '#b19769', '#a17c58', '#a96e50'];
 const fieldTones = ['#c4b77e', '#cbbd87', '#c4b07c', '#b9b18a', '#c7bc8c', '#c9b67c'];
@@ -55,6 +56,39 @@ function textSprite(text, italic = true) {
   texture.colorSpace = THREE.SRGBColorSpace;
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, depthWrite: false, transparent: true, fog: false }));
   sprite.userData.aspect = canvas.width / canvas.height;
+  return sprite;
+}
+// The note that stands over a spot where something lately happened: the newest entry, in a few lines.
+function noteSprite(events) {
+  const canvas = document.createElement('canvas'), c = canvas.getContext('2d');
+  const W = 430, pad = 20, lead = 35, body = '28px Georgia, serif', lines = [];
+  c.font = body;
+  let line = '';
+  for (const word of events[0].text.split(/\s+/)) {
+    const next = line ? line + ' ' + word : word;
+    if (c.measureText(next).width <= W - pad * 2 || !line) { line = next; continue; }
+    lines.push(line); line = word;
+  }
+  lines.push(line);
+  if (lines.length > 3) { lines.length = 3; lines[2] = lines[2].replace(/[\s,;:.]*\S*$/, '') + '…'; }
+  const more = events.length - 1, tail = 18;
+  canvas.width = W; canvas.height = pad + 30 + lines.length * lead + (more ? 32 : 0) + pad - 6 + tail;
+  const H = canvas.height - tail;
+  c.fillStyle = '#fbf6e6'; c.strokeStyle = '#8f7f58'; c.lineWidth = 3; c.lineJoin = 'round';
+  c.beginPath(); c.moveTo(2, 2); c.lineTo(W - 2, 2); c.lineTo(W - 2, H); c.lineTo(W / 2 + 15, H); c.lineTo(W / 2, H + tail - 2); c.lineTo(W / 2 - 15, H); c.lineTo(2, H); c.closePath();
+  c.fill(); c.stroke();
+  c.textBaseline = 'alphabetic';
+  c.font = '600 21px Georgia, serif'; c.fillStyle = '#9a4a2e';
+  c.fillText((kinds[events[0].type] || events[0].type).toUpperCase().split('').join('\u200a'), pad, pad + 20);
+  c.font = body; c.fillStyle = '#3d3b2d';
+  lines.forEach((text, i) => c.fillText(text, pad, pad + 30 + (i + 1) * lead - 8));
+  if (more) { c.font = 'italic 23px Georgia, serif'; c.fillStyle = '#6f684f'; c.fillText('and ' + more + ' more here', pad, pad + 30 + lines.length * lead + 22); }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, depthWrite: false, transparent: true, fog: false }));
+  sprite.center.set(0.5, 0);
+  sprite.userData.aspect = canvas.width / canvas.height;
+  sprite.userData.size = canvas.height * 0.0042; sprite.userData.reach = 34;
   return sprite;
 }
 function dispose(group) {
@@ -147,7 +181,7 @@ function buildPlace(p, map, glow) {
   return g;
 }
 
-export function createWalk(container, onSelect) {
+export function createWalk(container, onSelect, onNote) {
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -218,6 +252,13 @@ export function createWalk(container, onSelect) {
   scene.add(land, built, people, names);
   const ringMark = new THREE.Mesh(new THREE.RingGeometry(0.16, 0.21, 20), new THREE.MeshBasicMaterial({ color: '#f6e7b4', transparent: true, opacity: 0.9, depthWrite: false }));
   ringMark.rotation.x = -Math.PI / 2; ringMark.visible = false; scene.add(ringMark);
+  // A staff with a pennant and a note stands where the chronicle says something lately happened.
+  const posted = new THREE.Group(), pennantGeo = new THREE.BufferGeometry();
+  pennantGeo.setAttribute('position', new THREE.Float32BufferAttribute([0, 0.1, 0, 0, -0.1, 0, 0.32, 0, 0], 3)); pennantGeo.computeVertexNormals();
+  const rippleGeo = new THREE.RingGeometry(0.86, 1, 28), rust = new THREE.MeshLambertMaterial({ color: '#b0502f', side: THREE.DoubleSide, flatShading: true });
+  scene.add(posted);
+  const calm = window.matchMedia('(prefers-reduced-motion: reduce)');
+  let marks = [], postedKey = '', hold = null;
 
   const motion = createMotion();
   const figures = new Map(), wheels = [];
@@ -343,7 +384,9 @@ export function createWalk(container, onSelect) {
   }
 
   function buildVillage() {
-    dispose(built); dispose(names); wheels.length = 0;
+    dispose(built); dispose(names); wheels.length = 0; postedKey = '';
+    // Clearing the place names also took the residents' names down, so those go back up.
+    for (const f of figures.values()) names.add(f.userData.label);
     dressed.fields = []; dressed.crownTones = []; dressed.coneTones = []; seasonKey = '';
     solids = map.places.filter(p => p.w && p.kind !== 'field' && p.stage === 2).map(p => ({
       id: p.id, x: p.x, y: p.y, c: Math.cos(p.a), s: Math.sin(p.a), hw: p.w / 2 + 0.3, hd: p.d / 2 + 0.3, top: heightAt(map, p.x, p.y) + 1.75,
@@ -429,6 +472,41 @@ export function createWalk(container, onSelect) {
     });
     dressed.crowns = crowns; dressed.cones = cones;
     for (const mesh of [trunks, crowns, cones]) { mesh.castShadow = true; mesh.receiveShadow = true; mesh.frustumCulled = false; built.add(mesh); }
+  }
+
+  // A spot inside a building is shown at its door, where a staff can stand and be seen.
+  function outside(x, z) {
+    const b = solids.find(b => { const dx = x - b.x, dz = z - b.y; return Math.abs(dx * b.c + dz * b.s) < b.hw - 0.2 && Math.abs(-dx * b.s + dz * b.c) < b.hd - 0.2; });
+    const door = b && map.places.find(p => p.id === b.id)?.at;
+    return door ? [door[0], door[1]] : [x, z];
+  }
+  // Sets out the staffs and notes for the latest chronicle entries, and for the one being held on.
+  function post() {
+    if (!map) return;
+    const spots = [];
+    for (const m of hold?.event && !marks.some(k => k.events.some(e => e.id === hold.event.id)) ? [{ ...hold.mark }, ...marks] : marks) {
+      const [x, z] = outside(m.x, m.y), key = Math.round(x) + ',' + Math.round(z);
+      const spot = spots.find(s => s.key === key);
+      if (spot) spot.events = [...spot.events, ...m.events].sort((a, b) => b.minute - a.minute).slice(0, 3);
+      else spots.push({ key, x, z, id: m.id, events: m.events.slice() });
+    }
+    const key = spots.map(s => s.key + ':' + s.events.map(e => e.id).join('.')).join('|');
+    if (key === postedKey) return;
+    postedKey = key;
+    for (const g of posted.children) { const note = g.userData.note; note.material.map.dispose(); note.material.dispose(); g.userData.ripple.material.dispose(); }
+    posted.clear();
+    for (const s of spots) {
+      const g = new THREE.Group(), staff = box(0.03, 0.84, 0.03, '#5f4e39', 0, 0.42, 0), pennant = new THREE.Mesh(pennantGeo, rust);
+      pennant.position.set(0.015, 0.73, 0); pennant.castShadow = true;
+      const ripple = new THREE.Mesh(rippleGeo, new THREE.MeshBasicMaterial({ color: '#b0502f', transparent: true, opacity: 0, depthWrite: false }));
+      ripple.rotation.x = -Math.PI / 2; ripple.position.y = 0.03;
+      const note = noteSprite(s.events);
+      note.position.y = 0.95;
+      g.position.set(s.x, ground(s.x, s.z), s.z);
+      g.userData = { ...s, note, pennant, ripple, newest: s.events[0].minute };
+      g.add(staff, pennant, ripple, note);
+      posted.add(g);
+    }
   }
 
   // Recolours the land for the day of the year and for lying snow. Called when either changes.
@@ -602,7 +680,15 @@ export function createWalk(container, onSelect) {
       if (actor.id === selectedId) followed = { x, y, z, heading: p.heading, moving: p.moving, at: p.moving ? null : actor.action.target };
     });
     for (const [id, f] of figures) if (!actors.some(a => a.id === id)) { people.remove(f); names.remove(f.userData.label); figures.delete(id); }
-    if (followed) {
+    if (hold) {
+      // Held on a place, the view keeps it in the middle and drifts slowly round it.
+      const goal = new THREE.Vector3(hold.x, ground(hold.x, hold.z) + 0.5, hold.z);
+      if (!look.ready || look.target.distanceTo(goal) > 40) { look.target.copy(goal); look.ready = true; }
+      else look.target.lerp(goal, Math.min(1, dt * 2.5));
+      if (now - look.touched > 3500 && !calm.matches) look.yaw += dt * 0.045;
+      ringMark.visible = false;
+      followed = null;
+    } else if (followed) {
       const goal = new THREE.Vector3(followed.x, followed.y + 0.36, followed.z);
       if (!look.ready || look.target.distanceTo(goal) > 40) { look.target.copy(goal); look.ready = true; look.yaw = followed.heading + Math.PI; }
       else look.target.lerp(goal, Math.min(1, dt * 5));
@@ -616,7 +702,7 @@ export function createWalk(container, onSelect) {
     } else ringMark.visible = false;
     // A resident at a door has that building at their back. If the camera would sit behind its
     // wall, it swings round to the open side unless the visitor is steering.
-    const own = followed?.at && solids.find(b => b.id === followed.at);
+    const at = hold ? hold.id : followed?.at, own = at && solids.find(b => b.id === at);
     if (own && !drag) {
       const flat = Math.cos(look.pitch);
       let behind = false;
@@ -634,7 +720,7 @@ export function createWalk(container, onSelect) {
     // Pull the camera in rather than let a wall or roof come between it and the resident.
     let reach = look.dist;
     for (let s = 0.5; s < look.dist; s += 0.25) {
-      if (inside(look.target.x + dir[0] * s, look.target.y + dir[1] * s, look.target.z + dir[2] * s, followed?.at)) { reach = Math.max(0.45, s - 0.3); break; }
+      if (inside(look.target.x + dir[0] * s, look.target.y + dir[1] * s, look.target.z + dir[2] * s, at)) { reach = Math.max(0.45, s - 0.3); break; }
     }
     look.reach = look.reach === undefined ? reach : reach < look.reach ? reach : mix(look.reach, reach, Math.min(1, dt * 3));
     camera.position.set(look.target.x + look.reach * dir[0], look.target.y + look.reach * dir[1], look.target.z + look.reach * dir[2]);
@@ -646,6 +732,19 @@ export function createWalk(container, onSelect) {
       // Names keep a steady size on screen: they shrink as the camera closes in and grow as it pulls away.
       const size = s.userData.size * (s.userData.reach > 20 ? Math.max(0.42, d / 11) : Math.max(0.3, d / 5));
       s.scale.set(size * s.userData.aspect, size, 1);
+    }
+    for (const g of posted.children) {
+      const { note, pennant, ripple, newest, key } = g.userData, d = g.position.distanceTo(camera.position), held = hold?.key === key;
+      const size = note.userData.size * Math.max(0.42, d / 7);
+      note.visible = held || d < note.userData.reach;
+      note.scale.set(size * note.userData.aspect, size, 1);
+      // A note rides higher as the camera draws back, so it clears the roofs.
+      note.position.y = 0.95 + Math.min(1.6, d * 0.035);
+      pennant.rotation.y = calm.matches ? 0.3 : Math.sin(now / 420 + g.position.x) * 0.5;
+      // News under a quarter of an hour old, and the note being read, send a ripple over the ground.
+      const beat = held || clock - newest < 15 ? (calm.matches ? 0.5 : (now / 1700) % 1) : -1;
+      ripple.visible = beat >= 0;
+      if (ripple.visible) { ripple.scale.setScalar(0.25 + beat * 0.9); ripple.material.opacity = 0.75 * (1 - beat); }
     }
     for (const wheel of wheels) wheel.rotation.z += dt * 0.7 * wheel.userData.spin;
     sky(now, dt);
@@ -694,7 +793,18 @@ export function createWalk(container, onSelect) {
       const d = ray.ray.distanceToPoint(new THREE.Vector3(f.position.x, f.position.y + 0.25, f.position.z));
       if (d < gap) { gap = d; best = f; }
     }
-    if (best) onSelect?.(best.userData.id);
+    if (best) { onSelect?.(best.userData.id); return; }
+    // Failing a resident, a note: it is flat to the screen, so the click is tried against its outline there.
+    const px = e.clientX - rect.left, py = e.clientY - rect.top, foot = new THREE.Vector3(), head = new THREE.Vector3();
+    for (const g of posted.children) {
+      const note = g.userData.note;
+      if (!note.visible) continue;
+      note.getWorldPosition(foot); head.copy(foot); head.y += note.scale.y;
+      foot.project(camera); head.project(camera);
+      if (foot.z > 1) continue;
+      const x = (foot.x + 1) / 2 * rect.width, bottom = (1 - foot.y) / 2 * rect.height, top = (1 - head.y) / 2 * rect.height, half = (bottom - top) * note.userData.aspect / 2;
+      if (px > x - half && px < x + half && py > top && py < bottom) { onNote?.({ ...g.userData, note: undefined, pennant: undefined, ripple: undefined }); return; }
+    }
   }
   function wheel(e) {
     if (!engaged && !e.ctrlKey) return;
@@ -725,11 +835,39 @@ export function createWalk(container, onSelect) {
       cold = extras?.coldHearths || [];
       actors = (rows || []).filter(a => Number.isFinite(a.position?.x));
       motion.update(actors, performance.now(), motionMs, extras?.liveTick);
+      // extras.events are the latest chronicle entries that have a place, newest first, as on the map.
+      marks = [];
+      for (const e of extras?.events || []) {
+        if (!e.place) continue;
+        const key = Math.round(e.place.x) + ',' + Math.round(e.place.y);
+        let m = marks.find(k => k.key === key);
+        if (!m) marks.push(m = { key, x: e.place.x, y: e.place.y, id: e.place.id, events: [] });
+        if (m.events.length < 3) m.events.push(e);
+      }
+      post();
       if (id !== selectedId) look.touched = -1e9;
       selectedId = id;
       if (Number.isFinite(minute)) clock = minute;
     },
     setActive(on) { active = on; if (on) { resize(); start(); } },
+    // Holds the view on the place of a chronicle entry, or on any { place: { x, y, id } }, until it is
+    // let go with hold(null). from gives a distance and a tilt to stand off at.
+    hold(event, from) {
+      const was = hold;
+      if (!event?.place) {
+        hold = null;
+        if (was?.before && look.touched < was.since) Object.assign(look, was.before);
+      } else {
+        const { x, y, id } = event.place;
+        const [sx, sz] = map ? outside(x, y) : [x, y];
+        hold = { x, z: y, id, key: Math.round(sx) + ',' + Math.round(sz), since: performance.now(), before: was?.before ?? { dist: look.dist, pitch: look.pitch },
+          event: event.text ? event : null, mark: { x, y, id, events: [event] } };
+        look.dist = from?.dist ?? Math.min(9, Math.max(6, look.dist)); look.pitch = from?.pitch ?? Math.max(0.36, look.pitch);
+        look.touched = -1e9;
+      }
+      post();
+    },
+    get holding() { return Boolean(hold); },
     scene,
     // For tools that want a still picture at a chosen distance and angle.
     frameFrom(dist, pitch, yaw) { look.dist = dist; look.pitch = pitch; if (yaw !== undefined) look.yaw = yaw; look.touched = performance.now() + 1e7; },
