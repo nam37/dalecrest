@@ -331,7 +331,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
 
 <section class="state" id="state" aria-labelledby="state-h">
   <h2 id="state-h">State of the plan</h2>
-  <p>Marked off on 21 November 2026 against the code on <code>main</code> at <code>d54af9c</code>. A tick means built, tested and merged. It does not mean measured in the live village: each stage's own “done when” is shown separately. <a href="roadmap.md">roadmap.md</a> remains the canonical text and this page is a rendering of it.</p>
+  <p>Marked off on 21 November 2026 against the code on <code>main</code> at <code>9095681</code>. A tick means built, tested and merged. It does not mean measured in the live village: each stage's own “done when” is shown separately. <a href="roadmap.md">roadmap.md</a> remains the canonical text and carries the same marks. This page is a rendering of it.</p>
   <div class="tally" aria-live="polite">
     <div class="d"><b id="n-done">–</b><span>stage items done</span></div>
     <div class="p"><b id="n-part">–</b><span>under way</span></div>
@@ -422,7 +422,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
   <h2><span class="sec">§ 4</span>Review: how it looks</h2>
   <p>The map and the walking view are sound and draw the same data. What is missing is legibility and life.</p>
   <ul class="checks">
-    <li data-s="part"><div class="what">Nothing marks that something is happening. A request, a moot and a building site look like an empty lane.</div><span class="st">A resident who is deciding carries a question mark, and a site shows as stakes, then a frame. Requests and moots are still unmarked.</span></li>
+    <li data-s="part"><div class="what">Nothing marks that something is happening. A request, a moot and a building site look like an empty lane.</div><span class="st">A resident who is deciding carries a question mark on the map and rests a hand on the chin in the walking view, and a site shows as stakes, then a frame. Requests and moots are still unmarked.</span></li>
     <li data-s="part"><div class="what">Every trade is the same arm movement, and a resting resident stands outside their door.</div><span class="st">A resident at home is indoors, with a lit window and smoke standing in for them. The walking view has jointed figures with a tool and a movement for each trade, from commit <code>c3353a5</code>. The map's figures do not.</span></li>
     <li data-s="part"><div class="what">A selected resident is not in the URL, a fresh page always starts with Agnes, and only the latest 100 chronicle entries can be reached.</div><span class="st">The selected resident is in the address, so a link or a refresh keeps them. A bare address still opens on Agnes, and the chronicle still stops at 100.</span></li>
     <li data-s="part"><div class="what">There is no season, weather, sound or change with the hour on the map.</div><span class="st">Season, weather, night and the hour show in both views. There is no sound.</span></li>
@@ -600,9 +600,9 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
         <span class="st">Winter fuel. Seed 26113 gives 15 mornings with flour and no firewood, held as a test in <code>seasons.test.mjs</code>.</span>
       </li>
     </ul>
-    <p class="status"><b>Status · 21 November 2026</b> Winter fuel is the chosen pressure. Hearths draw firewood from the common store on cold mornings, and in seeded runs under local rules a morning with flour and no wood arises unscripted, with a baker learning of it by going to look. Whether it changes what the Decisions API chooses is not yet measured. <a href="design.md">Design decision 11</a><span class="rev">Revised for this edition: roadmap.md still says this is on the <code>winter-fuel</code> branch. It was merged to <code>main</code> in <code>db81515</code> and pushed. Whether the VPS has picked it up was not checked.</span></p>
+    <p class="status"><b>Status · 21 November 2026</b> Winter fuel is the chosen pressure. It was merged to <code>main</code> in <code>db81515</code> and is part of the release that went live at 6:25 p.m. Eastern that day. Hearths draw firewood from the common store on cold mornings, and in seeded runs under local rules a morning with flour and no wood arises unscripted, with a baker learning of it by going to look. Whether it changes what the Decisions API chooses is not yet measured. <a href="design.md">Design decision 11</a></p>
 
-    <p class="donewhen"><b>Done when</b> the <a href="#acceptance">acceptance tests</a> at the end of this document pass.<i>Not yet met. Six of the ten have automated cover and four await the pilot.</i></p>
+    <p class="donewhen"><b>Done when</b> the <a href="#acceptance">acceptance tests</a> at the end of this document pass.<i>Not yet met. Five of the ten have automated cover, two are partly in place and three await the pilot.</i></p>
   </article>
 
   <!-- ============ Stage 2 ============ -->
@@ -731,10 +731,10 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
     <ul class="checks">
       <li data-s="todo"><div class="what"><strong>Show events where they happen</strong>, on the map and in the walking view. A chronicle entry takes you to its place and time.</div></li>
       <li data-s="todo"><div class="what"><strong>A director.</strong> A watch mode that follows whoever is in the middle of something and holds on the scene. It is what a first-time visitor sees.</div></li>
-      <li data-s="done"><div class="what"><strong>Show the basis.</strong> A resident who is waiting on a decision looks like someone making up their mind. A resident following routine looks like routine.</div><span class="st">Each activity in the resident panel is tagged routine, fresh choice or deciding, with the reason in plain words. A deciding resident carries a question mark on the map.</span></li>
+      <li data-s="done"><div class="what"><strong>Show the basis.</strong> A resident who is waiting on a decision looks like someone making up their mind. A resident following routine looks like routine.</div><span class="st">Each activity in the resident panel is tagged routine, fresh choice or deciding, with the reason in plain words. A deciding resident carries a question mark on the map and a hand on the chin in the walking view.</span></li>
       <li data-s="todo"><div class="what"><strong>Yesterday in Dalecrest.</strong> A short account of each village day written by the general-purpose model on its own budget. Every claim in it must cite an event.</div></li>
       <li data-s="part"><div class="what"><strong>Seasons, weather and the hour</strong> in both views. Tools in hand, a movement for each trade, residents who go indoors.</div><span class="st">Seasons, weather, night and going indoors are in both views. Tools and trade movements arrived in commit <code>c3353a5</code>, in the walking view only.</span></li>
-      <li data-s="part"><div class="what"><strong>A richer parish.</strong> Gardens, fences, woodpiles, animals, moving water, sound.</div><span class="st">Kitchen gardens, light moving on the river and drifting cloud shadow. No fences, woodpiles, animals or sound.</span></li>
+      <li data-s="part"><div class="what"><strong>A richer parish.</strong> Gardens, fences, woodpiles, animals, moving water, sound.</div><span class="st">Kitchen gardens, shaded relief, canopy woods, light moving on the river and drifting cloud shadow. No fences, woodpiles, animals or sound.</span></li>
       <li data-s="todo"><div class="what"><strong>Time-lapse</strong> of the village's growth from stored map revisions.</div></li>
       <li data-s="todo"><div class="what"><strong>Streaming.</strong> Send changes to the page as they happen. Update the walking view in place.</div><span class="st">The page polls every 2.5 seconds. Walking is animated between snapshots, which hides most of the gap.</span></li>
     </ul>
@@ -808,7 +808,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
 
 <section id="cost">
   <h2><span class="sec">§ 8</span>Cost and pacing</h2>
-  <p class="aside"><b>Since this was written</b>The hosted village now keeps at least ten residents, each with up to 48,000 tokens per rolling real hour under a village ceiling of 480,000 (<a href="design.md">design decision 3</a>). The figures below are the plan's original eight-resident estimate against 168,000 a real day and have not been reworked.</p>
+  <p class="aside"><b>Since this was written</b>The hosted village now keeps at least ten residents, each with up to 48,000 tokens per rolling real hour under a village ceiling of 480,000 (<a href="design.md">design decision 3</a>). The figures below are the plan's original eight-resident estimate against 168,000 a real day and have not been reworked. One live reading exists: in the first 30 real minutes after the expansion the planner applied 17 decisions on 12,688 input tokens, about 750 a decision. <a href="decision-tracing.md#first-village-hour-after-the-expansion">First village hour after the expansion</a></p>
 
   <h4>Pre-Stage 0 baseline</h4>
   <ul>
@@ -880,7 +880,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
 <section id="acceptance">
   <h2><span class="sec">§ 9</span>Acceptance tests for the first milestone</h2>
   <p class="central">Can someone follow Mabel, return the next day, and tell whether Oswin kept his word, and can we trace the answer to choices the residents actually made?</p>
-  <p class="aside"><b>How these are marked</b>None of the ten has been signed off, because the pilot has not run. A half mark means the behaviour is exercised by an automated test today. On 21 November the suite ran 56 tests: 49 passed, none failed, and 7 were skipped for want of a PostgreSQL database on this machine.</p>
+  <p class="aside"><b>How these are marked</b>None of the ten has been signed off, because the pilot has not run. A half mark means it is partly in place, and its label says whether an automated test exercises it today. On 21 November the suite ran 56 tests: 49 passed, none failed, and 7 were skipped for want of a PostgreSQL database on this machine.</p>
   <ol class="checks">
     <li data-s="part"><div class="what"><strong>Every ending is reachable.</strong> Exercise kept, broken, declined, unanswered and released in a test village. Change the store between choice and execution in one run. Each ending must agree with the work and conversations that actually took place.</div><span class="st tested">All five endings in <code>social-turns.test.mjs</code>. The changed store in <code>oven-observation.test.mjs</code>.</span></li>
     <li data-s="part"><div class="what"><strong>It survives a restart.</strong> Restarting between a choice and its completion yields each outcome exactly once. Earlier history still opens.</div><span class="st tested">Covered by the PostgreSQL tests, which were among the seven skipped in today's run.</span></li>
@@ -897,7 +897,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
 
 <section id="open">
   <h2><span class="sec">§ 10</span>Decisions that remain open</h2>
-  <p>All eleven are still open.</p>
+  <p>None has been formally closed. The seventh has in effect been settled by deployment.</p>
   <ol class="open">
     <li><strong>The pace of the clock and the other Stage 0 thresholds.</strong> Thirty seconds per village minute is a starting value. The pilot sets them.</li>
     <li><strong>A resident with no instruction and no reply.</strong> This plan has them wait indefinitely. The alternative is a default the engine applies after a long wait, which would be an action no model chose. That changes the agreed roles and needs an explicit decision.</li>
@@ -905,7 +905,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
     <li><strong>How long a promise lasts in real viewing time.</strong> The starting assumption is a visitor who watches for two minutes and checks back tomorrow.</li>
     <li><strong>What the audience may see before residents learn it.</strong> The starting assumption is a public record of observable events.</li>
     <li><strong>How the action and goal budgets are divided</strong>, and whether the daily account in Stage 5 has a third.</li>
-    <li><strong>When the pilot reaches the live village.</strong> It is proved in a test village. Moving it to the live one changes what residents know about the stores.</li>
+    <li><strong>When the pilot reaches the live village.</strong> It is proved in a test village. Moving it to the live one changes what residents know about the stores. <span class="st" style="display:block">Note, 21 November 2026: oven observations and requests for help are already on <code>main</code>, which the live village deploys, so this has in effect been settled by deployment. It should be recorded as decided or reopened.</span></li>
     <li><strong>Whether residents die</strong>, and whether the live village is migrated or a new one is founded when Stage 3 changes the economy.</li>
     <li><strong>How far visitors may reach.</strong> Stage 7 can stop at any step. Letters are the first with real moderation work.</li>
     <li><strong>How long a year is.</strong> Stage 3 proposes a year of about 48 village days. The calendar and the weather now keep the real year of 365, which at two village days to a real day takes six real months. One of the two has to give.</li>
@@ -915,12 +915,12 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
 
 <section id="future">
   <h2><span class="sec">§ 11 · New</span>Future considerations</h2>
-  <p>Questions the stages above do not answer. This section was added in the HTML edition and is not in <a href="roadmap.md">roadmap.md</a>. Nothing here is scheduled or decided. Each is worth a deliberate answer before the point named under it.</p>
+  <p>Questions the stages above do not answer. This section was added on 21 November 2026. Nothing here is scheduled or decided. Each is worth a deliberate answer before the point named under it.</p>
   <ol class="leaves">
     <li>
-      <h3>Keeping this page and the plan in step</h3>
-      <p>roadmap.md is the canonical plan and this page is a hand-made rendering with the marks added. The two will drift the first time a status changes in only one of them.</p>
-      <p>Either the marks move into the markdown and this page is generated from it, or one of the two is retired.</p>
+      <h3>Keeping the two editions in step</h3>
+      <p>roadmap.md is the canonical plan and this page is a hand-made rendering of it. Both now carry the marks, so every change of status has to be made twice.</p>
+      <p>Generating this page from the markdown would remove that.</p>
       <p class="when"><b>Before</b>the next status changes.</p>
     </li>
     <li>
@@ -967,7 +967,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
     </li>
     <li>
       <h3>The tests that need a database</h3>
-      <p>Seven of the 56 tests are skipped without PostgreSQL. They are the ones that prove a restart yields each outcome exactly once, which is acceptance test 2.</p>
+      <p>Seven of the 56 tests are skipped without PostgreSQL. They include the ones that prove a restart yields each outcome exactly once, which is acceptance test 2.</p>
       <p>It is worth confirming that the deploy run includes them, so the promise is checked on every release and not only on a machine that happens to have a database.</p>
       <p class="when"><b>Before</b>acceptance test 2 is signed off.</p>
     </li>
@@ -975,7 +975,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
 </section>
 
 <footer>
-  Dalecrest roadmap · HTML edition of <a href="roadmap.md">docs/roadmap.md</a> · Status marked 21 November 2026 against <code>main</code> at <code>d54af9c</code> and the working tree.
+  Dalecrest roadmap · HTML edition of <a href="roadmap.md">docs/roadmap.md</a> · Status marked 21 November 2026 against <code>main</code> at <code>9095681</code> and the working tree.
 </footer>
 
 </main>

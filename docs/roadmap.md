@@ -5,6 +5,26 @@
 - The accepted architecture is the [resident knowledge graph](knowledge-graph.md). Where this plan and that document differ, the knowledge graph governs and this plan is wrong.
 - [Design decisions](design.md) describes the village as it runs today.
 - [Give Dalecrest residents something worth following](proposal-village-life.md) is design background. It argued for the promise pilot that is now the first milestone, and its reasoning is worth reading. Its stage list is superseded by this one.
+- The [illustrated edition](roadmap.html) is a rendering of this plan with the same marks. This document governs.
+
+## State of the plan
+
+**Marked off · 21 November 2026**, against `main` at `9095681`. A ticked box means built, tested and merged. It does not mean measured in the live village: each stage's "Done when" is a separate test, and none has been met. An unticked box is labelled under way or not begun.
+
+| Stage | State | Done | Under way | Not begun |
+| --- | --- | ---: | ---: | ---: |
+| 0. Liveness and meaningful choices | Built, awaiting the pilot week | 5 | 2 | 0 |
+| 1. The promise pilot | In hand | 6 | 2 | 0 |
+| 2. Goals and memory | Not begun | 0 | 0 | 6 |
+| 3. A village with stakes | Begun | 0 | 3 | 3 |
+| 4. Voices: competing interests and the moot | Groundwork only | 0 | 1 | 4 |
+| 5. Worth watching | Begun | 1 | 2 | 5 |
+| 6. Worth following | Groundwork only | 0 | 1 | 3 |
+| 7. Taking part | Groundwork only | 0 | 1 | 4 |
+| 8. A wider world | Not begun | 0 | 0 | 1 |
+| All stages | | 12 | 12 | 26 |
+
+The test suite ran 56 tests on 21 November: 49 passed, none failed, and 7 were skipped for want of a PostgreSQL database on the machine that ran them.
 
 ## The roles this plan keeps
 
@@ -40,24 +60,24 @@ Walking to a worksite and doing the job there already count as one activity. The
 
 Three conclusions shape the plan.
 
-1. **The former clock slowed when money for calls ran short.** Stage 0 moved timekeeping off the decision queue.
-2. **Many activities repeat.** One night's sleep spanned about five boundaries in the local runs. Stage 0 lets a still-valid model instruction cover routine repeats.
-3. **Promises need durable records.** Residents remember encounters, but the model sees only the latest two memory texts. A promise needs to survive later meals and shifts.
+1. [x] **The former clock slowed when money for calls ran short.** Stage 0 moved timekeeping off the decision queue. *Done: the clock runs at a fixed pace whatever the models are doing.*
+2. [x] **Many activities repeat.** One night's sleep spanned about five boundaries in the local runs. Stage 0 lets a still-valid model instruction cover routine repeats. *Done: standing instructions, in `engine/standing.mjs`.*
+3. [ ] **Promises need durable records.** Residents remember encounters, but the model sees only the latest two memory texts. A promise needs to survive later meals and shifts. *Under way: a request for help is now a stored record with its terms, deadline and ending. A viewer cannot yet open one.*
 
 ## Review: how the residents think
 
-Stage numbers refer to the plan below.
+Stage numbers refer to the plan below. A box is ticked once the fault it describes has been mended.
 
-1. **Clock and queue.** Stage 0 made the village clock independent of model latency. A resident can wait while others continue.
-2. **Routine decisions.** Stage 0 lets a resident continue sleeping under a valid earlier instruction. The activity log records the original model choice.
-3. **The action model is shown too little.** `actionBody` in `decisions.mjs` sends needs, stores, two memories and a menu. It leaves out relationships, open obligations and what the resident has learned. (Stages 1 and 2)
-4. **Place names.** Stage 0 added readable place names to option descriptions. Choice IDs still identify the exact action.
-5. **Moot attendance.** A scripted test exercises quorum and construction on the model-driven path. How often real residents choose to attend remains a pilot measurement. [Standing-instruction tests](../standing.test.mjs)
-6. **Memory is a short list of sentences.** `remember` in `engine/civic.mjs` keeps 18 strings with no source, importance or recall. (Stages 1 and 2)
-7. **Everyone knows everything.** The menu and the request use the true stores and every resident's true destination. "Bake" disappears from a menu the moment someone far away uses the last wood. (Stage 1)
-8. **Residents cannot ask, agree, decline or vote.** Encounters pick one of five templates. Votes in `resolve` are supporter-or-random. One template is wrong in effect: "discussed the dwindling grain reserve" fires when a store is under a quarter of its capacity, so building a granary makes it fire more often. (Stage 1 for asking and agreeing, Stage 3 for the fix, Stage 4 for votes)
-9. **Relationships are one number that only rises.** After 60 days, 19 of 122 are at the maximum. (Stages 2 and 3)
-10. **People only arrive, and the economy has no pressure.** Nobody is born, grows old, falls ill or leaves. One harvest shift feeds the founding village for a day. (Stage 3)
+1. [x] **Clock and queue.** Stage 0 made the village clock independent of model latency. A resident can wait while others continue.
+2. [x] **Routine decisions.** Stage 0 lets a resident continue sleeping under a valid earlier instruction. The activity log records the original model choice.
+3. [ ] **The action model is shown too little.** `actionBody` in `decisions.mjs` sends needs, stores, two memories and a menu. It leaves out relationships, open obligations and what the resident has learned. (Stages 1 and 2) *Under way: the request now carries the resident's own dated oven count, open requests for help with the standing between the two, cold and the weather. Recalled memory and goals that change wait for Stage 2.*
+4. [x] **Place names.** Stage 0 added readable place names to option descriptions. Choice IDs still identify the exact action.
+5. [ ] **Moot attendance.** A scripted test exercises quorum and construction on the model-driven path. How often real residents choose to attend remains a pilot measurement. [Standing-instruction tests](../standing.test.mjs) *Under way: the test is in. The live measurement is not.*
+6. [ ] **Memory is a short list of sentences.** `remember` in `engine/civic.mjs` keeps 18 strings with no source, importance or recall. (Stages 1 and 2) *Not begun: the list of 18 is unchanged. Supply counts are kept beside it as observations with a source and a time.*
+7. [ ] **Everyone knows everything.** The menu and the request use the true stores and every resident's true destination. "Bake" disappears from a menu the moment someone far away uses the last wood. (Stage 1) *Under way: flour and firewood are known only from an oven inspection or from being told. Barley and water are seen on depositing. Other knowledge is still shared by all.*
+8. [ ] **Residents cannot ask, agree, decline or vote.** Encounters pick one of five templates. Votes in `resolve` are supporter-or-random. One template is wrong in effect: "discussed the dwindling grain reserve" fires when a store is under a quarter of its capacity, so building a granary makes it fire more often. (Stage 1 for asking and agreeing, Stage 3 for the fix, Stage 4 for votes) *Under way: asking, agreeing and declining are model choices. The grain sentence still fires on a quarter of capacity, and votes are unchanged.*
+9. [ ] **Relationships are one number that only rises.** After 60 days, 19 of 122 are at the maximum. (Stages 2 and 3) *Not begun.*
+10. [ ] **People only arrive, and the economy has no pressure.** Nobody is born, grows old, falls ill or leaves. One harvest shift feeds the founding village for a day. (Stage 3) *Under way: winter fuel is a first real pressure. Lives are not begun.*
 
 What is already right and should be kept: the simulation is deterministic and replays from JSON; every model exchange is recorded before it is applied; the engine checks a chosen action again before starting it; and the map is data the village owns.
 
@@ -65,12 +85,12 @@ What is already right and should be kept: the simulation is deterministic and re
 
 The map and the walking view are sound and draw the same data. What is missing is legibility and life.
 
-- Nothing marks that something is happening. A request, a moot and a building site look like an empty lane.
-- Every trade is the same arm movement, and a resting resident stands outside their door.
-- A selected resident is not in the URL, a fresh page always starts with Agnes, and only the latest 100 chronicle entries can be reached.
-- There is no season, weather, sound or change with the hour on the map.
-- The walking view can only follow. It rebuilds the whole scene whenever the map changes.
-- The page fetches every resident's whole record every 2.5 seconds.
+- [ ] Nothing marks that something is happening. A request, a moot and a building site look like an empty lane. *Under way: a resident who is deciding carries a question mark on the map and rests a hand on the chin in the walking view, and a site shows as stakes, then a frame. Requests and moots are still unmarked.*
+- [ ] Every trade is the same arm movement, and a resting resident stands outside their door. *Under way: a resident at home is indoors, with a lit window and smoke standing in for them. The walking view has jointed figures with a tool and a movement for each trade. The map's figures do not.*
+- [ ] A selected resident is not in the URL, a fresh page always starts with Agnes, and only the latest 100 chronicle entries can be reached. *Under way: the selected resident is in the address, so a link or a refresh keeps them. A bare address still opens on Agnes, and the chronicle still stops at 100.*
+- [ ] There is no season, weather, sound or change with the hour on the map. *Under way: season, weather, night and the hour show in both views. There is no sound.*
+- [ ] The walking view can only follow. It rebuilds the whole scene whenever the map changes. *Under way: a visitor can look around, move closer and click a resident to follow. The village is still rebuilt on every map revision.*
+- [ ] The page fetches every resident's whole record every 2.5 seconds. *Not begun: only the map is fetched on demand.*
 
 ## Principles
 
@@ -89,6 +109,17 @@ Stages 0 and 1 together are the first milestone, the promise pilot. Sizes are re
 ### Stage 0. Liveness and meaningful choices (M)
 
 **Status · 21 November 2026.** The VPS deployed `19c3f47` from GitHub main at 15:35 EST. The timer was active and the app and PostgreSQL passed their health checks. The full-week live measurements are pending. In a scripted stand-in run, 31% of activity boundaries needed a fresh choice, about seven per resident per village day. [Clock and activity logging](design.md) · [Deployed commit](https://github.com/nam37/dalecrest/commit/19c3f47dea22bb374903dfae83c6c145562b590c)
+
+**Marked off · 21 November 2026.**
+
+- [x] **A clock that advances independently.** Done. Commit `19c3f47`, tested by "village time passes when no decision ever arrives".
+- [x] **Standing instructions.** Done. An instruction keeps its routine, action, exchange, goals and lapse. Anything touching a request for help is always a fresh choice, so no commitment is stored on it.
+- [ ] **When a fresh decision is needed.** Under way. Five of the six conditions are in. The engine's only known stake today is a moot falling due, so the breakfast example is not yet possible.
+- [x] **What happens when things go wrong.** Done. Each row of the table has a test in `standing.test.mjs` or `work-outcomes.test.mjs`.
+- [x] **Record the basis of every activity.** Done. `dalecrest.activity_log`, reported by `tools/pilot-report.mjs`.
+- [ ] **Pilot parameters.** Under way. Starting values are set. None has been tuned against a pilot week.
+- [x] **Covered in Stage 0.** Done.
+- **Done when:** not yet met. The pilot week has not been measured.
 
 The clock advances independently. A routine follows a valid standing instruction from an earlier model choice. When no instruction fits, the resident waits for a fresh decision. The thresholds remain pilot parameters.
 
@@ -139,6 +170,26 @@ Build one promise that can survive a night's sleep, and let a viewer find out ho
 
 **Implemented so far.** Residents can check the communal oven, share dated observations, ask a neighbour for supplies and choose how to answer. An accepted request offers a specific shift the resident can choose to keep their word. A requester who learns of a later count or delivery can keep the request open, withdraw it in person or decide later. An ordinary shift changes the stores and earns its worker credit for that work alone. [Trace a request and its reply](decision-tracing.md#trace-a-request-and-its-reply) · [Trace a reconsideration](decision-tracing.md#trace-a-reconsideration)
 
+**Marked off · 21 November 2026.**
+
+- [x] **Outcomes.** Done. Commit `b6d7b8d`, with `work-outcomes.test.mjs`.
+- [x] **Observations.** Done. Commits `ee1a785` and `2725032`, with `oven-observation.test.mjs`.
+- [x] **Requests and commitments.** Done. All seven statuses exist in `engine/exchanges.mjs`. A request asks for one shift's output within 24 village hours.
+- [x] **Choices.** Done.
+- [x] **Credit.** Done. Commit `45e3e16` added reconsidering and release. Tested in `social-turns.test.mjs`.
+- [ ] **A thread a viewer can follow.** Under way. The promise lives in the records and cannot yet be seen on the page.
+  - [x] A link to a resident
+  - [ ] A link to a promise
+  - [ ] The resident panel shows the open promise, its status and the last verified change
+  - [ ] History by participant or commitment beyond the latest 100 entries
+  - [ ] A follow button kept in the browser, and "since your last visit"
+  - [ ] Mabel with a peel at the oven, Oswin working at the woodpile. Under way: in the walking view only, from commit `c3353a5`.
+  - [ ] A stack that changes with the store
+  - [x] An oven that is lit during a bake
+- [ ] **First proof in a test village.** Under way. The scripted branches, the changed stock and the restart are covered by automated tests. A run with budgeted model turns is not on record.
+- [x] **Second proof: one ordinary pressure.** Done. Winter fuel. Seed 26113 gives 15 mornings with flour and no firewood, held as a test in `seasons.test.mjs`.
+- **Done when:** not yet met. Five of the ten acceptance tests have automated cover, two are partly in place and three await the pilot.
+
 Mabel Ash needs wood for the oven. Oswin Holt cuts it. Mabel may ask Oswin for help, and he may accept, decline or leave it unanswered. An accepted promise can be kept, broken or released by Mabel. Each ending has a record a viewer can return to find.
 
 **Three kinds of knowledge, kept apart.**
@@ -166,13 +217,22 @@ The pilot uses the residents' existing goals. Goal reviews arrive in Stage 2.
 
 **Second proof: one ordinary pressure.** A staged shortage shows that the branches work. It does not show that the story will ever happen. In 60-day runs today the wood store never falls below 10, and never below 20 while a site is open. Choose one ordinary pressure, such as a building project that draws its timber when the footings are set instead of a bundle a shift, and test whether it produces a morning with flour and no wood without scripting. One pressure is enough for the pilot. Personal inventories, deliveries and prices wait until a second story needs them.
 
-**Status · 21 November 2026.** Winter fuel is the chosen pressure. It is built on the `winter-fuel` branch and is not deployed. Hearths draw firewood from the common store on cold mornings, and in seeded runs under local rules a morning with flour and no wood arises unscripted, with a baker learning of it by going to look. Whether it changes what the Decisions API chooses is not yet measured. [Design decision 11](design.md)
+**Status · 21 November 2026.** Winter fuel is the chosen pressure. It was merged to `main` in `db81515` and is part of the release that went live at 6:25 p.m. Eastern that day. Hearths draw firewood from the common store on cold mornings, and in seeded runs under local rules a morning with flour and no wood arises unscripted, with a baker learning of it by going to look. Whether it changes what the Decisions API chooses is not yet measured. [Design decision 11](design.md)
 
 Done when: the acceptance tests at the end of this document pass.
 
 ### Stage 2. Goals and memory (M)
 
 Give each resident goals that persist and change for reasons, set by the general-purpose model.
+
+**Marked off · 21 November 2026.**
+
+- [ ] **Two kinds of goal.** Not begun. Residents still hold the goals they were founded with.
+- [ ] **Goal reviews.** Not begun. The model for this work is chosen, in design decision 6. No review runs.
+- [ ] **The chain in PostgreSQL.** Not begun. Links 3 and 4 exist for action choices, through decision traces. The goal links do not.
+- [ ] **Memory.** Not begun.
+- [ ] **Relationships with substance.** Not begun.
+- [ ] **A resident's own words.** Not begun.
 
 **Two kinds of goal.**
 
@@ -205,6 +265,15 @@ Done when: a verifiable goal is settled by the engine with the outcome that sett
 
 Give residents more to weigh. This stage is engine work and adds no model calls of its own. It adds situations in which a choice is real, which the pilot will have shown how to count.
 
+**Marked off · 21 November 2026.**
+
+- [ ] **Seasons and weather.** Under way. The village has a calendar, daylight, weather and hearths that burn the woodpile. Barley is still gathered in January, and the year is the real 365 days, which is open decision 10.
+- [ ] **Households.** Not begun. A household can wake to a cold hearth, but it draws on the common store.
+- [ ] **Lives.** Not begun. Cold is now a fourth need, and a chilled resident sleeps badly. Nothing follows from it yet.
+- [ ] **A working day.** Under way. Fields and coppice are worked by daylight only. Queues, decay and feast days are not begun.
+- [ ] **Outside events.** Not begun.
+- [ ] **A chronicle that selects.** Under way. The page opens on highlights that leave routine out. Events carry no salience of their own, and food is still a fraction of a bin.
+
 - **Seasons and weather.** A year of about 48 village days. Fields produce only in their season. Winter burns wood and eats the stores.
 - **Households.** Each cottage has its own larder and woodpile, so one household can run short while the village does not.
 - **Lives.** Courtship, marriage, children, old age and death. Illness from hunger, cold or overwork. A resident who is not housed or fed for long leaves.
@@ -220,6 +289,14 @@ Done when: in harness runs no sentence is more than 10% of the chronicle and a h
 
 Apply the pilot's mechanism to a second problem, and let the village decide things by people taking positions.
 
+**Marked off · 21 November 2026.**
+
+- [ ] **A second story.** Not begun.
+- [ ] **Ballots.** Not begun. Votes are still supporter-or-random. The moot itself reaches quorum and builds on the model-driven path.
+- [ ] **News travels.** Under way. Supply counts and work reports already pass by word of mouth and keep their first witness and time. Other news, and rumour that can be wrong, are not begun.
+- [ ] **Words.** Not begun.
+- [ ] **A wider agenda.** Not begun.
+
 - **A second story.** A lodger wants a cottage while the growers want another field. Residents who hear a proposal are offered positions on it.
 - **Ballots.** When the moot opens, each attending resident receives an explicit ballot from the Decisions API, with their own goals, obligations and what they know. The engine counts recorded ballots, resolves quorum, deducts materials and builds through the existing civic rules. Support, opposition, abstention and a postponed work are all valid endings.
 - **News travels.** Facts spread through conversation and witness, using Stage 2's observations. Two test villages with different witnesses give residents different evidence. Rumour can be wrong.
@@ -231,6 +308,17 @@ Done when: a ballot can be traced to the goals and observations its voter was gi
 ### Stage 5. Worth watching (M, can start alongside Stage 3)
 
 Presentation. The pilot delivers the first of it: links, the promise thread and readable work at the oven and woodpile.
+
+**Marked off · 21 November 2026.**
+
+- [ ] **Show events where they happen.** Not begun.
+- [ ] **A director.** Not begun.
+- [x] **Show the basis.** Done. Each activity in the resident panel is tagged routine, fresh choice or deciding, with the reason in plain words. A deciding resident carries a question mark on the map and a hand on the chin in the walking view.
+- [ ] **Yesterday in Dalecrest.** Not begun.
+- [ ] **Seasons, weather and the hour.** Under way. Seasons, weather, night and going indoors are in both views. Tools and trade movements arrived in commit `c3353a5`, in the walking view only.
+- [ ] **A richer parish.** Under way. Kitchen gardens, shaded relief, canopy woods, light moving on the river and drifting cloud shadow. No fences, woodpiles, animals or sound.
+- [ ] **Time-lapse.** Not begun.
+- [ ] **Streaming.** Not begun. The page polls every 2.5 seconds. Walking is animated between snapshots, which hides most of the gap.
 
 - **Show events where they happen**, on the map and in the walking view. A chronicle entry takes you to its place and time.
 - **A director.** A watch mode that follows whoever is in the middle of something and holds on the scene. It is what a first-time visitor sees.
@@ -245,6 +333,13 @@ Done when: someone who opens the site with no explanation stays more than two mi
 
 ### Stage 6. Worth following (M)
 
+**Marked off · 21 November 2026.**
+
+- [ ] **Pages with addresses.** Under way. A resident has an address, such as `#village/agnes`. Nothing else does.
+- [ ] **Follow.** Not begun.
+- [ ] **Why did she do that?** Not begun.
+- [ ] **An archive.** Not begun.
+
 - **Pages with addresses** for every resident, household, promise, moot and day.
 - **Follow** with no account, plus a feed for the village and for each resident, a weekly letter and a webhook.
 - **Why did she do that?** A public, trimmed view of the record: what the resident knew, which goals were in force, whether the activity was a fresh choice or routine, and what happened. Motive is shown only where a record supports it. The full exchange stays private.
@@ -256,6 +351,14 @@ Done when: in a small pilot, people voluntarily return to check on a resident, a
 
 Let visitors introduce circumstances. Residents keep the final say over their own actions.
 
+**Marked off · 21 November 2026.**
+
+- [ ] **React.** Not begun.
+- [ ] **A petition, in a separate village.** Not begun.
+- [ ] **The peddler's cart.** Not begun.
+- [ ] **Letters.** Not begun.
+- [ ] **Your own village.** Under way. The Atlas already founds a village from `?seed=` in its address. Hosted villages are not begun.
+
 1. **React.** Visitors mark events. This informs the director and changes nothing in the village.
 2. **A petition, in a separate village.** A persistent pilot village with its own database and model allowance. A viewer posts a petition for a second well. One open petition per subject. Its origin is recorded, residents who encounter it may ignore, contest or support it, and the petitioner is shown what became of it.
 3. **The peddler's cart.** Visitors choose what the peddler brings from a short list.
@@ -265,6 +368,10 @@ Let visitors introduce circumstances. Residents keep the final say over their ow
 Done when: a repeat submission creates one petition; a petition can lapse unheard or lose a vote; every resident response links to a real choice; and the original village carried on independently throughout.
 
 ### Stage 8. A wider world (later)
+
+**Marked off · 21 November 2026.**
+
+- [ ] **More than one village.** Not begun.
 
 More than one village with a road between them. This multiplies everything above, including the cost, and waits until one village holds an audience.
 
@@ -278,6 +385,8 @@ More than one village with a road between them. This multiplies everything above
 - Stage 7 needs Stage 4's ballots and positions, which are what make a visitor's petition something residents can answer.
 
 ## Cost and pacing
+
+**Since this was written.** The hosted village now keeps at least ten residents, each with up to 48,000 tokens per rolling real hour under a village ceiling of 480,000 ([design decision 3](design.md)). The figures below are the original eight-resident estimate against 168,000 a real day and have not been reworked. One live reading exists: in the first 30 real minutes after the expansion the planner applied 17 decisions on 12,688 input tokens, about 750 a decision. [First village hour after the expansion](decision-tracing.md#first-village-hour-after-the-expansion)
 
 **Pre-Stage 0 baseline.**
 
@@ -337,16 +446,18 @@ Thirty seconds per village minute is the deployed code's default in OpenAI mode.
 
 The central test: **can someone follow Mabel, return the next day, and tell whether Oswin kept his word, and can we trace the answer to choices the residents actually made?**
 
-1. **Every ending is reachable.** Exercise kept, broken, declined, unanswered and released in a test village. Change the store between choice and execution in one run. Each ending must agree with the work and conversations that actually took place.
-2. **It survives a restart.** Restarting between a choice and its completion yields each outcome exactly once. Earlier history still opens.
-3. **The promise reaches the model.** With the menu held fixed, changing an open promise or the standing between two residents changes the serialized action request.
-4. **Knowledge stays local.** A resident who did not see or hear of the shortage receives no trace of it in their request. Mabel's request shows the wood she last observed and when, and a test makes that differ from the true store.
-5. **The chronicle claims only what it can verify.** Every statement about the promise links to a recorded event or outcome. A plain woodcutting shift is not credited to the promise. Wood supplied by someone else relieves the shortage and gives Oswin no credit.
-6. **The answer can be traced.** Starting from the outcome, one query returns the choice that produced it, whether that activity was a fresh choice or routine, the commitment and observations the model was given, and the exact exchange.
-7. **Time kept moving.** Through the pilot, including a deliberate provider outage, the clock was never more than one tick late and no resident followed a stale instruction.
-8. **A viewer can read it.** Four of five first-time viewers, on a mix of phones and desktops, can say who wanted what and what happened within 90 seconds. On a second visit a day later they can find the ending after it has left the latest 100 entries.
-9. **It can happen unprompted.** With the one chosen pressure in place and no scripting, a morning with flour and no wood arises in seeded runs, and Mabel learns of it by going to look.
-10. **It was affordable.** Spending stayed inside both caps and every measurement in the list above was captured.
+**How these are marked.** None of the ten is ticked, because the pilot has not run. Each carries a note saying whether an automated test exercises it today.
+
+1. [ ] **Every ending is reachable.** Exercise kept, broken, declined, unanswered and released in a test village. Change the store between choice and execution in one run. Each ending must agree with the work and conversations that actually took place. *Has test cover: all five endings in `social-turns.test.mjs`, the changed store in `oven-observation.test.mjs`.*
+2. [ ] **It survives a restart.** Restarting between a choice and its completion yields each outcome exactly once. Earlier history still opens. *Has test cover: the PostgreSQL tests, which need a database to run.*
+3. [ ] **The promise reaches the model.** With the menu held fixed, changing an open promise or the standing between two residents changes the serialized action request. *Under way: the request now carries open requests and the standing between the two. No test yet holds the menu fixed and compares the bytes.*
+4. [ ] **Knowledge stays local.** A resident who did not see or hear of the shortage receives no trace of it in their request. Mabel's request shows the wood she last observed and when, and a test makes that differ from the true store. *Has test cover: "unseen flour and wood cannot change the request", in `oven-observation.test.mjs`.*
+5. [ ] **The chronicle claims only what it can verify.** Every statement about the promise links to a recorded event or outcome. A plain woodcutting shift is not credited to the promise. Wood supplied by someone else relieves the shortage and gives Oswin no credit. *Has test cover: "only a chosen shift for the promise earns credit", in `social-turns.test.mjs`.*
+6. [ ] **The answer can be traced.** Starting from the outcome, one query returns the choice that produced it, whether that activity was a fresh choice or routine, the commitment and observations the model was given, and the exact exchange. *Under way: the trace records and worked queries are in [decision tracing](decision-tracing.md). Not yet checked as a single query from an outcome.*
+7. [ ] **Time kept moving.** Through the pilot, including a deliberate provider outage, the clock was never more than one tick late and no resident followed a stale instruction. *Awaiting pilot: both rules have unit tests. The claim is about a live week.*
+8. [ ] **A viewer can read it.** Four of five first-time viewers, on a mix of phones and desktops, can say who wanted what and what happened within 90 seconds. On a second visit a day later they can find the ending after it has left the latest 100 entries. *Awaiting pilot: the page does not show promises yet.*
+9. [ ] **It can happen unprompted.** With the one chosen pressure in place and no scripting, a morning with flour and no wood arises in seeded runs, and Mabel learns of it by going to look. *Has test cover: "a first winter under local rules brings a morning with flour and no firewood, unscripted", in `seasons.test.mjs`.*
+10. [ ] **It was affordable.** Spending stayed inside both caps and every measurement in the list above was captured. *Awaiting pilot: `tools/pilot-report.mjs` is ready to report it.*
 
 ## Decisions that remain open
 
@@ -356,8 +467,22 @@ The central test: **can someone follow Mabel, return the next day, and tell whet
 4. **How long a promise lasts in real viewing time.** The starting assumption is a visitor who watches for two minutes and checks back tomorrow.
 5. **What the audience may see before residents learn it.** The starting assumption is a public record of observable events.
 6. **How the action and goal budgets are divided**, and whether the daily account in Stage 5 has a third.
-7. **When the pilot reaches the live village.** It is proved in a test village. Moving it to the live one changes what residents know about the stores.
+7. **When the pilot reaches the live village.** It is proved in a test village. Moving it to the live one changes what residents know about the stores. *Note, 21 November 2026: oven observations and requests for help are already on `main`, which the live village deploys, so this has in effect been settled by deployment. It should be recorded as decided or reopened.*
 8. **Whether residents die**, and whether the live village is migrated or a new one is founded when Stage 3 changes the economy.
 9. **How far visitors may reach.** Stage 7 can stop at any step. Letters are the first with real moderation work.
 10. **How long a year is.** Stage 3 proposes a year of about 48 village days. The calendar and the weather now keep the real year of 365, which at two village days to a real day takes six real months. One of the two has to give.
 11. **Whether the wood store grows with the village.** It holds 32 bundles at any size. With winter fuel that is about a day's burning for thirty hearths in frost, so a large village cannot lay in wood for a cold spell.
+
+## Future considerations
+
+Questions the stages above do not answer. This section was added on 21 November 2026. Nothing here is scheduled or decided. Each is worth a deliberate answer before the point named under it.
+
+1. **Keeping the two editions in step.** This document is the canonical plan and [roadmap.html](roadmap.html) is a hand-made rendering of it. Both now carry the marks, so every change of status has to be made twice. Generating the page from this file would remove that. *Before the next status changes.*
+2. **Proving a model change is safe.** Every exchange is stored with the exact request that was sent. Replaying stored requests against a candidate model or a reworded request would show how choices shift before the village feels it. Stages 1 and 2 both change what the request contains, and design decision 6 expects providers to change. *Before the first change of model, or Stage 2's larger request.*
+3. **Records that only grow.** Events, the activity log and decision traces gain rows with every tick, and each resident's record grows with what they hold. Stage 6 wants an archive of every day. What is kept whole, what is summarised and what may be dropped needs deciding while the tables are still small. *Before Stage 6, or the first slow query.*
+4. **Many viewers at once.** Each open page asks for the whole village every 2.5 seconds and the server builds the answer afresh each time. Stage 5's streaming improves freshness. It does not by itself settle what a hundred watchers cost. One snapshot built per tick and shared by everyone may be enough. *Before Stage 5's first public test.*
+5. **A village that can be read without the map.** Acceptance test 8 puts first-time viewers on phones. Both views are pictures: a visitor using a screen reader, or a small screen in the walking view, gets little of what is happening. A plain account of the current scene would serve them and would also feed Stage 5's director. *Before acceptance test 8 is run.*
+6. **Model-written prose in public.** Stage 2 publishes a resident's own sentence, Stage 4 an account of what was said, and Stage 5 a daily account. Each is text nobody reviewed, shown under the village's name. The plan labels these as accounts. It does not yet say how they are screened, how a wrong one is withdrawn, or how they keep a period voice. *Before Stage 2's first published sentence.*
+7. **History beyond the parish.** Dalecrest was founded on 1 August 1312 and keeps the real Julian calendar. The Great Famine of 1315 to 1317 lies under three village years ahead, about a year and a half of real time at the present pace. Whether the outside world reaches the village at all is undecided, and a 48-day year would cut the calendar loose from history altogether. *With open decisions 8 and 10.*
+8. **Knowing when the village is in trouble.** The caps bound what can be spent and the activity log records every wait. What tells an operator that the provider has been down for an hour, or that half the village has stood waiting since noon? The pilot's deliberate outage is the natural rehearsal, and open decision 2 depends on how long such waits really last. *Before the pilot week.*
+9. **The tests that need a database.** Seven of the 56 tests are skipped without PostgreSQL. They include the ones that prove a restart yields each outcome exactly once, which is acceptance test 2. It is worth confirming that the deploy run includes them, so the promise is checked on every release and not only on a machine that happens to have a database. *Before acceptance test 2 is signed off.*
