@@ -9,20 +9,20 @@
 
 ## State of the plan
 
-**Marked off · 21 November 2026**, against the request archive (`996c2c1`) and resident cards (`836bec3`). Stages 3 and 5 were counted again later that day, after hunting and fishing (`b6dc917`), chronicle notes in the walking view (`563e95d`) and the director. Stages 2 and 3 were counted again on 22 November 2026, when Stage 3 was built. A ticked box means built, tested and merged. It does not mean measured in the live village: each stage's "Done when" is a separate test, and none has been met. An unticked box is labelled under way or not begun.
+**Marked off · 21 November 2026**, against the request archive (`996c2c1`) and resident cards (`836bec3`). Stages 3 and 5 were counted again later that day, after hunting and fishing (`b6dc917`), chronicle notes in the walking view (`563e95d`) and the director. Stages 2 and 3 were counted again on 22 November 2026, when each was built. A ticked box means built, tested and merged. It does not mean measured in the live village: each stage's "Done when" is a separate test, and none has been met. An unticked box is labelled under way or not begun.
 
 | Stage | State | Done | Under way | Not begun |
 | --- | --- | ---: | ---: | ---: |
 | 0. Liveness and meaningful choices | Built, awaiting the pilot week | 5 | 2 | 0 |
 | 1. The promise pilot | In hand | 6 | 2 | 0 |
-| 2. Goals and memory | Begun | 1 | 1 | 4 |
+| 2. Goals and memory | Built, live reviews to be read | 6 | 0 | 0 |
 | 3. A village with stakes | Built, awaiting the live measure | 7 | 0 | 0 |
 | 4. Voices: competing interests and the moot | Groundwork only | 0 | 1 | 4 |
 | 5. Worth watching | In hand | 4 | 2 | 2 |
 | 6. Worth following | Groundwork only | 0 | 1 | 3 |
 | 7. Taking part | Groundwork only | 0 | 1 | 4 |
 | 8. A wider world | Not begun | 0 | 0 | 1 |
-| All stages | | 23 | 10 | 18 |
+| All stages | | 28 | 9 | 14 |
 
 The merge passed all 59 tests on 21 November, including eight tests with disposable PostgreSQL databases. With the director the suite has 78 tests. Nine of them need a PostgreSQL database and were not run for that change. The other 69 passed.
 
@@ -70,10 +70,10 @@ Stage numbers refer to the plan below. A box is ticked once the fault it describ
 
 1. [x] **Clock and queue.** Stage 0 made the village clock independent of model latency. A resident can wait while others continue.
 2. [x] **Routine decisions.** Stage 0 lets a resident continue sleeping under a valid earlier instruction. The activity log records the original model choice.
-3. [ ] **The action model is shown too little.** `actionBody` in `decisions.mjs` sends needs, stores, two memories and a menu. It leaves out relationships, open obligations and what the resident has learned. (Stages 1 and 2) *Under way: the request now carries the resident's own dated oven count, open requests for help with the standing between the two, cold and the weather. Recalled memory and goals that change wait for Stage 2.*
+3. [x] **The action model is shown too little.** `actionBody` in `decisions.mjs` sends needs, stores, two memories and a menu. It leaves out relationships, open obligations and what the resident has learned. (Stages 1 and 2) *Done: the request carries the resident's goals as they now stand, recalled memories with their dates, open requests with the warmth and trust between the two, the household, their own life, cold and the weather.*
 4. [x] **Place names.** Stage 0 added readable place names to option descriptions. Choice IDs still identify the exact action.
 5. [ ] **Moot attendance.** A scripted test exercises quorum and construction on the model-driven path. How often real residents choose to attend remains a pilot measurement. [Standing-instruction tests](../standing.test.mjs) *Under way: the test is in. The live measurement is not.*
-6. [ ] **Memory is a short list of sentences.** `remember` in `engine/civic.mjs` keeps 18 strings with no source, importance or recall. (Stages 1 and 2) *Under way: memories now carry a source, importance and place, a resident keeps sixty, and recall is scored. They are not yet in PostgreSQL.*
+6. [x] **Memory is a short list of sentences.** `remember` in `engine/civic.mjs` keeps 18 strings with no source, importance or recall. (Stages 1 and 2) *Done: memories carry a source, importance and place, a resident keeps sixty, recall is scored, and every memory is stored in PostgreSQL.*
 7. [ ] **Everyone knows everything.** The menu and the request use the true stores and every resident's true destination. "Bake" disappears from a menu the moment someone far away uses the last wood. (Stage 1) *Under way: flour and firewood are known only from an oven inspection or from being told. Barley and water are seen on depositing. Other knowledge is still shared by all.*
 8. [ ] **Residents cannot ask, agree, decline or vote.** Encounters pick one of five templates. Votes in `resolve` are supporter-or-random. One template is wrong in effect: "discussed the dwindling grain reserve" fires when a store is under a quarter of its capacity, so building a granary makes it fire more often. (Stage 1 for asking and agreeing, Stage 3 for the fix, Stage 4 for votes) *Under way: asking, agreeing and declining are model choices, and so are asking to marry and answering. The grain sentence now fires on food counted in days. Votes are unchanged.*
 9. [x] **Relationships are one number that only rises.** After 60 days, 19 of 122 are at the maximum. (Stages 2 and 3) *Done: warmth and trust are separate, both fall, and warmth fades and fills more slowly near the top.*
@@ -229,12 +229,13 @@ Give each resident goals that persist and change for reasons, set by the general
 
 **Marked off · 21 November 2026.**
 
-- [ ] **Two kinds of goal.** Not begun. Residents still hold the goals they were founded with.
-- [ ] **Goal reviews.** Not begun. The model for this work is chosen, in design decision 6. No review runs.
-- [ ] **The chain in PostgreSQL.** Not begun. Links 3 and 4 exist for action choices, through decision traces. The goal links do not.
-- [ ] **Memory.** Under way. Memories carry an id, an importance, a source and the place, and a resident keeps sixty, losing the least memorable old one first. `recall` in `engine/memory.mjs` scores them by recency, importance and relevance to the people and place at hand. They are not yet stored in PostgreSQL or used in the action request.
+- [x] **Two kinds of goal.** Done. Each goal is a version with an id, kept in `actor.goalBook` by `engine/goals.mjs`. A goal with a condition names one from a fixed vocabulary: a store level, a place reached, a number of finished shifts, each within so many hours, or an open request kept. The engine settles it met, missed or overtaken each minute and records why. A goal on evidence has no condition and may name the resident it concerns. The founding goals became goals on evidence.
+- [x] **Goal reviews.** Done. A review is called when a goal is settled, when a resident learns something of importance 8 or more, or at seven in the morning after three days without one. Claude Haiku 5.5 reviews one resident at a time, from `goal-reviews.mjs`, under its own cap of 30,000 tokens a rolling hour. The engine checks each decision before applying it, and a goal about another resident changes only on cited evidence. Between reviews, and without a key, residents keep the goals they have. A changed goal ends the standing instructions chosen under the old one. Reviews do not yet set standing instructions.
+- [x] **The chain in PostgreSQL.** Done. `dalecrest.observations` holds every memory, linked to its chronicle entry. `dalecrest.goal_reviews` holds each exchange as sent and received. `dalecrest.goal_versions` holds every version with the observations and evidence it rests on and the review that made it. Each action trace records the goal versions and memories its request was given. The view `dalecrest.goal_chain` reads the chain from an observation to the outcome and its witness in one query.
+- [x] **Memory.** Done. Memories carry an id, an importance, a source, the place and the people involved. A resident keeps sixty and forgets the least memorable first. `recall` scores them by recency, importance and relevance to the people and place at hand, and the action request and goal reviews are given what it recalls. Every memory is stored in PostgreSQL. Recall is scored in the engine, not yet in SQL.
 - [x] **Relationships with substance.** Done. Warmth and trust are kept apart, in `engine/bonds.mjs`. Warmth rises with company, rises less between people already close, and fades between residents who stop meeting. Trust grows a little with acquaintance and otherwise moves on requests as each resident learns of them: a promise made or kept raises it, and a refusal, an unanswered request or a promise with no word of completion lowers it. Each move is kept as evidence about that person.
-- [ ] **A resident's own words.** Not begun.
+- [x] **A resident's own words.** Done. A review may return one sentence in the resident's voice about its most important change. A sentence that is not one plain sentence, or that carries a link or markup, is not published. One that passes is recorded as an "In their words" chronicle entry, worded as what the resident said.
+- **Done when:** Met in tests, 22 November 2026. `goals.test.mjs` settles a goal from the record with what settled it, refuses an uncited change to a goal about another resident, gives two residents different counts of the same oven, and keeps a goal through a day and a half of activities and a night. `goal-chain.test.mjs` takes one observation through a review, a choice and its outcome, and reads it back from `dalecrest.goal_chain`. Reviews in the live village start with this release and have not yet been read.
 
 **Two kinds of goal.**
 

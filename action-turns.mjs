@@ -1,4 +1,6 @@
-import { DECISIONS_MODEL, DECISIONS_URL, actionBody, actionDescription } from './decisions.mjs';
+import { DECISIONS_MODEL, DECISIONS_URL, actionBody, actionDescription, recalledFor } from './decisions.mjs';
+import { activeGoals, goalKey } from './engine/goals.mjs';
+import { memoryKey } from './engine/memory.mjs';
 import { availableActions, startChosen, locationsOf } from './sim.mjs';
 import { residentState, writeActivities } from './decision-trace.mjs';
 import { weatherAt } from './engine/seasons.mjs';
@@ -54,10 +56,11 @@ export async function reserveAction(db, village, hourlyBudget) {
       limited = true;
       continue;
     }
+    const goals = activeGoals(actor).map(g => goalKey(actor, g)), seen = recalledFor(actor, village.world).map(m => memoryKey(actor, m));
     const result = await db.query(`INSERT INTO dalecrest.decision_traces
-      (actor_id,observed_minute,model,endpoint,request_body,decision_since,token_charge)
-      VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-      [actor.id, village.world.minute, DECISIONS_MODEL, DECISIONS_URL, body, actor.action.since, estimate]);
+      (actor_id,observed_minute,model,endpoint,request_body,decision_since,token_charge,goal_keys,observation_keys)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+      [actor.id, village.world.minute, DECISIONS_MODEL, DECISIONS_URL, body, actor.action.since, estimate, goals, seen]);
     return { id: result.rows[0].id, body };
   }
   if (limited) return { budgetLimited: true };

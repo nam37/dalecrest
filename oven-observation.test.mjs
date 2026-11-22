@@ -59,7 +59,8 @@ test('inspection reads on site, survives ordinary memories and prompts a new dec
   assert.deepEqual(memory.observation, seen);
 
   goHome(actor, resumed);
-  for (let i = 0; i < 70; i++) remember(actor, resumed.world.minute, 'Another ordinary event.', [actor.id], 'social');
+  // Weightier memories crowd the oven count out of memory. The count itself is kept apart and survives.
+  for (let i = 0; i < 70; i++) remember(actor, resumed.world.minute, 'Another weighty event.', [actor.id], 'social', { importance: 9 });
   assert.ok(!actor.memories.some(m => m.kind === 'observation'));
   resumed.world.minute += 45;
   const before = request(actor, resumed);

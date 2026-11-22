@@ -31,11 +31,11 @@ export function remember(actor, minute, text, actorIds, kind, details = {}) {
   while (actor.memories.length > MEMORY_HOLDS) forgetOne(actor, minute);
 }
 
-// Drops the least memorable memory older than a day.
+// Drops the least memorable memory, weighing importance against age. The newest is always kept.
 function forgetOne(actor, minute) {
   let worst = 0, value = Infinity;
   actor.memories.forEach((m, i) => {
-    if (minute - m.minute < DAY) return;
+    if (i === actor.memories.length - 1) return;
     const v = (m.importance ?? 2) * 2 - (minute - m.minute) / DAY;
     if (v < value) { value = v; worst = i; }
   });

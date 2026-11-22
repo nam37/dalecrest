@@ -296,7 +296,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
     <ol>
       <li><a href="#stage-0"><span class="n">0</span> Liveness and choices <i class="pip built"></i></a></li>
       <li><a href="#stage-1"><span class="n">1</span> The promise pilot <i class="pip hand"></i></a></li>
-      <li><a href="#stage-2"><span class="n">2</span> Goals and memory <i class="pip hand"></i></a></li>
+      <li><a href="#stage-2"><span class="n">2</span> Goals and memory <i class="pip built"></i></a></li>
       <li><a href="#stage-3"><span class="n">3</span> A village with stakes <i class="pip built"></i></a></li>
       <li><a href="#stage-4"><span class="n">4</span> Voices and the moot <i class="pip"></i></a></li>
       <li><a href="#stage-5"><span class="n">5</span> Worth watching <i class="pip hand"></i></a></li>
@@ -340,7 +340,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
   <ol class="lane">
     <li class="built"><a href="#stage-0"><span class="stone">0</span><b>Liveness</b><small>Built · measuring</small></a></li>
     <li class="hand"><a href="#stage-1"><span class="stone">1</span><b>Promise pilot</b><small>In hand</small></a></li>
-    <li class="begun"><a href="#stage-2"><span class="stone">2</span><b>Goals, memory</b><small>Begun</small></a></li>
+    <li class="built"><a href="#stage-2"><span class="stone">2</span><b>Goals, memory</b><small>Built · reading</small></a></li>
     <li class="built"><a href="#stage-3"><span class="stone">3</span><b>Stakes</b><small>Built · measuring</small></a></li>
     <li><a href="#stage-4"><span class="stone">4</span><b>Voices</b><small>Groundwork</small></a></li>
     <li class="hand"><a href="#stage-5"><span class="stone">5</span><b>Watching</b><small>In hand</small></a></li>
@@ -406,10 +406,10 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
   <ol class="checks">
     <li data-s="done"><div class="what"><strong>Clock and queue.</strong> Stage 0 made the village clock independent of model latency. A resident can wait while others continue.</div></li>
     <li data-s="done"><div class="what"><strong>Routine decisions.</strong> Stage 0 lets a resident continue sleeping under a valid earlier instruction. The activity log records the original model choice.</div></li>
-    <li data-s="part"><div class="what"><strong>The action model is shown too little.</strong> <code>actionBody</code> in <code>decisions.mjs</code> sends needs, stores, two memories and a menu. It leaves out relationships, open obligations and what the resident has learned. (Stages 1 and 2)</div><span class="st">The request now carries the resident's own dated oven count, open requests for help with the standing between the two, cold and the weather. Recalled memory and goals that change wait for Stage 2.</span></li>
+    <li data-s="done"><div class="what"><strong>The action model is shown too little.</strong> <code>actionBody</code> in <code>decisions.mjs</code> sends needs, stores, two memories and a menu. It leaves out relationships, open obligations and what the resident has learned. (Stages 1 and 2)</div><span class="st">The request carries the resident's goals as they now stand, recalled memories with their dates, open requests with the warmth and trust between the two, the household, their own life, cold and the weather.</span></li>
     <li data-s="done"><div class="what"><strong>Place names.</strong> Stage 0 added readable place names to option descriptions. Choice IDs still identify the exact action.</div></li>
     <li data-s="part"><div class="what"><strong>Moot attendance.</strong> A scripted test exercises quorum and construction on the model-driven path. How often real residents choose to attend remains a pilot measurement. <a href="../standing.test.mjs">Standing-instruction tests</a></div><span class="st">The test is in. The live measurement is not.</span></li>
-    <li data-s="part"><div class="what"><strong>Memory is a short list of sentences.</strong> <code>remember</code> in <code>engine/civic.mjs</code> keeps 18 strings with no source, importance or recall. (Stages 1 and 2)</div><span class="st">Memories now carry a source, importance and place, a resident keeps sixty, and recall is scored. They are not yet in PostgreSQL.</span></li>
+    <li data-s="done"><div class="what"><strong>Memory is a short list of sentences.</strong> <code>remember</code> in <code>engine/civic.mjs</code> keeps 18 strings with no source, importance or recall. (Stages 1 and 2)</div><span class="st">Memories carry a source, importance and place, a resident keeps sixty, recall is scored, and every memory is stored in PostgreSQL.</span></li>
     <li data-s="part"><div class="what"><strong>Everyone knows everything.</strong> The menu and the request use the true stores and every resident's true destination. “Bake” disappears from a menu the moment someone far away uses the last wood. (Stage 1)</div><span class="st">Flour and firewood are known only from an oven inspection or from being told. Barley and water are seen on depositing. Other knowledge is still shared by all.</span></li>
     <li data-s="part"><div class="what"><strong>Residents cannot ask, agree, decline or vote.</strong> Encounters pick one of five templates. Votes in <code>resolve</code> are supporter-or-random. One template is wrong in effect: “discussed the dwindling grain reserve” fires when a store is under a quarter of its capacity, so building a granary makes it fire more often. (Stage 1 for asking and agreeing, Stage 3 for the fix, Stage 4 for votes)</div><span class="st">Asking, agreeing and declining are model choices, and so are asking to marry and answering. The grain sentence now fires on food counted in days. Votes are unchanged.</span></li>
     <li data-s="done"><div class="what"><strong>Relationships are one number that only rises.</strong> After 60 days, 19 of 122 are at the maximum. (Stages 2 and 3)</div><span class="st">Warmth and trust are separate, both fall, and warmth fades and fills more slowly near the top.</span></li>
@@ -611,13 +611,13 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
       <span class="numeral">2</span>
       <h3>Goals and memory</h3>
       <span class="meta">Size M · Needs the pilot's observations and commitments</span>
-      <span class="stamp begun">Begun</span>
+      <span class="stamp built">Built<br>Reading reviews</span>
     </header>
     <div class="meter"><span class="bar"><i class="d"></i><i class="p"></i></span><span class="count"></span></div>
     <p>Give each resident goals that persist and change for reasons, set by the general-purpose model.</p>
 
     <ul class="checks">
-      <li data-s="todo"><div class="what"><strong>Two kinds of goal.</strong></div><span class="st">Residents still hold the goals they were founded with.</span></li>
+      <li data-s="done"><div class="what"><strong>Two kinds of goal.</strong></div><span class="st">Each goal is a version with an id, kept in <code>actor.goalBook</code> by <code>engine/goals.mjs</code>. A goal with a condition names one from a fixed vocabulary: a store level, a place reached, a number of finished shifts, each within so many hours, or an open request kept. The engine settles it met, missed or overtaken each minute and records why. A goal on evidence has no condition and may name the resident it concerns. The founding goals became goals on evidence.</span></li>
     </ul>
     <div class="scroll"><table>
       <thead><tr><th></th><th>A goal the engine can verify</th><th>A goal only evidence can inform</th></tr></thead>
@@ -630,11 +630,11 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
     </table></div>
 
     <ul class="checks">
-      <li data-s="todo">
+      <li data-s="done">
         <div class="what"><strong>Goal reviews.</strong> A review is triggered when a resident needs direction, when a goal is met or missed, or when they learn something consequential. Between reviews the last valid goals are reused, including when the goal-setting model is unavailable. Reviews have their own spending cap so they never take turns from action choices. A review may also set or renew standing instructions for the resident's routines.</div>
-        <span class="st">The model for this work is chosen, in design decision 6. No review runs.</span>
+        <span class="st">A review is called when a goal is settled, when a resident learns something of importance 8 or more, or at seven in the morning after three days without one. Claude Haiku 5.5 reviews one resident at a time, from <code>goal-reviews.mjs</code>, under its own cap of 30,000 tokens a rolling hour. The engine checks each decision before applying it, and a goal about another resident changes only on cited evidence. Between reviews, and without a key, residents keep the goals they have. A changed goal ends the standing instructions chosen under the old one. Reviews do not yet set standing instructions.</span>
       </li>
-      <li data-s="todo">
+      <li data-s="done">
         <div class="what"><strong>The chain in PostgreSQL.</strong> Each link is stored, so an operator can follow a resident from a source event to an outcome without replaying the village.
           <ol>
             <li>An event in the world becomes an observation for each resident who saw or heard of it, with source and time.</li>
@@ -644,21 +644,23 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
             <li>The outcome becomes an observation for whoever witnessed it, and may trigger the next review.</li>
           </ol>
         </div>
-        <span class="st">Links 3 and 4 exist for action choices, through decision traces. The goal links do not.</span>
+        <span class="st"><code>dalecrest.observations</code> holds every memory, linked to its chronicle entry. <code>dalecrest.goal_reviews</code> holds each exchange as sent and received. <code>dalecrest.goal_versions</code> holds every version with the observations and evidence it rests on and the review that made it. Each action trace records the goal versions and memories its request was given. The view <code>dalecrest.goal_chain</code> reads the chain from an observation to the outcome and its witness in one query.</span>
       </li>
-      <li data-s="part">
+      <li data-s="done">
         <div class="what"><strong>Memory.</strong> Replace the 18-sentence list with stored observations that carry source, time, the people and place involved and an importance. For any request, recall by recency, importance and relevance to the people and place at hand. Start with scored SQL.</div>
-        <span class="st">Memories carry an id, an importance, a source and the place, and a resident keeps sixty, losing the least memorable old one first. <code>recall</code> in <code>engine/memory.mjs</code> scores them by recency, importance and relevance. They are not yet stored in PostgreSQL or used in the action request.</span>
+        <span class="st">Memories carry an id, an importance, a source, the place and the people involved. A resident keeps sixty and forgets the least memorable first. <code>recall</code> scores them by recency, importance and relevance to the people and place at hand, and the action request and goal reviews are given what it recalls. Every memory is stored in PostgreSQL. Recall is scored in the engine, not yet in SQL.</span>
       </li>
       <li data-s="done">
         <div class="what"><strong>Relationships with substance.</strong> Separate warmth from trust. Mabel can stay fond of Oswin and become less willing to rely on him after a missed promise. Both move on recorded events and both can fall.</div>
         <span class="st">Kept apart in <code>engine/bonds.mjs</code>. Warmth rises with company, rises less between people already close, and fades between residents who stop meeting. Trust grows a little with acquaintance and otherwise moves on requests as each resident learns of them. Each move is kept as evidence about that person.</span>
       </li>
-      <li data-s="todo">
+      <li data-s="done">
         <div class="what"><strong>A resident's own words.</strong> A review may return one sentence in the resident's voice explaining a revision. It is published as the resident's stated intention. It is not presented as a verified motive.</div>
+        <span class="st">A review may return one sentence in the resident's voice about its most important change. A sentence that is not one plain sentence, or that carries a link or markup, is not published. One that passes is recorded as an "In their words" chronicle entry, worded as what the resident said.</span>
       </li>
     </ul>
     <p class="donewhen"><b>Done when</b> a verifiable goal is settled by the engine with the outcome that settled it; a relational goal is kept, revised or retired by a review that cites recorded evidence; two residents hold different beliefs about the same fact; a goal survives several activities and a night's sleep; and the chain from observation to outcome can be read with one query.</p>
+    <p class="donewhen"><b>Status · 22 November 2026.</b> Met in tests, 22 November 2026. <code>goals.test.mjs</code> settles a goal from the record with what settled it, refuses an uncited change to a goal about another resident, gives two residents different counts of the same oven, and keeps a goal through a day and a half of activities and a night. <code>goal-chain.test.mjs</code> takes one observation through a review, a choice and its outcome, and reads it back from <code>dalecrest.goal_chain</code>. Reviews in the live village start with this release and have not yet been read.</p>
   </article>
 
   <!-- ============ Stage 3 ============ -->

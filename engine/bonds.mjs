@@ -18,7 +18,8 @@ export const trustOf = (actor, id) => actor.trust?.[id] ?? TRUST_START;
 function note(actor, about, minute, kind, text, change) {
   if (!text) return;
   actor.evidence ??= [];
-  actor.evidence.push({ minute, about, kind, text, ...change });
+  actor.evidenceSeq = (actor.evidenceSeq || 0) + 1;
+  actor.evidence.push({ id: 'ev' + actor.evidenceSeq, minute, about, kind, text, ...change });
   if (actor.evidence.length > EVIDENCE_KEPT) actor.evidence.shift();
 }
 

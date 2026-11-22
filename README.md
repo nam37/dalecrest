@@ -24,6 +24,10 @@ Robin Marsh works as the village journalist. Follow him on the map or choose **R
 
 Set `CLAUDE_KEY` in the server environment to enable the editor. It uses Claude Sonnet 5.5 by default. `DALECREST_DAILY_MODEL` can select another Claude model that supports structured output. Publication has its own model call, separate from resident decision allowances. An existing village starts with the latest eligible edition. A delayed edition stays queued across restarts. The hosted app needs these environment values in its installed Compose configuration. On the server, `deploy/dalecrest-set-claude-key` stores the key and restarts the app, as `deploy/dalecrest-set-openai-key` does for Luna. Preview and stand-in villages leave the editor offline.
 
+## Residents' goals
+
+With `CLAUDE_KEY` set, Claude Haiku 5.5 reviews a resident's goals when one is met or missed, when they learn something that matters, or after three quiet days. A review can keep, revise or retire a goal and set a new one, and the resident may say in a sentence what they now intend. Reviews spend at most 30,000 tokens a rolling hour; `GOAL_REVIEW_TOKENS_PER_HOUR` changes that and `DALECREST_GOAL_MODEL` the model. Without the key residents keep the goals they have. [Follow a goal](docs/decision-tracing.md#follow-a-goal)
+
 ## Watch it grow
 
 The village map is generated from a seed and then belongs to the village. Residents raise concerns in conversation, settle them at a moot in the hall, and build what was agreed: cottages for newcomers, fields, a granary, wells, a bakehouse, an alehouse, and new lanes when the old ones fill up. The Village page shows the map, the works in progress and the proposals under discussion. Choose **Walk** above the map to follow the selected resident through the village in 3D.

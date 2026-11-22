@@ -19,6 +19,7 @@ import { FEAST_HOURS, feastOf, feastOn, normalizeBuildings, repairLoss, tradeOpe
 import { dawnVisitors, tickVisitors } from './engine/visitors.mjs';
 import { forgetTold, judge } from './engine/chronicle.mjs';
 import { normalizeMemories } from './engine/memory.mjs';
+import { noteShift, normalizeGoals, settleGoals, watchGoals } from './engine/goals.mjs';
 import { familiar, fade, warm } from './engine/bonds.mjs';
 
 export const FOCUSES = ['work', 'social', 'rest', 'food'];
@@ -113,6 +114,7 @@ function normalize({ world, actors, map }) {
     actor.needs.cold ??= 0;
     normalizeMemories(actor);
     normalizeLife(actor, world.minute);
+    normalizeGoals(actor, world.minute);
     if (!Array.isArray(actor.desires)) actor.desires = inferDesires(actor);
     const lastChoice = /^Selected by .+? after (.+)\.$/.exec(actor.action.reason);
     if (lastChoice) actor.action.reason = decisionAfter('Chose this', lastChoice[1]);
@@ -543,6 +545,7 @@ function finishShift(actor, state, emit, sky) {
   const result = finishVillageWork(actor, state) || finishForageShift(actor, world, job.result);
   const text = actor.name + ' ' + result + '.';
   recordWork(actor, minute, emit, text, 'completed', stockDelta);
+  noteShift(actor, key);
   noteWork(actor, world, text, stockDelta);
   if (actor.action.commitmentId) settleHelp(actor, world, stockDelta, emit);
 }
@@ -563,6 +566,7 @@ function arrival(state) {
   const resident = newcomer(state, () => random(world));
   normalizeLife(resident, world.minute);
   resident.desires = inferDesires(resident);
+  normalizeGoals(resident, world.minute);
   actors.push(resident);
   world.lastArrival = world.minute;
   world.arrivals = (world.arrivals ?? 0) + 1;
@@ -615,6 +619,7 @@ function stepMinute(state, events, externalActions, records, pilot) {
     dawnLives(state, emit, () => random(world), (child, home) => {
       const grown = grownChild(state, child, home, () => random(world));
       grown.desires = inferDesires(grown);
+      normalizeGoals(grown, minute);
       actors.push(grown);
       emit('life', grown.name + ' has come of age and takes up work as a ' + grown.role.toLowerCase() + '.', [grown.id], { life: 'grown' });
     });
@@ -683,6 +688,7 @@ function stepMinute(state, events, externalActions, records, pilot) {
       inspectOven(actor, place(map, action.target), world, emit);
     } else if (action.kind === 'work' && action.job === 'build') {
       civic.labour(actor, state, emit);
+      noteShift(actor, 'build');
     } else if (action.kind === 'work') {
       finishShift(actor, state, emit, sky);
     } else if (action.kind === 'food') {
@@ -765,6 +771,9 @@ function stepMinute(state, events, externalActions, records, pilot) {
     // An activity that ended this minute is settled now, so routine carries straight on.
     for (const actor of actors) if (actor.action.remaining <= 0 && actor.action.kind !== 'waiting') atBoundary(actor, state, records, pilot);
   }
+  // Goals the record now settles are settled, and anything consequential calls for a review.
+  settleGoals(state, emit);
+  for (const actor of actors) watchGoals(actor, minute);
   // Each minute's entries are judged as they happen, so the record is the same however the clock is stepped.
   judge(world, events.slice(first));
 }

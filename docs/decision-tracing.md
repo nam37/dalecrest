@@ -195,3 +195,38 @@ ORDER BY e.id DESC LIMIT 10;
 The model sees the request's original count when available and the latest relevant evidence. A private decision to keep or defer changes only the requester's record. A delivered withdrawal closes an open request for both parties. A missed withdrawal leaves it open. Older saved villages can have an observation without a linked learning trace. A completed named shift retains its credit even if a withdrawal reaches the helper later.
 
 In a copy of the earlier rehearsal, Oswin's ordinary woodcutting and its repeat had added six bundles. Mabel's original reading was zero. On 1 August 1312 at 10:53 a staged inspection found six. The live model selected withdrawal (trace 6, confidence 0.27). Mabel reached Oswin at 11:26, delivered the message and closed the request. Her inspection established how much wood was there. It gave her no evidence of who supplied it.
+
+## Follow a goal
+
+Every memory a resident forms is stored in `dalecrest.observations`, every version of every goal in `dalecrest.goal_versions`, and every goal review in `dalecrest.goal_reviews`. Keys name a memory as `resident:number` and a goal version as `resident:goal:version`. A goal version's `basis` lists the memory and evidence keys it rests on, and an action trace's `goal_keys` and `observation_keys` list what its request was given.
+
+Read a resident's chain from what they saw to what came of it in one query:
+
+```sql
+SELECT observed_minute, observation, goal_id, goal_version, goal, review_id, trace_id, choice,
+       outcome_event_id, outcome, witnessed_by
+FROM dalecrest.goal_chain
+WHERE actor_id = 'oswin'
+ORDER BY observed_minute DESC, trace_id DESC;
+```
+
+See how a resident's goals have changed and what settled each:
+
+```sql
+SELECT goal_id, version, kind, status, text, condition, about, outcome->>'why' AS settled_by,
+       since_minute, settled_minute, review_id, basis
+FROM dalecrest.goal_versions
+WHERE actor_id = 'mabel'
+ORDER BY goal_id, version;
+```
+
+Read the latest reviews, what they cost and what they changed:
+
+```sql
+SELECT id, actor_id, why, status, token_charge, result->'applied' AS applied, result->'rejected' AS set_aside, statement
+FROM dalecrest.goal_reviews
+ORDER BY id DESC
+LIMIT 20;
+```
+
+A review whose status is `applied` changed the resident's goals as its `result` shows. `superseded` means the resident's review had already been settled when the reply came, and `invalid`, `refused`, `http_error` or `transport_error` mean the goals were left as they were and the review stays due. A failed review is tried again after ten minutes.

@@ -4,6 +4,16 @@ import { ownWorkContext } from './engine/village-work.mjs';
 import { lifeContext } from './engine/lives.mjs';
 import { buildingsContext, restDay } from './engine/workday.mjs';
 import { visitorContext } from './engine/visitors.mjs';
+import { recall } from './engine/memory.mjs';
+import { activeGoals, goalContext } from './engine/goals.mjs';
+
+// The memories put before the action model: what bears on the people the resident's goals, marriage and
+// open requests concern and on where they are, weighed against recency and importance.
+export function recalledFor(actor, world) {
+  const people = [...new Set([...activeGoals(actor).map(g => g.about), actor.spouse,
+    ...Object.values(actor.helpBook || {}).flatMap(r => [r.askerId, r.helperId])])].filter(id => id && id !== actor.id);
+  return recall(actor, { minute: world.minute, people, place: actor.action.target, limit: 6 });
+}
 
 export const DECISIONS_MODEL = 'gpt-6-luna';
 
@@ -29,7 +39,7 @@ export function actionDescription(action, names = {}) {
 export function actionBody(actor, world, menu, names = {}, weather) {
   const last = actor.action.previous, hearth = actor.observations?.hearth;
   const observation = {
-    name: actor.name, role: actor.role, traits: actor.traits, goals: actor.goals,
+    name: actor.name, role: actor.role, traits: actor.traits, goals: actor.goalBook ? goalContext(actor, names) : actor.goals,
     desires: actor.desires.map(({ focus, weight, target }) => ({ focus, weight, target })),
     needs: Object.fromEntries(Object.entries(actor.needs).map(([need, value]) => [need, Math.round(value)])),
     lastActivity: last && { kind: last.kind, label: last.label, place: names[last.target]?.name || last.target },
@@ -38,7 +48,7 @@ export function actionBody(actor, world, menu, names = {}, weather) {
     ...(weather && { weather }), ...(restDay(world.minute) && { dayOfRest: restDay(world.minute) }),
     ...visitorContext(actor, world, names), ...buildingsContext(actor, world, names),
     ...(hearth && world.minute - hearth.minute < 1440 && !hearth.lit && { ownHearth: world.cottages?.[actor.home] ? 'Cold since this morning: the woodpile at home ran out.' : 'Cold since this morning: there was no firewood left in the common store for the hall.' }),
-    lastOvenCheck: recalledOvenStores(actor, world.minute), recentMemories: actor.memories.slice(-5).map(m => m.text)
+    lastOvenCheck: recalledOvenStores(actor, world.minute), recentMemories: recalledFor(actor, world).map(m => villageTime(m.minute) + ': ' + m.text)
   };
   const options = Array.from(menu, ([value, action]) => ({
     value, description: actionDescription(action, names)

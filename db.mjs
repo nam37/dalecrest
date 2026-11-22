@@ -7,6 +7,8 @@ import { createVillage, stepVillage, adoptVillage, welcomeResidents, FOCUSES, DE
 import { POPULATION_LIMIT } from './engine/people.mjs';
 import { DECISIONS_MODEL, DECISIONS_URL, interpretDecision } from './decisions.mjs';
 import { salienceOf, PUBLIC } from './engine/chronicle.mjs';
+import { knowledgeSchema, writeGoals, writeObservations } from './knowledge.mjs';
+import { claimReview, sendReview, settleReview } from './goal-reviews.mjs';
 import { initializeTraces, advanceWithTraces, writeSteps, writeActivities, residentState } from './decision-trace.mjs';
 
 if (!process.env.DATABASE_URL) throw new Error('Set DATABASE_URL in .env to a PostgreSQL database before starting Dalecrest.');
@@ -63,7 +65,7 @@ async function recordEvents(db, events) {
   const rated = events.map(e => ({ ...e, salience: e.salience ?? salienceOf(e) }));
   const result = await db.query(`INSERT INTO dalecrest.events(minute, kind, actor_ids, description, outcome, place, salience)
     SELECT e.minute, e.type, e."actorIds", e.text, e.outcome, e.place, e.salience FROM jsonb_to_recordset($1::jsonb)
-    AS e(minute bigint, type text, "actorIds" text[], text text, outcome jsonb, place jsonb, salience smallint) RETURNING id, minute, actor_ids`, [JSON.stringify(rated)]);
+    AS e(minute bigint, type text, "actorIds" text[], text text, outcome jsonb, place jsonb, salience smallint) RETURNING id, minute, actor_ids, description`, [JSON.stringify(rated)]);
   return result.rows;
 }
 
@@ -116,6 +118,7 @@ export async function initialize() {
         WHEN kind = 'build' THEN 7 WHEN kind = 'arrival' THEN 8 ELSE 4 END
       WHERE salience IS NULL`);
     await db.query(`CREATE INDEX IF NOT EXISTS events_public ON dalecrest.events (id DESC) WHERE salience >= ${PUBLIC}`);
+    await db.query(knowledgeSchema);
     await db.query(`ALTER TABLE dalecrest.world ADD COLUMN IF NOT EXISTS ticks bigint NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS late_ms_max integer NOT NULL DEFAULT 0`);
     // The clock stops with the server. Time it was down is not counted as the clock running late.
@@ -215,9 +218,11 @@ async function tick(db) {
   await db.query(`UPDATE dalecrest.world SET state=$1, ticks=ticks+1,
     late_ms_max=greatest(late_ms_max, least(extract(epoch FROM now()-next_tick)*1000, 2000000000)::int),
     next_tick=now()+make_interval(secs=>$2) WHERE id=1`, [world, seconds]);
+  const chronicle = await recordEvents(db, [...arrivals, ...events]);
+  await writeGoals(db, actors);
+  await writeObservations(db, actors, chronicle);
   await saveActors(db, actors);
   if (map.revision !== before) await saveMap(db, map);
-  const chronicle = await recordEvents(db, [...arrivals, ...events]);
   await queueEditions(db, beforeMinute, world.minute);
   await writeSteps(db, steps, chronicle, traces, world.minute);
   await writeActivities(db, records);
@@ -288,6 +293,31 @@ async function lockedVillage(db) {
   const actors = (await db.query('SELECT state FROM dalecrest.actors ORDER BY ordinal')).rows.map(r => r.state);
   const map = await loadMap(db, world.mapRevision);
   return { world, actors, map };
+}
+
+// One goal review: claimed and recorded under the clock's lock, sent without it, and applied under it
+// again. Without a key nothing is sent and residents keep the goals they have.
+export async function reviewGoalsOnce({ key = process.env.CLAUDE_KEY?.trim(), request = fetch, budget, model } = {}) {
+  if (!key) return;
+  const claim = await transaction(async db => claimReview(db, await lockedVillage(db), { budget, model }));
+  if (!claim || claim.budgetLimited) return claim;
+  let reply;
+  try { reply = await sendReview(claim.body, key, request); }
+  catch (error) {
+    await pool.query("UPDATE dalecrest.goal_reviews SET status='transport_error', error='Transport failed before a reply was received.' WHERE id=$1", [claim.id]);
+    throw error;
+  }
+  return transaction(async db => {
+    const village = await lockedVillage(db);
+    const settled = await settleReview(db, village, claim, reply, recordEvents);
+    const actor = village.actors.find(a => a.id === claim.actorId);
+    if (settled.status === 'applied' && actor) {
+      await writeGoals(db, [actor]);
+      await writeObservations(db, [actor]);
+      await db.query('UPDATE dalecrest.actors SET state=$1 WHERE id=$2', [actor, actor.id]);
+    }
+    return settled;
+  });
 }
 
 export async function claimAction(hourlyBudget) {

@@ -1,6 +1,6 @@
 import http from 'node:http';
 import { readFile, readdir } from 'node:fs/promises';
-import { initialize, advance, snapshot, currentMap, pool, recentEvents } from './db.mjs';
+import { initialize, advance, snapshot, currentMap, pool, recentEvents, reviewGoalsOnce } from './db.mjs';
 import { planOnce, plannerStatus, plannerPollMs } from './planner.mjs';
 import { locationsOf } from './sim.mjs';
 import { affairs } from './engine/civic.mjs';
@@ -71,13 +71,22 @@ const editDaily = () => publishNextDaily(pool).catch(error => {
   console.error('Dalecrest Daily publication delayed.', error.message);
 });
 const press = setInterval(editDaily, 5000);
+// Goal reviews, one at a time, under their own spending cap.
+let reviewing = false;
+const reviews = setInterval(async () => {
+  if (reviewing) return;
+  reviewing = true;
+  try { await reviewGoalsOnce(); }
+  catch (error) { console.error('A goal review could not be completed.', error.message); }
+  finally { reviewing = false; }
+}, 4000);
 server.listen(port, host, () => {
   console.log('Dalecrest is listening at http://' + host + ':' + port);
   planOnce();
   editDaily();
 });
 function shutdown() {
-  clearInterval(clock); clearInterval(planner); clearInterval(press);
+  clearInterval(clock); clearInterval(planner); clearInterval(press); clearInterval(reviews);
   server.close(() => pool.end());
 }
 process.on('SIGINT', shutdown);

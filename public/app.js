@@ -4,6 +4,7 @@ import { light, skyOver } from '/ambient.js';
 import { residentCard, eventCard, kinds, portrait as likeness, whyText, whyLine, choiceExplanation, doing as doingAt } from '/card.js';
 import { createDirector } from '/director.js';
 import { ageOf } from '/engine/lives.mjs';
+import { conditionWords } from '/engine/goals.mjs';
 
 const $ = id => document.getElementById(id);
 const el = (tag, cls, value) => {
@@ -265,7 +266,17 @@ function renderProfile(actor) {
   if(cottage && Number.isFinite(cottage.woodpile)) household.append(el('p','goal','Woodpile at home: '+Math.floor(cottage.woodpile)+' bundles · Larder: '+(cottage.larder||0)+' loaves'));
   detail.append(household);
   detail.append(requests);
-  detail.append(block('Desires',...(actor.desires||[]).map(d=>el('p','goal',d.label))));
+  // Goals: those the record can settle say how, and those on evidence say whom they concern. The latest
+  // settled goals follow, with how they ended.
+  const goalRows=(actor.goalBook||[]).map(g=>{
+    const row=el('p','goal',g.text);
+    const about=g.about&&state.actors.find(a=>a.id===g.about)?.name;
+    row.append(el('small','tie',g.condition?' · '+conditionWords(g.condition,state.locations):about?' · concerns '+about:''));
+    return row;
+  });
+  const ended=(actor.goalHistory||[]).filter(g=>['met','missed','overtaken'].includes(g.status)).slice(-2).reverse()
+    .map(g=>el('p','reason',{met:'Met',missed:'Missed',overtaken:'Overtaken'}[g.status]+' '+date(g.settled)+': '+g.text));
+  detail.append(block('Goals',...(goalRows.length?goalRows:(actor.desires||[]).map(d=>el('p','goal',d.label))),...ended));
   const needs=block('Current needs');
   for(const [key,val] of Object.entries(actor.needs)){
     const n=Math.round(val), row=el('div',n>=70?'need urgent':'need'), track=el('span','track'), fill=el('i');
