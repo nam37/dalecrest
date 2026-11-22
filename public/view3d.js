@@ -384,14 +384,15 @@ export function createWalk(container, onSelect) {
           if (p.stage === 2) { m.material = m.material.clone(); dressed.fields.push({ mesh: m, tone }); }
           built.add(m);
         }
-      } else if (p.kind !== 'wood') {
+      } else if (p.kind !== 'wood' && p.kind !== 'fishing') {
         const g = buildPlace(p, map, glow);
         if (g.userData.wheel) wheels.push(g.userData.wheel);
         built.add(g);
       }
       if (p.name && p.kind !== 'field' && p.kind !== 'wood' && p.kind !== 'green') {
         const sprite = textSprite(p.stage < 2 ? p.name + ' (building)' : p.name);
-        sprite.position.set(p.x, heightAt(map, p.x, p.y) + (p.kind === 'well' ? 1.5 : 2.3), p.y);
+        const labelHeight = p.kind === 'fishing' ? 0.8 : p.kind === 'well' ? 1.5 : 2.3;
+        sprite.position.set(p.x, heightAt(map, p.x, p.y) + labelHeight, p.y);
         sprite.userData.reach = 46; sprite.userData.size = 0.34;
         names.add(sprite);
       }
@@ -590,11 +591,12 @@ export function createWalk(container, onSelect) {
       // Someone at home is indoors. Their smoke and lit window stand in for them.
       f.visible = !indoors(actor);
       f.userData.label.userData.hidden = !f.visible && actor.id !== selectedId;
-      let turn = -p.heading - f.rotation.y;
+      const working = !p.moving && actor.action.phase === 'working' && actor.action.kind === 'work';
+      const job = working && actor.action.job === 'fish' && !actor.action.cast ? 'bait' : actor.action.job;
+      let turn = -(working && job === 'fish' ? 0 : p.heading) - f.rotation.y;
       turn = Math.atan2(Math.sin(turn), Math.cos(turn));
       f.rotation.y += turn * Math.min(1, dt * 8);
-      const working = !p.moving && actor.action.phase === 'working' && actor.action.kind === 'work';
-      poseFigure(f, { moving: p.moving, gone: p.gone, now, dt, kind: actor.action.kind, job: actor.action.job, working });
+      poseFigure(f, { moving: p.moving, gone: p.gone, now, dt, kind: actor.action.kind, job, working });
       f.userData.label.position.set(x, y + 0.56 + (crowd.size % 2) * 0, z);
       f.userData.label.userData.always = actor.id === selectedId;
       if (actor.id === selectedId) followed = { x, y, z, heading: p.heading, moving: p.moving, at: p.moving ? null : actor.action.target };

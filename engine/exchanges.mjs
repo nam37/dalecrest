@@ -350,7 +350,7 @@ export function recordPrivateReview(actor, minute, emit) {
 export function settleHelp(actor, world, delta, emit) {
   const r = world.helpRequests?.[actor.action.commitmentId];
   if (!r || r.helperId !== actor.id || r.status !== 'accepted' || world.minute > r.due) return;
-  const completed = r.job === bedJob ? actor.action.target === r.site && world.cottages[r.site]?.brokenBed === false : delta[r.item] >= r.quantity;
+  const completed = r.job === bedJob ? actor.action.target === r.site && world.cottages?.[r.site]?.brokenBed === false : delta[r.item] >= r.quantity;
   if (!completed) return;
   r.status = 'kept';
   actor.observations.lastWork.kept = true;

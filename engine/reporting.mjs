@@ -2,7 +2,7 @@ import { remember } from './civic.mjs';
 import { place } from './roads.mjs';
 
 export const reportingGoal = 'Report what my neighbours do for the Dalecrest Daily and follow up on unfinished business';
-const beats = new Set(['oven', 'mill', 'field', 'wood', 'well', 'hall', 'green', 'alehouse']);
+const beats = new Set(['oven', 'mill', 'field', 'wood', 'fishing', 'well', 'hall', 'green', 'alehouse']);
 
 export function appointReporter(actor) {
   if (actor.id !== 'robin' || actor.trade !== 'harvest') return;
@@ -41,9 +41,10 @@ export function takeFieldNotes(actor, { actors, map, world }, emit) {
     if (other === actor || seen.phase !== 'working' || seen.target !== site.id || seen.remaining <= 0 ||
         Math.hypot(other.position.x - actor.position.x, other.position.y - actor.position.y) > 1) continue;
     let activity;
-    if (seen.kind === 'work' || seen.kind === 'inspect') activity = seen.label.toLowerCase().split(' for ')[0];
+    if (seen.job === 'hunt') activity = seen.label.toLowerCase();
+    else if (seen.kind === 'work' || seen.kind === 'inspect') activity = seen.label.toLowerCase().split(' for ')[0];
     else if (seen.kind === 'meeting') activity = 'attending the moot';
-    else if (seen.kind === 'food') activity = 'stopping for bread';
+    else if (seen.kind === 'food') activity = seen.meal ? 'stopping for a meal' : 'stopping for bread';
     else if (seen.kind === 'social' || seen.kind === 'conversation') activity = 'there on a visit';
     else continue;
     const entry = other.id + '/' + activity;

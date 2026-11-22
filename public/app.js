@@ -12,6 +12,7 @@ const el = (tag, cls, value) => {
 };
 const names = { village: 'Village observatory', residents: 'Village residents', chronicle: 'Village chronicle' };
 const stores = { grain:'Barley', flour:'Flour', bread:'Bread', wood:'Firewood', cloth:'Linen', water:'Water', repair:'Building repairs' };
+const hallStores = { game:'Undressed game', meat:'Game meat', hide:'Raw hides', fish:'Fresh fish', cooked:'Cooked meals', preserved:'Preserved portions', leather:'Leather' };
 let state, latest, frozen=false, selected='agnes', tab='life', route='village', rosterSignature='';
 let ground=null, viewMode='plan', walk=null, loadingWalk=false;
 const map = createMap($('map'), choose, {
@@ -164,6 +165,18 @@ function renderProfile(actor) {
   const event = state.events.find(e => e.type !== 'plan' && e.actorIds.includes(actor.id));
   if (event) detail.append(block('Latest chronicle event', el('p','memory-text',event.text),
     el('time','goal',date(event.minute)+' · '+time(event.minute))));
+  const { barleyStrip, cottages, fields, minute } = state.world;
+  if (barleyStrip?.keeper === actor.id) {
+    const { site, moisture, weeds } = barleyStrip;
+    const growing = [state.locations[site]?.name || 'Barley', moisture <= 1 ? 'Dry soil' : 'Moist soil',
+      weeds >= 2 ? 'Crowded with weeds' : 'Few weeds', fields?.[site] >= 3 ? 'Ready to reap' : 'Growing'];
+    detail.append(block('Barley strip', el('p','goal', growing.join(' · '))));
+  }
+  const cottage = cottages?.[actor.home], repairs = [];
+  if (cottage?.brokenBed) repairs.push('Broken bed');
+  if (minute >= cottage?.floorDue) repairs.push('Rotten floorboard');
+  if (minute >= cottage?.sweepDue) repairs.push('Needs sweeping');
+  if (repairs.length) detail.append(block('Cottage', el('p','goal',repairs.join(' · '))));
   detail.append(requests);
   detail.append(block('Desires',...(actor.desires||[]).map(d=>el('p','goal',d.label))));
   const needs=block('Current needs');
@@ -279,7 +292,8 @@ function render() {
     $('map-count').textContent=actors.length+' residents';
     const notable=shown(events,'highlights');
     journal($('recent-events'),(notable.length?notable:events).slice(0,5));
-    $('supplies').replaceChildren(...Object.entries(stores).map(([key,name])=>{
+    const stocked = [...Object.entries(stores), ...Object.entries(hallStores).filter(([key]) => world.supplies[key] > 0)];
+    $('supplies').replaceChildren(...stocked.map(([key,name])=>{
       const row=el('div','supply'),amount=el('strong','',world.supplies[key]);
       amount.append(el('small','',' / '+(world.capacity?.[key]??capacity[key])));
       row.append(el('span','',name),amount);return row;

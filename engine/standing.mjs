@@ -17,7 +17,7 @@ export const PILOT = {
 
 const isNight = minute => { const t = minute % 1440; return t >= 1260 || t < 340; };
 // What an action is matched on when the menu is rebuilt: the job, or the place for anything else.
-const matchOf = action => action.kind + ':' + (action.job || action.target);
+const matchOf = action => action.kind + ':' + (action.job || action.target) + (action.meal ? ':' + action.meal : '');
 const goalsKey = actor => JSON.stringify(actor.goals || []);
 
 // The routine a chosen action answers, or null for something that is always a choice.

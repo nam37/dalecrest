@@ -270,9 +270,10 @@ Give residents more to weigh. This stage is engine work and adds no model calls 
 **Marked off · 21 November 2026.**
 
 - [ ] **Seasons and weather.** Under way. The village has a calendar, daylight, weather and hearths that burn the woodpile. Barley is still gathered in January, and the year is the real 365 days, which is open decision 10.
-- [ ] **Households.** Under way. A broken bed slows Agnes's recovery. She can spend two bundles of wood to fix it herself or ask Thomas, who can do the job faster with one bundle. The request, reply and work are recorded. Households draw on the common store.
+- [ ] **Households.** Under way. A broken bed slows Agnes's recovery. She can spend two bundles of wood to fix it herself or ask Thomas, who can do the job faster with one bundle. The request, reply and work are recorded. Occupied cottages need sweeping and occasional floorboard replacement. Households draw on the common store.
 - [ ] **Lives.** Not begun. Cold is now a fourth need, and a chilled resident sleeps badly. Nothing follows from it yet.
 - [ ] **A working day.** Under way. Agnes can weed or water her barley strip by daylight. Weeds and soil moisture affect how much barley is ready the next morning, and rain replenishes moisture. The other fields still follow their existing harvest cycle. Queues and feast days remain planned.
+- [x] **Hunting and fishing.** Residents can look for game in the coppice, gather bait and fish from a dry riverbank, and mend a worn fishing pole. They can dress game, tan hides, and cook, smoke or cure the catch. Fresh food spoils overnight. Cooked and preserved portions supply meals at the hall.
 - [ ] **Outside events.** Not begun.
 - [ ] **A chronicle that selects.** Under way. The page opens on highlights that leave routine out. Events carry no salience of their own, and food is still a fraction of a bin.
 

@@ -53,10 +53,10 @@ export function hearths(map, actors, cold = []) {
     const action = a.action;
     if (!action || action.phase !== 'working') continue;
     if (action.kind === 'rest' || action.kind === 'meeting' || (action.kind === 'leisure' && action.target !== 'green')
-      || (action.kind === 'work' && (action.job === 'bake' || action.job === 'weave'))) lit.add(action.target);
+      || action.indoors || (action.kind === 'work' && ['bake', 'weave', 'repairBed'].includes(action.job))) lit.add(action.target);
   }
   return map.places.filter(p => p.w && p.kind !== 'field' && p.stage === 2 && lit.has(p.id) && !cold.includes(p.id));
 }
 
 // A resident who is indoors and out of sight.
-export const indoors = actor => actor.action?.kind === 'rest' && actor.action.phase === 'working';
+export const indoors = ({ action }) => action?.phase === 'working' && (action.kind === 'rest' || action.indoors || action.job === 'repairBed');

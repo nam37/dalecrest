@@ -3,6 +3,7 @@
 import { dist, clamp } from './geom.mjs';
 import { place, placesOf, addNode, addEdge, walkLength, clearWalk, touch } from './roads.mjs';
 import { FIELD_NAMES, addPlace, pickLot, extendLane, fieldSite } from './sites.mjs';
+import { prepareCottage } from './village-work.mjs';
 
 // Shifts of labour and bundles of wood each kind of work needs.
 export const WORKS = {
@@ -273,6 +274,7 @@ function complete(project, state, emit) {
     const owner = actors.find(a => a.id === project.for);
     if (owner && isLodger(owner, map)) {
       owner.home = site.id;
+      prepareCottage(world, owner, site);
       tell('The cottage' + whereabouts(map, site) + ' is finished, and ' + owner.name + ' has moved in from the hall.', [owner.id]);
       remember(owner, world.minute, owner.name + ' moved into a cottage of their own' + whereabouts(map, site) + '.', [owner.id], 'work');
     } else tell('A cottage' + whereabouts(map, site) + ' is finished and stands empty.');

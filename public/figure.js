@@ -58,10 +58,14 @@ function tool(job) {
     blade.rotation.set(Math.PI / 2, 0, 0.5);
     g.add(shaft(0.05), blade);
   } else if (job === 'bake') g.add(shaft(0.27), mesh(new THREE.BoxGeometry(0.075, 0.006, 0.064), soft('#b89366'), 0.3, 0, 0));
-  else if (job === 'draw') {
+  else if (job === 'draw' || job === 'waterBarley') {
     const pail = mesh(new THREE.CylinderGeometry(0.031, 0.025, 0.046, 10, 1, true), soft('#8a6a45', { side: THREE.DoubleSide }), 0.01, -0.045, 0);
     g.add(pail, mesh(new THREE.CircleGeometry(0.03, 10), soft('#6f8f96'), 0.01, -0.034, 0, false));
     g.children[1].rotation.x = -Math.PI / 2;
+  } else if (job === 'fish') {
+    const rod = shaft(0.6, 0.007);
+    const line = mesh(new THREE.CylinderGeometry(0.001, 0.001, 0.25, 4), soft('#c4b994'), 0.59, -0.125, 0);
+    g.add(rod, line);
   } else if (job === 'mill') { const sack = mesh(shapes.hand, soft('#d9cba3'), 0.03, 0.01, -0.06); sack.scale.set(2.6, 3.4, 2.4); g.add(sack); }
   else if (job === 'weave') { const wool = mesh(shapes.hand, soft('#e9e3d0'), 0.15, 0, 0); wool.scale.set(1.5, 1.1, 1.1); g.add(shaft(0.17, 0.0045), wool); }
   else return null;
@@ -140,7 +144,7 @@ export function poseFigure(figure, { moving, gone, now, dt, kind, job, working }
     // Raise the tool slowly and bring it down fast.
     const s = (t * 0.75) % 1, up = s < 0.72 ? s / 0.72 : 1 - (s - 0.72) / 0.28;
     armR = -0.5 - 2.0 * up; armL = -0.4 - 0.9 * up; lean = -0.12 - 0.16 * (1 - up);
-  } else if (working && job === 'harvest') {
+  } else if (working && (job === 'harvest' || job === 'weed' || job === 'bait')) {
     // Bent to the corn, sweeping the sickle across.
     lean = -0.62; armR = -0.75 + Math.sin(t * 2.6) * 0.28; spreadR = -0.13 + Math.sin(t * 2.6) * 0.55; armL = -0.95; nod = 0.25;
   } else if (working && job === 'bake') {
@@ -149,6 +153,12 @@ export function poseFigure(figure, { moving, gone, now, dt, kind, job, working }
   } else if (working && job === 'draw') {
     // Hauling the rope hand over hand.
     armR = -1.25 + Math.sin(t * 3.2) * 0.5; armL = -1.25 - Math.sin(t * 3.2) * 0.5; lean = -0.08;
+  } else if (working && job === 'waterBarley') {
+    armR = -1.2 - Math.sin(t * 1.8) * 0.35; armL = -0.9; lean = -0.3;
+  } else if (working && job === 'fish') {
+    armR = -1.3 + Math.sin(t * 0.8) * 0.07; armL = -0.85; sway = Math.sin(t * 0.6) * 0.03;
+  } else if (working && job === 'hunt') {
+    lean = -0.18; nod = 0.22 + Math.sin(t * 1.1) * 0.1; sway = Math.sin(t * 1.3) * 0.09;
   } else if (working && job === 'mill') {
     armR = -1.0; armL = -1.0; lean = -0.14; sway = Math.sin(t * 1.3) * 0.04;
   } else if (working && job === 'weave') {
