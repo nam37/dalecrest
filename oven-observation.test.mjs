@@ -59,7 +59,7 @@ test('inspection reads on site, survives ordinary memories and prompts a new dec
   assert.deepEqual(memory.observation, seen);
 
   goHome(actor, resumed);
-  for (let i = 0; i < 20; i++) remember(actor, resumed.world.minute, 'Another ordinary event.', [actor.id], 'social');
+  for (let i = 0; i < 70; i++) remember(actor, resumed.world.minute, 'Another ordinary event.', [actor.id], 'social');
   assert.ok(!actor.memories.some(m => m.kind === 'observation'));
   resumed.world.minute += 45;
   const before = request(actor, resumed);

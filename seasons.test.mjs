@@ -72,52 +72,57 @@ function villageAt(minute) {
   return village;
 }
 
-test('on a cold dawn every hearth takes firewood from the common store, and none in summer', () => {
+test('on a cold dawn every cottage hearth burns from its own woodpile, and none in summer', () => {
   const summer = villageAt(dawnWhen(26111, 2, t => t >= 11));
   summer.world.supplies.wood = 20;
+  const piles = Object.values(summer.world.cottages).map(c => c.woodpile);
   const warm = stepVillage(summer, { minutes: 1 });
   assert.equal(summer.world.supplies.wood, 20);
-  assert.match(warm.find(e => /^Dawn breaks/.test(e.text)).text, /village stores\.$/);
+  assert.deepEqual(Object.values(summer.world.cottages).map(c => c.woodpile), piles);
+  assert.match(warm.find(e => /^Dawn breaks/.test(e.text)).text, /village stores.$/);
 
   const dawn = dawnWhen(26111, 130, t => t <= 2);
   const winter = villageAt(dawn), rate = fuelPerHearth(dayTemp(dawn, winter.map.seed));
   winter.world.supplies.wood = 20;
+  for (const cottage of Object.values(winter.world.cottages)) cottage.woodpile = 5;
   const events = stepVillage(winter, { minutes: 1 });
-  // Eight households, each with its own cottage.
-  const taken = Math.floor(8 * rate);
-  assert.ok(taken >= 6);
-  assert.equal(winter.world.supplies.wood, 20 - taken);
-  assert.match(events.find(e => /^Dawn breaks/.test(e.text)).text, new RegExp('carry home ' + taken + ' bundles of firewood'));
+  assert.ok(rate >= 0.75);
+  // The village woodpile is not touched: each household burns what it carried home.
+  assert.equal(winter.world.supplies.wood, 20);
+  for (const cottage of Object.values(winter.world.cottages)) assert.equal(cottage.woodpile, 5 - Math.floor(rate));
+  assert.match(events.find(e => /^Dawn breaks/.test(e.text)).text, /light their hearths.$/);
   assert.deepEqual(winter.world.coldHearths, []);
   assert.ok(winter.actors.every(a => a.observations.hearth.lit));
 });
 
-test('when the woodpile will not go round, some hearths stay cold and those households know it', () => {
+test('a household whose woodpile runs out wakes cold, though the village woodpile stands', () => {
   const dawn = dawnWhen(26111, 130, t => t <= -1);
   const village = villageAt(dawn);
-  village.world.supplies.wood = 3;
+  village.world.supplies.wood = 12;
   village.world.supplies.flour = 12;
+  const homes = village.actors.map(a => a.home);
+  homes.forEach((home, i) => { village.world.cottages[home].woodpile = i < 3 ? 0 : 5; });
   const events = stepVillage(village, { minutes: 1 });
   const { world, actors } = village;
-  assert.equal(world.supplies.wood, 0, 'the households took what there was');
-  assert.equal(world.coldHearths.length, 5);
-  const short = events.find(e => /firewood for only/.test(e.text));
-  assert.match(short.text, /^There was firewood for only 3 of the 8 hearths this morning\. .* woke to a cold house\.$/);
-  assert.deepEqual(short.outcome, { hearths: 8, lit: 3, firewoodTaken: 3 });
+  assert.equal(world.supplies.wood, 12, 'the village woodpile is untouched');
+  assert.deepEqual(world.coldHearths, homes.slice(0, 3).sort());
+  const short = events.find(e => /firewood ran out/.test(e.text));
+  assert.match(short.text, /^The firewood ran out at .+’s cottage.*, and .+ woke to a cold house.$/);
+  assert.deepEqual(short.outcome, { hearths: 8, lit: 5, firewoodTaken: 0 });
   const without = actors.filter(a => world.coldHearths.includes(a.home));
   assert.deepEqual(short.actorIds.slice().sort(), without.map(a => a.id).sort());
   for (const actor of actors) {
     const cold = world.coldHearths.includes(actor.home);
     assert.equal(actor.observations.hearth.lit, !cold);
-    // Only those who went without learn of the shortage, and it is theirs to remember.
-    assert.equal(actor.memories.some(m => m.shortage === 'wood' && /cold hearth/.test(m.text)), cold, actor.name);
+    // Only those who went without learn of it, and it is their own pile that ran out.
+    assert.equal(actor.memories.some(m => m.shortage === 'woodpile' && /cold hearth/.test(m.text)), cold, actor.name);
   }
-  // Someone who woke to a cold hearth will turn out to cut wood, though it is not their trade.
-  const weaver = actors.find(a => a.id === 'edith');
-  if (world.coldHearths.includes(weaver.home)) assert.ok([...availableActions(weaver, village).keys()].some(id => id.startsWith('work:cut')));
-  // The request to the action model carries the weather and the cold hearth, and only for those it happened to.
+  // Someone who woke to a cold hearth can carry firewood home from the village woodpile.
+  assert.ok([...availableActions(without[0], village).keys()].some(id => id.startsWith('work:fetchWood')));
+  // The request to the action model carries the weather, the cold hearth and the woodpile, and only for those it happened to.
   const body = actor => JSON.parse(actionBody(actor, world, availableActions(actor, village), {}, weatherAt(world.minute, village.map.seed).text)).input[0].content[0].data;
-  assert.match(body(without[0]).ownHearth, /no firewood/);
+  assert.match(body(without[0]).ownHearth, /cold/i);
+  assert.match(body(without[0]).ownHousehold.woodpile, /^0 bundles/);
   assert.equal(body(actors.find(a => !world.coldHearths.includes(a.home))).ownHearth, undefined);
   assert.match(body(without[0]).weather, /cold|freezing/i);
   assert.equal(body(without[0]).needs.cold, 0);
@@ -171,7 +176,7 @@ test('a first winter under local rules brings a morning with flour and no firewo
     let bare = false;
     for (let step = 0; step < 48; step++) {
       for (const e of stepVillage(village, { minutes: 30 })) {
-        if (/firewood for only/.test(e.text)) coldDays++;
+        if (/firewood ran out/.test(e.text)) coldDays++;
         // A resident learns of it by going to the oven and counting.
         if (e.type === 'observation' && e.outcome.flour >= 2 && e.outcome.wood === 0) found++;
       }

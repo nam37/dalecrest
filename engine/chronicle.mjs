@@ -23,9 +23,11 @@ export function judge(world, events) {
     if (world.told[key] > event.minute - SEEN_FOR) event.salience = PUBLIC - 1;
     else world.told[key] = event.minute;
   }
-  if (events.length && world.minute % 1440 < events.length + 5) {
-    for (const [key, minute] of Object.entries(world.told)) if (minute <= world.minute - SEEN_FOR) delete world.told[key];
-  }
+}
+
+// Called at dawn: sentences told more than three days ago may be told again.
+export function forgetTold(world) {
+  for (const [key, minute] of Object.entries(world.told || {})) if (minute <= world.minute - SEEN_FOR) delete world.told[key];
 }
 
 export function salienceOf(event) {

@@ -33,7 +33,7 @@ export function actionBody(actor, world, menu, names = {}, weather) {
     whyThisIsAChoice: actor.action.why,
     time: villageTime(world.minute), ...socialContext(actor, world.minute), ...ownWorkContext(actor, world),
     ...(weather && { weather }),
-    ...(hearth && world.minute - hearth.minute < 1440 && !hearth.lit && { ownHearth: 'Cold since this morning: there was no firewood left in the common store.' }),
+    ...(hearth && world.minute - hearth.minute < 1440 && !hearth.lit && { ownHearth: world.cottages?.[actor.home] ? 'Cold since this morning: the woodpile at home ran out.' : 'Cold since this morning: there was no firewood left in the common store for the hall.' }),
     lastOvenCheck: recalledOvenStores(actor, world.minute), recentMemories: actor.memories.slice(-5).map(m => m.text)
   };
   const options = Array.from(menu, ([value, action]) => ({

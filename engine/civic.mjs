@@ -21,10 +21,8 @@ const PATH_WEAR = 12;
 
 const first = actor => actor.name.split(' ')[0];
 export const isLodger = (actor, map) => place(map, actor.home)?.kind !== 'cottage';
-export function remember(actor, minute, text, actorIds, kind, details = {}) {
-  actor.memories.push({ minute, text, actorIds, kind, ...details });
-  if (actor.memories.length > 18) actor.memories.shift();
-}
+export { remember } from './memory.mjs';
+import { remember } from './memory.mjs';
 const slots = actors => 1 + Math.floor(actors.length / 10);
 const ready = (p, actors) => p.supporters.length >= (p.kind === 'cottage' ? Math.max(2, Math.ceil(actors.length / 4)) : Math.max(3, Math.ceil(actors.length / 3)));
 const lane = (map, site) => map.roads[site.road]?.name;

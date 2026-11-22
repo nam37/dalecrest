@@ -2,6 +2,7 @@ import { remember } from './civic.mjs';
 import { formatDate } from './calendar.mjs';
 import { currentUpdate, noticeForRequests, ovenFact, requestIsOpen } from './request-review.mjs';
 import { bedJob, bedRepairRequest } from './village-work.mjs';
+import { rely, standingWith, warm } from './bonds.mjs';
 
 const supplies = {
   wood: { job: 'cut', terms: 'stack three bundles of firewood', low: 3, units: 3 },
@@ -59,7 +60,7 @@ export function socialContext(actor, minute) {
     const news = currentUpdate(actor, r);
     return { requester: r.asker, helper: r.helper, terms: r.terms, status: r.status, due: villageTime(r.due),
       ...(r.helperId === actor.id && r.status === 'accepted' && { minutesLeftToFinish: r.due - minute }),
-      relationship: actor.relationships[r.askerId === actor.id ? r.helperId : r.askerId] ?? 0,
+      standing: standingWith(actor, r.askerId === actor.id ? r.helperId : r.askerId),
       ...(news && { reasonToReconsider: {
         item: r.item, ...(r.basedOn && { originalCount: r.basedOn.count, originalReading: villageTime(r.basedOn.minute) }),
         account: news.account, witnessedBy: news.observer, witnessed: villageTime(news.observedAt),
@@ -196,6 +197,9 @@ function receive(actor, speaker, fact, minute) {
     const r = active || actor.requestMemories?.find(r => r.id === fact.requestId);
     if (r && actor.id === r.askerId && fact.observerId === r.helperId && fact.minute <= r.due &&
         ['accepted', 'released', 'unconfirmed'].includes(r.status)) {
+      // Hearing late that a promise was kept makes up for having given it up.
+      rely(actor, r.helperId, r.status === 'unconfirmed' ? 14 : 9, minute, r.helper + ' kept the promise to ' + r.terms + '.');
+      warm(actor, r.helperId, 2, minute);
       r.status = 'kept';
       r.confirmation = { observedAt: fact.minute, heardAt: minute, toldBy: speaker.name };
       if (!active) storeRequestMemory(actor, r);
@@ -315,6 +319,11 @@ export function finishConversation(actor, state, emit) {
   } else {
     request.status = verb === 'accept' ? 'accepted' : 'declined';
     agreement = request;
+    if (verb === 'accept') rely(other, actor.id, 2, minute, actor.name + ' promised to ' + request.terms + '.');
+    else {
+      rely(other, actor.id, -3, minute, actor.name + ' declined to ' + request.terms + '.');
+      warm(other, actor.id, -1.5, minute);
+    }
     text = actor.name + (verb === 'accept' ? ' promised ' : ' declined ') + 'to ' +
       agreement.terms + ' for ' + other.name + ' by ' + villageTime(agreement.due) + '.';
   }
@@ -376,6 +385,10 @@ export function expireHelp({ world, actors }, emit) {
     if (requestIsOpen(r)) {
       if (r.status === 'asked') r.status = 'unanswered';
       else r.status = a.id === r.helperId ? 'broken' : 'unconfirmed';
+      if (a.id === r.askerId) {
+        if (r.status === 'unanswered') rely(a, r.helperId, -5, world.minute, 'No answer came from ' + r.helper + ' before the request to ' + r.terms + ' ran out.');
+        else rely(a, r.helperId, -10, world.minute, r.helper + ' promised to ' + r.terms + ', and no word came that it was done.');
+      }
       learn(a, world.minute, 'reached the deadline for the request to ' + r.terms);
     }
     storeRequestMemory(a, r);

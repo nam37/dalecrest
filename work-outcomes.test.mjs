@@ -75,7 +75,7 @@ test('PostgreSQL commits competing oven shifts and stock together, including aft
       remaining: 0, since: initial.world.minute, why: 'no instruction applies', previous: { kind: 'idle', label: 'Starting the day', target: 'oven' } };
     await pool.query("UPDATE dalecrest.actors SET state=jsonb_set(state,'{action}',$1) WHERE id='mabel'", [waiting]);
     async function choose(choice) {
-      const ticket = await db.claimAction(7000);
+      const ticket = await db.claimAction(12000);
       assert.ok(JSON.parse(ticket.body).questions[0].choices.some(option => option.value === choice));
       await db.recordReply(ticket.id, { status: 200, requestId: 'test-oven', redacted: false, body: JSON.stringify({
         answers: [{ name: 'next_action', type: 'choice', choice, confidence: 0.8 }], usage: { total_tokens: 300 } }) });
