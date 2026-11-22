@@ -45,6 +45,12 @@ const whys = {
 };
 export const whyText = why => !why ? '' : whys[why] || (why.startsWith('would run into') ? 'Their routine ' + why + '.' : why[0].toUpperCase() + why.slice(1) + '.');
 
+export function choiceExplanation(activity) {
+  const waited = activity.basis?.waited, reason = activity.reason || '';
+  if (!waited) return reason;
+  return (reason + ' Took ' + waited + ' village ' + (waited === 1 ? 'minute' : 'minutes') + ' to decide.').trim();
+}
+
 // One line saying what a resident is doing, for cards and captions.
 export function doing(actor, names = {}) {
   const activity = actor.action, at = names[activity.target]?.name || activity.target;
@@ -76,14 +82,15 @@ export function residentCard(actor, { index = 0, names = {}, minute = 0, others 
   const say = text => { if (text) why.append(el('p', 'reason', text)); };
   if (deciding) {
     why.append(chip('waiting', 'Deciding'));
-    say(whyText(a.why) || 'Waiting for a decision.');
-    say([Number.isFinite(a.since) && 'Since ' + when(a.since, minute), a.previous && 'Last: ' + a.previous.label].filter(Boolean).join(' · '));
+    say(a.reason);
+    say(whyText(a.why));
+    if (Number.isFinite(a.since)) say('Since ' + when(a.since, minute));
   } else if (a.basis?.kind === 'standing') {
     why.append(chip('standing', 'Routine'));
     say('Following the choice made ' + when(a.basis.since, minute) + '.');
   } else {
     if (a.basis?.kind === 'fresh') { why.append(chip('fresh', 'Fresh choice')); say(whyText(a.basis.why)); }
-    say((a.reason || '') + (a.basis?.waited ? ' Waited ' + a.basis.waited + ' village minutes for the answer.' : ''));
+    say(choiceExplanation(a));
   }
   if (actor.plan?.reason) say('Today’s intention: ' + actor.plan.reason);
   const pressing = Object.entries(actor.needs || {}).filter(([, value]) => value >= 60).sort((x, y) => y[1] - x[1]).slice(0, 2);

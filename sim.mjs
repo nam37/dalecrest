@@ -74,6 +74,12 @@ function desireWeight(actor, focus, target) {
   }, 0), -40, 40);
 }
 
+function decisionAfter(verb, label = '') {
+  const activity = label.trim().replace(/[.!?]+$/, '');
+  if (/^[a-z]+ing\b/i.test(activity)) return verb + ' after ' + activity[0].toLowerCase() + activity.slice(1) + '.';
+  return verb + '.' + (activity ? ' The previous activity was “' + activity + '”.' : '');
+}
+
 // Fills in anything a stored village predates. Safe to repeat.
 function normalize({ world, actors, map }) {
   world.capacity ??= { ...CAPACITY };
@@ -93,6 +99,9 @@ function normalize({ world, actors, map }) {
     appointReporter(actor);
     actor.needs.cold ??= 0;
     if (!Array.isArray(actor.desires)) actor.desires = inferDesires(actor);
+    const lastChoice = /^Selected by .+? after (.+)\.$/.exec(actor.action.reason);
+    if (lastChoice) actor.action.reason = decisionAfter('Chose this', lastChoice[1]);
+    if (actor.action.kind === 'waiting') actor.action.reason = decisionAfter('Will decide', actor.action.previous?.label);
     if (!actor.action.reason) actor.action.reason = 'Continuing an activity chosen earlier in the day.';
   }
 }
@@ -328,7 +337,7 @@ function waitForDecision(actor, minute, why) {
   if (actor.action.kind === 'waiting') return false;
   const { kind, label, target, job } = actor.action;
   actor.action = { kind: 'waiting', phase: 'waiting', label: 'Choosing the next activity', target, remaining: 0,
-    since: minute, previous: { kind, label, target, ...(job ? { job } : {}) }, why, reason: 'Waiting for a decision from gpt-6-luna.' };
+    since: minute, previous: { kind, label, target, ...(job ? { job } : {}) }, why, reason: decisionAfter('Will decide', label) };
   actor.plan = null;
   return true;
 }
@@ -370,7 +379,7 @@ export function startChosen(actor, state, id, trace, pilot = standing.PILOT) {
   if (action.update) actor.helpBook[action.requestId].consideredFact = action.update.factId;
   actor.action = { ...action, phase: action.onSpot ? 'working' : 'travelling', choiceId: id, decisionTraceId: trace.id,
     basis: { kind: 'fresh', trace: trace.id, waited: minute - since, ...(why ? { why } : {}) },
-    reason: 'Selected by ' + trace.model + ' after ' + previous.label + '.' };
+    reason: decisionAfter('Chose this', previous?.label) };
   actor.plan = null;
   actor.lastModelPlanAt = actor.decidedAt = minute;
   const kept = standing.keep(actor, state, action, trace.id, pilot);

@@ -33,6 +33,24 @@ function run(village, minutes, policy, latency = 3) {
 }
 const count = (records, basis, routine) => records.filter(r => r.basis === basis && (!routine || r.routine === routine)).length;
 
+test('decision wording describes the resident before and after choosing, including saved activities', () => {
+  const village = createVillage(), actor = village.actors[0];
+  actor.action = { kind: 'food', phase: 'working', label: 'Taking a loaf at the oven', target: 'oven', remaining: 1 };
+  stepVillage(village, { minutes: 1, externalActions: true });
+  assert.equal(actor.action.reason, 'Will decide after taking a loaf at the oven.');
+
+  actor.action.reason = 'Waiting for a decision from gpt-6-luna.';
+  stepVillage(village, { minutes: 0 });
+  assert.equal(actor.action.reason, 'Will decide after taking a loaf at the oven.');
+  startChosen(actor, village, 'leisure:green', { id: '7', model: 'test-provider' });
+  assert.equal(actor.action.reason, 'Chose this after taking a loaf at the oven.');
+
+  actor.action.reason = 'Selected by test-provider after Visiting Oswin Holt.';
+  stepVillage(village, { minutes: 0 });
+  assert.equal(actor.action.reason, 'Chose this after visiting Oswin Holt.');
+  assert.equal(actor.action.decisionTraceId, '7');
+});
+
 test('village time passes when no decision ever arrives', () => {
   const village = createVillage(), start = village.world.minute;
   const { records } = run(village, 2880, () => null);

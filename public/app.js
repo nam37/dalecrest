@@ -1,7 +1,7 @@
 import { createMap } from './map.js';
 import { dateOf, formatDate } from '/engine/calendar.mjs';
 import { light, skyOver } from '/ambient.js';
-import { residentCard, eventCard, kinds, portrait as likeness, whyText, doing as doingAt } from '/card.js';
+import { residentCard, eventCard, kinds, portrait as likeness, whyText, choiceExplanation, doing as doingAt } from '/card.js';
 
 const $ = id => document.getElementById(id);
 const el = (tag, cls, value) => {
@@ -104,9 +104,9 @@ function renderProfile(actor) {
   const detail=$('detail');
   if(tab==='data'){
     let pre=detail.querySelector('pre');
-    if(!pre){pre=el('pre','raw'); pre.tabIndex=0; pre.setAttribute('aria-label','PostgreSQL JSONB record for '+actor.name); detail.replaceChildren(pre);}
+    if(!pre){pre=el('pre','raw'); pre.tabIndex=0; pre.setAttribute('aria-label','Resident record for '+actor.name); detail.replaceChildren(pre);}
     const top=pre.scrollTop;
-    pre.textContent=JSON.stringify(actor,null,2); pre.scrollTop=top; return;
+    pre.textContent=JSON.stringify(actor,(key,value)=>key==='model'?undefined:value,2); pre.scrollTop=top; return;
   }
   detail.replaceChildren();
   const archive = el('a', '', 'Request history');
@@ -139,11 +139,11 @@ function renderProfile(actor) {
   const activity=actor.action;
   const at=state.locations[activity.target]?.name || activity.target;
   if (activity.kind === 'waiting') {
-    const waiting = block('At '+at, el('strong','activity','Deciding what to do next'), chip('waiting','Deciding','Waiting for a decision from the model'));
+    const waiting = block('At '+at, el('strong','activity','Deciding what to do next'), chip('waiting','Deciding'));
+    if (activity.reason) waiting.append(el('p','reason',activity.reason));
     if (activity.why) waiting.append(el('p','reason',whyText(activity.why)));
     const since = Number.isFinite(activity.since) ? 'Since '+date(activity.since)+' at '+time(activity.since) : '';
-    const last = activity.previous ? 'Last: '+activity.previous.label : '';
-    if (since || last) waiting.append(el('p','reason',[since,last].filter(Boolean).join(' · ')));
+    if (since) waiting.append(el('p','reason',since));
     detail.append(waiting);
   } else {
     const travelling = activity.phase === 'travelling';
@@ -152,14 +152,14 @@ function renderProfile(actor) {
     // How this activity came about: a fresh choice by the model, or routine on a choice it made earlier.
     const basis = activity.basis;
     if (basis?.kind === 'standing') {
-      now.append(chip('standing','Routine','Following a choice the model made earlier'),
+      now.append(chip('standing','Routine','Following an earlier choice'),
         el('p','reason','Following the choice made '+date(basis.since)+' at '+time(basis.since)+'.'));
     } else {
-      if (basis?.kind === 'fresh') now.append(chip('fresh','Fresh choice','Chosen by the model for this moment'));
-      now.append(el('p','reason',activity.reason+(basis?.waited ? ' Waited '+basis.waited+' village minutes for the answer.' : '')));
+      if (basis?.kind === 'fresh') now.append(chip('fresh','Fresh choice','A choice the resident just made'));
+      now.append(el('p','reason',choiceExplanation(activity)));
     }
     detail.append(now);
-    if(actor.plan)detail.append(block(actor.plan.method==='choice'?'Model priority · '+actor.plan.focus:'Model intention',el('p','goal',actor.plan.reason)));
+    if(actor.plan)detail.append(block(actor.plan.method==='choice'?'Priority · '+actor.plan.focus:'Today’s intention',el('p','goal',actor.plan.reason)));
   }
   const event = state.events.find(e => e.type !== 'plan' && e.actorIds.includes(actor.id));
   if (event) detail.append(block('Latest chronicle event', el('p','memory-text',event.text),
@@ -263,7 +263,7 @@ function render() {
   const extras={coldHearths:world.coldHearths||[], events:shown(events,'highlights').filter(e=>e.place&&world.minute-e.minute<=90).slice(0,12)};
   // In the village the map is the page. Its title gives way and the clock moves onto the plate.
   $('page-title').hidden=route==='village';
-  $('planner-status').textContent=planner.configured?'Planner · '+planner.model+' · '+planner.state:'Planner · local decision rules';
+  $('planner-status').textContent=planner.configured?'Village decisions · '+planner.state:'Village decisions · local rules';
   if(route==='village'){
     const actor=actors.find(a=>a.id===selected)||actors[0]; selected=actor.id;
     const motionMs = frozen ? 0 : Math.max(1, state.tickDueAt - performance.now());
