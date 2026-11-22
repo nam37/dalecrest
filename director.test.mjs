@@ -101,7 +101,8 @@ test('a village founded from a seed always gives the director something to show'
   const village = createVillage(26111);
   const director = createDirector();
   const keys = new Set();
-  for (let step = 0; step < 240; step++) {
+  // Five days: under local rules the founding village has nothing notable until its first newcomer, on the third.
+  for (let step = 0; step < 1440; step++) {
     const events = stepVillage(village, { minutes: 5 });
     village.events = [...events.map((e, i) => ({ ...e, id: step + ':' + i })).reverse(), ...(village.events || [])].slice(0, 100);
     for (const scene of scenes(village)) {
