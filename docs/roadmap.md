@@ -17,12 +17,15 @@
 | 1. The promise pilot | In hand | 6 | 2 | 0 |
 | 2. Goals and memory | Built, live reviews to be read | 6 | 0 | 0 |
 | 3. A village with stakes | Built, awaiting the live measure | 7 | 0 | 0 |
+| 3a. The common store | Proposed | 0 | 0 | 7 |
 | 4. Voices: competing interests and the moot | Groundwork only | 0 | 1 | 4 |
 | 5. Worth watching | In hand | 4 | 2 | 2 |
 | 6. Worth following | Groundwork only | 0 | 1 | 3 |
 | 7. Taking part | Groundwork only | 0 | 1 | 4 |
 | 8. A wider world | Not begun | 0 | 0 | 1 |
-| All stages | | 28 | 9 | 14 |
+| All stages | | 28 | 9 | 21 |
+
+Stage 3a was added on 22 November 2026 as a proposal. It is numbered to sit after the stage it builds on without renumbering the stages that follow.
 
 The merge passed all 59 tests on 21 November, including eight tests with disposable PostgreSQL databases. With the director the suite has 78 tests. Nine of them need a PostgreSQL database and were not run for that change. The other 69 passed.
 
@@ -290,6 +293,44 @@ Local rules can exercise these mechanics cheaply in the Sandbox and in tests. Th
 
 Done when: in harness runs no sentence is more than 10% of the chronicle and a hard winter arrives that the stores can fail to cover; and in the live village the number of real tradeoffs per resident per day, as Stage 0 counts them, has risen without the clock or the budget giving way.
 
+### Stage 3a. The common store (M, engine rules)
+
+Dalecrest holds its goods in common. Nobody is paid, and nothing is bought or sold between residents. In the engine's books the stores are already one pool. They have no building, nobody keeps them, and a resident draws on them at whatever place the goods were made. This stage gives the common store a place, a keeper and a rule for drawing on it. It is engine work. It adds jobs and menu choices and no new kind of model call.
+
+**Why this stage.** The figures below were measured on 22 November 2026, before households and their larders reached the live village.
+
+| What | Value | Source |
+| --- | --- | --- |
+| Loaves ten residents need in a day | About 11.4. Hunger rises about 60 points a day and a loaf removes 53. | `EATS` in `engine/stores.mjs` and the hunger rules in `sim.mjs` |
+| Loaves they took | At least 24 on each of 4 and 5 August 1312. Mabel baked 10 and 15. | The Dalecrest Daily's source records for those two days |
+| The most one resident took | Agnes Reed took seven on 4 August, three of them within an hour | The same records |
+| How a loaf came about | A fresh choice by the Decisions API in every case checked. The meal routine applies only from hunger 50, and by the times recorded Agnes took two of that evening's loaves at a hunger under 2. | Live plan events on 6 August, and the times of Agnes's loaves on 4 August |
+| When the model takes a loaf | Standing at the oven, Agnes was given a visit at hunger 1 and 3 of 100 and a loaf at 5, 10, 25, 45 and 70. Oswin, at the coppice, took a loaf at 10. Thomas did not. | Their live requests replayed against the Decisions API at set hunger levels, 25 requests in all |
+
+The engine offers a loaf at any hunger, and the model often takes it. By 6 August residents were discussing the dwindling bread reserve. A short bread store also feeds the case for a second oven and decides whether a newcomer stays, so the waste distorts both.
+
+**Marked off · 22 November 2026.**
+
+- [ ] **A floor under meals.** Not begun.
+- [ ] **A storehouse on the map.** Not begun.
+- [ ] **Bringing goods in.** Not begun.
+- [ ] **A day's allowance.** Not begun.
+- [ ] **A keeper and a count.** Not begun.
+- [ ] **Knowing what is short.** Not begun.
+- [ ] **Shown and reported.** Not begun.
+
+- **A floor under meals.** A resident whose hunger is under 30 is not offered a meal, at the oven, at the hall or at home. Local rules already behave roughly this way through their scores. Only the model's menu has no floor. This depends on nothing else here and goes first.
+- **A storehouse on the map.** One building holds the finished goods residents take for themselves: loaves, linen, salt fish and smoked game, and leather. The peddler's linen and the reeve's length come off its shelves. Barley stays in the barn and granaries, water at the well and cooked meals at the hall. The live village gains its storehouse by migration, as it gained its map.
+- **Bringing goods in.** A shift that makes storehouse goods ends with the worker carrying them there. The walk is the last leg of the same activity, so it needs no decision of its own. The stock changes when the goods arrive, and the shift's outcome records it as now. Mabel's five loaves are in the store when she sets them on the shelf.
+- **A day's allowance.** Once a day a resident draws bread for their household: a loaf for each grown person and half for each child. It goes to the larder at home, and meals are eaten from there. A lodger draws their own loaf. The allowance is a parameter. It starts at what a resident eats and is tuned against the live village. Drawing it is a routine, so a standing instruction covers it.
+- **A keeper and a count.** One resident keeps the storehouse: counts the shelves each day and notices what is running down. The keeper is not a gate. Anyone may draw their allowance when the keeper is away, and the engine holds them to it. A village does not go hungry because one resident is waiting on a decision.
+- **Knowing what is short.** A resident learns what the storehouse holds by going there or by being told, with the witness and the hour, as flour and firewood are known from the oven today. The keeper's count is news that can be passed on and asked about.
+- **Shown and reported.** The storehouse is a place on Robin's rounds. Its shelves are drawn to change with the stock, as Stage 1 asks of the woodpile. The Daily can report the keeper's count.
+
+Open decisions 12 to 15 belong to this stage and are settled before the storehouse is built. The floor under meals waits on none of them.
+
+Done when: across a week in the live village residents draw between 1 and 1.5 loaves a day each; nobody has eaten at a hunger under 30; a household can still run short while the storehouse does not; a viewer can tell from the storehouse what the village is short of; and fresh choices per resident per day, as Stage 0 counts them, are known before and after.
+
 ### Stage 4. Voices: competing interests and the moot (L)
 
 Apply the pilot's mechanism to a second problem, and let the village decide things by people taking positions.
@@ -385,6 +426,7 @@ More than one village with a road between them. This multiplies everything above
 - Stages 0 and 1 are the first milestone and are built together. The pilot is what tunes Stage 0's parameters.
 - Stage 2 needs the observations and commitments the pilot introduces.
 - Stage 3 is engine work and can begin once Stage 0 can count real tradeoffs. Its presentation counterpart, Stage 5, can run beside it.
+- Stage 3a needs Stage 3's households and working day. Its floor under meals needs nothing and can go first. The allowance is a natural first bylaw for Stage 4's wider agenda.
 - Stage 4 needs Stage 2's goals and observations.
 - Stage 6 needs the records from Stages 1 and 2 and reads best after Stage 5's daily account.
 - Stage 7 needs Stage 4's ballots and positions, which are what make a visitor's petition something residents can answer.
@@ -477,6 +519,10 @@ The central test: **can someone follow Mabel, return the next day, and tell whet
 9. **How far visitors may reach.** Stage 7 can stop at any step. Letters are the first with real moderation work.
 10. **How long a year is.** Stage 3 proposes a year of about 48 village days. The calendar and the weather now keep the real year of 365, which at two village days to a real day takes six real months. One of the two has to give. *Decided, 22 November 2026: the real year. Stage 3 was built on it.*
 11. **Whether the wood store grows with the village.** It holds 32 bundles at any size. With winter fuel that is about a day's burning for thirty hearths in frost, so a large village cannot lay in wood for a cold spell.
+12. **What the common store's building is called.** It was proposed as a commissary. "Storehouse" is the working name here, because the word fits 1312 and the plan already speaks of the common store.
+13. **Whether households keep a larder and a woodpile.** Stage 3a keeps them as the place a day's allowance is carried to. A stricter commune would have everyone eat at a common table in the hall, and would undo part of Stage 3's households.
+14. **Whether the oven's flour and firewood move to the storehouse.** The promise pilot rests on Mabel counting them at the oven, and acceptance tests 4 and 9 name that count. Stage 3a leaves both where they are, and leaves household firewood at the woodpile.
+15. **Who keeps the storehouse, and who sets the allowance.** The keeper can be a second duty for a founding resident or the trade of the next arrival. The allowance can be an engine parameter or a bylaw the moot votes, which needs Stage 4.
 
 ## Future considerations
 
