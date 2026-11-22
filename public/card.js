@@ -81,7 +81,8 @@ export function residentCard(actor, { index = 0, names = {}, minute = 0, others 
   const at = names[a.target]?.name || a.target, deciding = a.kind === 'waiting';
   const travelling = !deciding && a.phase === 'travelling', inside = a.kind === 'rest' && a.phase === 'working';
   const what = el('div', 'map-card-part');
-  what.append(el('div', 'eyebrow', travelling ? 'On the way' : (inside ? 'Indoors at ' : 'At ') + at), el('strong', 'activity', doing(actor, names)));
+  const where = at ? (inside ? 'Indoors at ' : 'At ') + at : 'Out in the parish';
+  what.append(el('div', 'eyebrow', travelling ? 'On the way' : where), el('strong', 'activity', doing(actor, names)));
   if (travelling) what.append(el('p', 'reason', 'On arrival · ' + a.label));
 
   // The reason is whatever the records hold: a fresh choice, a routine resting on an earlier
@@ -120,6 +121,7 @@ export function eventCard(events, { names = {}, minute = 0, place } = {}) {
     const part = el('div', 'map-card-part'), text = el('p', 'memory-text');
     text.append(el('span', 'kind kind-' + e.type, kinds[e.type] || e.type), document.createTextNode(e.text));
     part.append(el('time', 'journal-time', when(e.minute, minute)), text);
+    if (e.account) part.append(el('p', 'civic-account', 'Model-written account · ' + e.account));
     card.append(part);
   }
   return card;

@@ -1,6 +1,6 @@
 import http from 'node:http';
 import { readFile, readdir } from 'node:fs/promises';
-import { initialize, advance, snapshot, currentMap, pool, recentEvents, reviewGoalsOnce } from './db.mjs';
+import { initialize, advance, snapshot, currentMap, pool, recentEvents, reviewGoalsOnce, publishCivicAccountOnce } from './db.mjs';
 import { planOnce, plannerStatus, plannerPollMs } from './planner.mjs';
 import { locationsOf } from './sim.mjs';
 import { affairs } from './engine/civic.mjs';
@@ -71,6 +71,14 @@ const editDaily = () => publishNextDaily(pool).catch(error => {
   console.error('Dalecrest Daily publication delayed.', error.message);
 });
 const press = setInterval(editDaily, 5000);
+let writingAccount = false;
+const accounts = setInterval(async () => {
+  if (writingAccount) return;
+  writingAccount = true;
+  try { await publishCivicAccountOnce(); }
+  catch (error) { console.error('A civic account could not be published.', error.message); }
+  finally { writingAccount = false; }
+}, 30000);
 // Goal reviews, one at a time, under their own spending cap.
 let reviewing = false;
 const reviews = setInterval(async () => {
@@ -86,7 +94,7 @@ server.listen(port, host, () => {
   editDaily();
 });
 function shutdown() {
-  clearInterval(clock); clearInterval(planner); clearInterval(press); clearInterval(reviews);
+  clearInterval(clock); clearInterval(planner); clearInterval(press); clearInterval(reviews); clearInterval(accounts);
   server.close(() => pool.end());
 }
 process.on('SIGINT', shutdown);

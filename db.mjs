@@ -1,6 +1,7 @@
 import pg from 'pg';
 import { eventRequestKey, requestIndexes } from './request-archive.mjs';
 import { dailySchema, queueEditions } from './daily.mjs';
+import { civicAccountSchema, eventAccount, claimCivicAccount, writeCivicAccount } from './civic-accounts.mjs';
 import { appointReporter } from './engine/reporting.mjs';
 import { reserveAction, startChosenAction } from './action-turns.mjs';
 import { createVillage, stepVillage, adoptVillage, welcomeResidents, FOCUSES, DEFAULT_SEED } from './sim.mjs';
@@ -91,6 +92,7 @@ export async function initialize() {
       ALTER TABLE dalecrest.events ADD COLUMN IF NOT EXISTS salience smallint;
       ${requestIndexes}
       ${dailySchema}
+      ${civicAccountSchema}
       CREATE TABLE IF NOT EXISTS dalecrest.map (
         id integer PRIMARY KEY CHECK (id = 1), revision bigint NOT NULL, state jsonb NOT NULL
       );
@@ -241,7 +243,7 @@ export async function snapshot({ withMap = false } = {}) {
         (SELECT m.state FROM dalecrest.map m WHERE m.id=w.id AND m.revision IS DISTINCT FROM $1::bigint) AS map,` : ''}
       (SELECT jsonb_agg(state ORDER BY ordinal) FROM dalecrest.actors) AS actors,
       COALESCE((SELECT jsonb_agg(to_jsonb(recent) ORDER BY recent.id DESC) FROM
-        (SELECT id, minute, kind AS type, actor_ids AS "actorIds", description AS text, place, salience, ${eventRequestKey} AS "requestId"
+        (SELECT id, minute, kind AS type, actor_ids AS "actorIds", description AS text, place, salience, ${eventRequestKey} AS "requestId", ${eventAccount} AS account
          FROM dalecrest.events WHERE salience >= ${PUBLIC} ORDER BY id DESC LIMIT 100) recent),'[]'::jsonb) AS events
     FROM dalecrest.world w WHERE w.id=1`, withMap ? [cached?.revision ?? null] : []);
   const state = result.rows[0];
@@ -258,7 +260,7 @@ export async function snapshot({ withMap = false } = {}) {
 // The latest 100 entries of one kind, or of every kind, routine included, for the full chronicle.
 export async function recentEvents(kind) {
   const { rows } = await pool.query(`SELECT id, minute, kind AS type, actor_ids AS "actorIds", description AS text, place, salience,
-      ${eventRequestKey} AS "requestId" FROM dalecrest.events WHERE ($1::text IS NULL OR kind = $1) ORDER BY id DESC LIMIT 100`, [kind || null]);
+      ${eventRequestKey} AS "requestId", ${eventAccount} AS account FROM dalecrest.events WHERE ($1::text IS NULL OR kind = $1) ORDER BY id DESC LIMIT 100`, [kind || null]);
   return rows;
 }
 
@@ -325,6 +327,12 @@ export async function reviewGoalsOnce({ key = process.env.CLAUDE_KEY?.trim(), re
 
 export async function claimAction(hourlyBudget) {
   return transaction(async db => reserveAction(db, await lockedVillage(db), hourlyBudget));
+}
+
+export async function publishCivicAccountOnce({ key = process.env.CLAUDE_KEY?.trim(), request = fetch, budget, model } = {}) {
+  if (!key) return;
+  const claim = await transaction(db => claimCivicAccount(db, { budget, model }));
+  if (claim) await writeCivicAccount(pool, claim, key, request);
 }
 
 export async function applyRecordedDecision(id) {

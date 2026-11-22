@@ -230,3 +230,21 @@ LIMIT 20;
 ```
 
 A review whose status is `applied` changed the resident's goals as its `result` shows. `superseded` means the resident's review had already been settled when the reply came, and `invalid`, `refused`, `http_error` or `transport_error` mean the goals were left as they were and the review stays due. A failed review is tried again after ten minutes.
+
+## Follow a ballot
+
+Each motion settled at the hall has a resolution event. Its roll call contains one entry per returned ballot. This query links each model vote to the request the voter received, including the exact versioned goals, observations and open obligations.
+
+```sql
+SELECT e.id AS resolution, e.outcome->>'mootId' AS moot, e.outcome->>'title' AS motion,
+       b->>'actorId' AS voter, b->>'choice' AS vote,
+       t.id AS trace, t.goal_keys, t.observation_keys,
+       t.request_body::jsonb #> '{input,0,content,0,data}' AS voter_context
+FROM dalecrest.events e
+CROSS JOIN LATERAL jsonb_array_elements(e.outcome->'ballots') b
+JOIN dalecrest.decision_traces t ON t.id::text = b #>> '{trace,traceId}'
+WHERE e.outcome->>'civic' = 'resolution'
+ORDER BY e.id DESC, t.id;
+```
+
+In the request, each entry in `civicNews` carries the motion's terms and a `chain` of residents, village minutes and observation keys. A corrected estimate keeps its earlier chain in `previousReport`. Look up a key in `dalecrest.observations` by matching `actor_id || ':' || seq`. A position event's `observationKeys` identifies the report on which the resident took that position. The resolution's `missing` count identifies ballots that never arrived.

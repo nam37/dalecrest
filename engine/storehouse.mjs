@@ -20,6 +20,8 @@ export const MEAL_FLOOR = 30;
 // Loaves a grown resident is allowed each day. A resident eats a little over a loaf a day, and cooked
 // meals, salt fish and feasts make up the rest. A child old enough to eat is allowed a loaf.
 export const ALLOWANCE = 1.25;
+// An enacted allowance applies to the next issue. Bread already drawn stays in the larder.
+export const adultAllowance = world => world.bylaws?.allowance?.adultBread ?? ALLOWANCE;
 // An allowance not drawn keeps for one more day, so nobody can lay up a store of their own.
 const KEEPS = 2;
 // The count below which a storekeeper calls the bread short.
@@ -51,7 +53,7 @@ export function addStorehouse(map) {
 const dayAllowance = (world, actors, home) => {
   const cottage = world.cottages?.[home];
   const adults = actors.filter(a => a.home === home).length;
-  return adults * ALLOWANCE + eatingChildren(cottage, world.minute);
+  return adults * adultAllowance(world) + eatingChildren(cottage, world.minute);
 };
 
 // Opens the allowance once, with one day's worth for everyone, however the village was stored. After
@@ -60,18 +62,19 @@ export function normalizeAllowance({ world, actors }) {
   if (world.allowanceSince != null) return;
   world.allowanceSince = world.minute;
   for (const [home, cottage] of Object.entries(world.cottages || {})) cottage.ration = dayAllowance(world, actors, home);
-  for (const actor of actors) if (!world.cottages?.[actor.home]) actor.ration = ALLOWANCE;
+  for (const actor of actors) if (!world.cottages?.[actor.home]) actor.ration = adultAllowance(world);
 }
 
 // At dawn each household and each lodger is allowed the day's bread.
 export function issueAllowance({ world, actors }) {
+  const allowance = adultAllowance(world);
   for (const [home, cottage] of Object.entries(world.cottages || {})) {
     const day = dayAllowance(world, actors, home);
     if (day) cottage.ration = round(Math.min(day * KEEPS, (cottage.ration || 0) + day));
   }
   for (const actor of actors) {
     if (world.cottages?.[actor.home]) continue;
-    actor.ration = round(Math.min(ALLOWANCE * KEEPS, (actor.ration || 0) + ALLOWANCE));
+    actor.ration = round(Math.min(allowance * KEEPS, (actor.ration || 0) + allowance));
   }
 }
 // Adding 0 turns a negative zero into zero, which JSON would otherwise change on a save and reload.

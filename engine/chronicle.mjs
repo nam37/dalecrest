@@ -18,10 +18,14 @@ export function judge(world, events) {
   world.told ??= {};
   for (const event of events) {
     event.salience ??= salienceOf(event);
-    if (event.salience < PUBLIC || ALWAYS.has(event.type)) continue;
+    // The first report or stance on a motion is news. Later echoes stay in the full record.
+    const civic = event.outcome?.civic;
+    const debate = event.type === 'civic' && (civic === 'news' || civic === 'position');
+    if (event.salience < PUBLIC || (ALWAYS.has(event.type) && !debate)) continue;
     // Talk of the same shortage anywhere in the village is one piece of news.
     const talk = / discussed the dwindling (.+?) (reserve|stores)/.exec(event.text);
-    const key = talk ? 'talk:' + talk[1] : event.text.replace(/\d+/g, '#');
+    const key = debate ? [civic, event.outcome.proposalKey, event.outcome.position].join(':')
+      : talk ? 'talk:' + talk[1] : event.text.replace(/\d+/g, '#');
     if (world.told[key] > event.minute - SEEN_FOR) event.salience = PUBLIC - 1;
     else world.told[key] = event.minute;
   }
@@ -56,6 +60,9 @@ export function salienceOf(event) {
     if (/spoiled/.test(text)) return 2;
     return 2;
   }
-  if (type === 'civic') return /^Word goes round/.test(text) ? 5 : 7;
+  if (type === 'civic') {
+    if (outcome.civic === 'ballot') return 2;
+    return /^Word goes round/.test(text) ? 5 : 7;
+  }
   return BY_TYPE[type] ?? 4;
 }

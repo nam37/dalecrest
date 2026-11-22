@@ -19,12 +19,12 @@
 | 3. A village with stakes | Built, awaiting the live measure | 7 | 0 | 0 |
 | 3a. The common store | Built, awaiting the live measure | 6 | 1 | 0 |
 | 3b. A menu worth choosing from | Built, awaiting the live measure and wording pass | 5 | 0 | 1 |
-| 4. Voices: competing interests and the moot | Groundwork only | 0 | 1 | 4 |
+| 4. Voices: competing interests and the moot | Built, awaiting a live moot | 5 | 0 | 0 |
 | 5. Worth watching | In hand | 4 | 2 | 2 |
 | 6. Worth following | Groundwork only | 0 | 1 | 3 |
 | 7. Taking part | Groundwork only | 0 | 1 | 4 |
 | 8. A wider world | Not begun | 0 | 0 | 1 |
-| All stages | | 39 | 10 | 15 |
+| All stages | | 44 | 9 | 11 |
 
 **Reading the live village.** `readout.mjs` reads every "Done when" measure the database can answer, stage by stage, and marks it met, not met, no data or needing a viewer. On the server: `docker exec dalecrest-app node readout.mjs`, for the last 168 real hours by default. It does not replace `tools/pilot-report.mjs`, which breaks Stage 0 down further.
 
@@ -81,7 +81,7 @@ Stage numbers refer to the plan below. A box is ticked once the fault it describ
 5. [ ] **Moot attendance.** A scripted test exercises quorum and construction on the model-driven path. How often real residents choose to attend remains a pilot measurement. [Standing-instruction tests](../standing.test.mjs) *Under way: the test is in. The live measurement is not.*
 6. [x] **Memory is a short list of sentences.** `remember` in `engine/civic.mjs` keeps 18 strings with no source, importance or recall. (Stages 1 and 2) *Done: memories carry a source, importance and place, a resident keeps sixty, recall is scored, and every memory is stored in PostgreSQL.*
 7. [ ] **Everyone knows everything.** The menu and the request use the true stores and every resident's true destination. "Bake" disappears from a menu the moment someone far away uses the last wood. (Stage 1) *Under way: flour and firewood are known only from an oven inspection or from being told. Barley and water are seen on depositing. Other knowledge is still shared by all.*
-8. [ ] **Residents cannot ask, agree, decline or vote.** Encounters pick one of five templates. Votes in `resolve` are supporter-or-random. One template is wrong in effect: "discussed the dwindling grain reserve" fires when a store is under a quarter of its capacity, so building a granary makes it fire more often. (Stage 1 for asking and agreeing, Stage 3 for the fix, Stage 4 for votes) *Under way: asking, agreeing and declining are model choices, and so are asking to marry and answering. The grain sentence now fires on food counted in days. Votes are unchanged.*
+8. [x] **Residents cannot ask, agree, decline or vote.** The original encounters used templates and the moot assigned votes. Residents now choose social replies, public positions and individual ballots. The grain shortage is measured in days of food. (Stages 1, 3 and 4)
 9. [x] **Relationships are one number that only rises.** After 60 days, 19 of 122 are at the maximum. (Stages 2 and 3) *Done: warmth and trust are separate, both fall, and warmth fades and fills more slowly near the top.*
 10. [x] **People only arrive, and the economy has no pressure.** Nobody is born, grows old, falls ill or leaves. One harvest shift feeds the founding village for a day. (Stage 3) *Done: the harvest is seasonal and a winter has to be stored for, and residents are born, fall ill, marry and leave.*
 
@@ -375,13 +375,15 @@ Done when a working week in the live village shows how often menus fit the 12-ch
 
 Apply the pilot's mechanism to a second problem, and let the village decide things by people taking positions.
 
-**Marked off · 21 November 2026.**
+**Marked off · 22 November 2026.**
 
-- [ ] **A second story.** Not begun.
-- [ ] **Ballots.** Not begun. Votes are still supporter-or-random. The moot itself reaches quorum and builds on the model-driven path.
-- [ ] **News travels.** Under way. Supply counts and work reports already pass by word of mouth and keep their first witness and time. Other news, and rumour that can be wrong, are not begun.
-- [ ] **Words.** Not begun.
-- [ ] **A wider agenda.** Not begun.
+- [x] **A second story.** Lodgers and growers can raise competing motions. Residents who hear one can back it, oppose it or reserve judgment.
+- [x] **Ballots.** Each attendee receives a separate Decisions API question for each motion. The engine records returned votes, quorum, abstentions, missing ballots and the outcome.
+- [x] **News travels.** A proposal report keeps its original witness and each telling. Estimates can change in conversation and be checked against the motion at the hall.
+- [x] **Words.** A settled motion can carry a labelled account reconstructed from two recorded ballots. The account has a separate model budget.
+- [x] **A wider agenda.** The catalogue includes six works and a bylaw that raises the daily adult bread allowance to 1.5 loaves.
+
+The PostgreSQL integration test exercises the production queue with scripted provider replies. The live readout counts linked ballots, positions taken on relayed news and moots with complete roll calls. [Follow a ballot](decision-tracing.md#follow-a-ballot)
 
 - **A second story.** A lodger wants a cottage while the growers want another field. Residents who hear a proposal are offered positions on it.
 - **Ballots.** When the moot opens, each attending resident receives an explicit ballot from the Decisions API, with their own goals, obligations and what they know. The engine counts recorded ballots, resolves quorum, deducts materials and builds through the existing civic rules. Support, opposition, abstention and a postponed work are all valid endings.
@@ -563,7 +565,7 @@ The central test: **can someone follow Mabel, return the next day, and tell whet
 12. **What the common store's building is called.** It was proposed as a commissary. "Storehouse" is the working name here, because the word fits 1312 and the plan already speaks of the common store. *Decided, 22 November 2026: the Storehouse.*
 13. **Whether households keep a larder and a woodpile.** Stage 3a keeps them as the place a day's allowance is carried to. A stricter commune would have everyone eat at a common table in the hall, and would undo part of Stage 3's households. *Decided, 22 November 2026: households keep both, and the allowance is carried to the larder.*
 14. **Whether the oven's flour and firewood move to the storehouse.** The promise pilot rests on Mabel counting them at the oven, and acceptance tests 4 and 9 name that count. Stage 3a leaves both where they are, and leaves household firewood at the woodpile. *Decided, 22 November 2026: they stay at the oven.*
-15. **Who keeps the storehouse, and who sets the allowance.** The keeper can be a second duty for a founding resident or the trade of the next arrival. The allowance can be an engine parameter or a bylaw the moot votes, which needs Stage 4. *Decided, 22 November 2026: a new resident arrives to keep the storehouse as a trade, and the allowance is an engine parameter from the start. The moot may take it over in Stage 4.*
+15. **Who keeps the storehouse, and who sets the allowance.** The keeper can be a second duty for a founding resident or the trade of the next arrival. The allowance can be an engine parameter or a bylaw the moot votes, which needs Stage 4. *Decided, 22 November 2026: a new resident arrives to keep the storehouse as a trade, and the allowance is an engine parameter from the start. The moot can now vote to raise the adult allowance to 1.5 loaves.*
 16. **Whether the engine may leave a feasible option off the menu.** *Decided for Stage 3b, 22 November 2026.* The fresh-choice menu aims for 12 with overflow for protected choices. The trace records omissions and the engine checks replies and standing instructions against feasibility.
 17. **How many people a menu offers, and who.** *Decided for Stage 3b, 22 November 2026.* Up to four named visits. Active relationships and responsibilities, proximity, warmth and time apart guide the shortlist.
 18. **Whether company is offered by person or by place.** *Decided for Stage 3b, 22 November 2026.* Casual company at public places and targeted visits to named people both have a place on the menu.

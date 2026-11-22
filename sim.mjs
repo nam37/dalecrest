@@ -4,10 +4,11 @@ import { generateMap } from './engine/worldgen.mjs';
 import { r2 } from './engine/geom.mjs';
 import { place, placesOf, route, walkingSegment } from './engine/roads.mjs';
 import * as civic from './engine/civic.mjs';
+import { civicChoices, enactCivicChoice, normalizeCivicNews } from './engine/civic-news.mjs';
 import { grownChild, newcomer, wantsNewcomer } from './engine/people.mjs';
 import { dawnLives, finishLifeConversation, lifeChoices, lifeVerbs, maybeCourt, normalizeLife, tickLives, tooIll } from './engine/lives.mjs';
 import * as standing from './engine/standing.mjs';
-import { atOven, inspectOven } from './engine/observations.mjs';
+import { atOven, inspectOven, observeGrain } from './engine/observations.mjs';
 import { appointReporter, reportingGoal, offerReporting, takeFieldNotes } from './engine/reporting.mjs';
 import { bedConversationChoices, canContact, conversationChoices, finishConversation, missedConversation, recordPrivateReview, requestReviewMenu, knownStores, noteWork, settleHelp, expireHelp } from './engine/exchanges.mjs';
 import { weatherAt, dayTemp, nextOutdoorStart, chill, fuelPerHearth } from './engine/seasons.mjs';
@@ -123,6 +124,7 @@ function normalize({ world, actors, map }) {
     if (actor.action.kind === 'waiting') actor.action.reason = decisionAfter('Will decide', actor.action.previous?.label);
     if (!actor.action.reason) actor.action.reason = 'Continuing an activity chosen earlier in the day.';
   }
+  normalizeCivicNews({ world, actors, map });
   normalizeVillageWork({ world, actors, map });
   addStorehouse(map);
   normalizeAllowance({ world, actors });
@@ -296,6 +298,12 @@ function choose(actor, state, menu, diagnostics) {
     offer('work', label, target, duration, score, reason, { job, ...(spec.indoors && { indoors: true }), ...details });
   }, weary);
   if (!menu) {
+    const proposals = new Map();
+    civicChoices(actor, state, proposals);
+    for (const action of proposals.values()) {
+      const { kind, label, target, remaining, localScore, reason, ...details } = action;
+      offer(kind, label, target, remaining, localScore - weary, reason, details);
+    }
     const conversations = new Map();
     if (!ill) bedConversationChoices(actor, state, conversations);
     // Courtship under local rules: the asking and the answer weighed on warmth.
@@ -311,7 +319,7 @@ function choose(actor, state, menu, diagnostics) {
   }
   const build = !ill && tradeOpen('build', world.minute) && civic.buildChoice(actor, { ...state, world: perceived });
   if (build) offer('work', build.label, build.project.id, 70, build.score + duty - weary, build.reason, { job: 'build' });
-  if (civic.mootOpen(world)) {
+  if (civic.mootOpen(world) && !world.moot.attendees?.includes(actor.id)) {
     const backs = world.proposals.some(p => p.supporters.includes(actor.id));
     offer('meeting', 'Attending the moot', 'hall', 75, 82 + (backs ? 10 : 0), 'The moot meets at the hall this evening to settle what the village should build.');
   }
@@ -404,7 +412,15 @@ function travel(actor, state, emit) {
 
 export function availableActions(actor, state, diagnostics) {
   const menu = new Map();
+  for (const ballot of civic.ballotOffers(actor, state)) {
+    const verb = { support: 'Support', oppose: 'Oppose', abstain: 'Abstain on' }[ballot.choice];
+    menu.set(['ballot', ballot.mootId, ballot.proposalKey, ballot.choice].join(':'), {
+      ...ballot, kind: 'ballot', label: verb + ' ' + ballot.title, target: 'hall', onSpot: true, remaining: 1,
+    });
+  }
+  if (menu.size) return menu;
   choose(actor, state, menu, diagnostics);
+  civicChoices(actor, state, menu);
   bedConversationChoices(actor, state, menu);
   conversationChoices(actor, state, menu);
   lifeChoices(actor, state, (id, action) => menu.set(id, action));
@@ -473,6 +489,9 @@ export function startChosen(actor, state, id, trace, pilot = standing.PILOT) {
   const action = availableActions(actor, state).get(id);
   if (!action) return null;
   const minute = state.world.minute, { since, why, previous } = actor.action;
+  // The reply and ballot are committed together, even if this is the last minute of voting.
+  const ballot = action.kind === 'ballot' && civic.recordBallot(actor, state, action, { source: 'decisions', traceId: trace.id });
+  if (action.kind === 'ballot' && !ballot) return null;
   if (action.update) actor.helpBook[action.requestId].consideredFact = action.update.factId;
   actor.action = { ...action, phase: action.onSpot ? 'working' : 'travelling', choiceId: id, decisionTraceId: trace.id,
     basis: { kind: 'fresh', trace: trace.id, waited: minute - since, ...(why ? { why } : {}) },
@@ -480,7 +499,7 @@ export function startChosen(actor, state, id, trace, pilot = standing.PILOT) {
   actor.plan = null;
   actor.lastModelPlanAt = actor.decidedAt = minute;
   const kept = standing.keep(actor, state, action, trace.id, pilot);
-  return { action: actor.action, waited: minute - since, why, routine: kept ? standing.routineOf(action, minute) : null };
+  return { action: actor.action, waited: minute - since, why, routine: kept ? standing.routineOf(action, minute) : null, ...(ballot && { ballot }) };
 }
 
 const tracksShift = action => action.kind === 'work' && (action.job === 'bake' || action.job === 'cut' || Object.hasOwn(villageJobs, action.job));
@@ -611,6 +630,7 @@ function finishShift(actor, state, emit, sky) {
 function settleShift(actor, state, emit, text, stockDelta, key) {
   const { world } = state;
   recordWork(actor, world.minute, emit, text, 'completed', stockDelta);
+  observeGrain(actor, state, key);
   noteShift(actor, key);
   // A storekeeper's count is passed on as the count itself, not as an account of the work.
   if (key !== 'keep') noteWork(actor, world, text, stockDelta);
@@ -736,10 +756,11 @@ function stepMinute(state, events, externalActions, records, pilot) {
   civic.tick(state, emit, () => random(world), actor => {
     endShiftEarly(actor, state, emit, 'interrupted', 'the village moot was about to begin');
     if (actor.action.kind === 'conversation') missedConversation(actor, minute, emit, 'the village moot was about to begin');
-  });
+  }, { externalBallots: externalActions });
   for (const actor of actors) {
     const n = actor.needs;
     const action = actor.action;
+    if (externalActions && action.kind === 'meeting' && civic.ballotOffers(actor, state).length) action.remaining = 0;
     const resting = action.kind === 'rest' && action.phase === 'working';
     const warm = bite > 0 && byAFire(actor, world);
     const cottage = world.cottages?.[action.target];
@@ -781,7 +802,9 @@ function stepMinute(state, events, externalActions, records, pilot) {
     action.remaining--;
     if (action.kind === 'report') takeFieldNotes(actor, state, emit);
     if (action.remaining > 0) continue;
-    if (action.kind === 'review') {
+    if (action.kind === 'civic') {
+      enactCivicChoice(actor, state, emit);
+    } else if (action.kind === 'review') {
       recordPrivateReview(actor, minute, emit);
     } else if (action.kind === 'conversation') {
       if (lifeVerbs.has(action.verb)) finishLifeConversation(actor, state, emit, missedConversation);
@@ -844,7 +867,7 @@ function stepMinute(state, events, externalActions, records, pilot) {
     if ((raised = civic.discuss(actor, other, state, () => random(world)))) {
       text = raised.text;
       details.concern = raised.key;
-      bond = raised.agreed ? 4 : 2;
+      Object.assign(details, raised.details);
       type = 'civic';
     } else if (shortage) {
       text = speaker + ' discussed the dwindling ' + (shortage === 'grain' ? 'food stores' : shortage + ' reserve') + ' ' + where + '.';
@@ -868,9 +891,9 @@ function stepMinute(state, events, externalActions, records, pilot) {
       warm(a, b.id, bond, minute);
       familiar(a, b.id, minute);
       a.lastChat = minute;
-      memory(a, minute, text, ids, 'social', details);
+      if (a.id !== raised?.listenerId) memory(a, minute, text, ids, 'social', details);
     }
-    emit(type, text, ids);
+    emit(type, text, ids, raised?.details);
     maybeCourt(actor, other, state, emit);
   }
   if (externalActions) {

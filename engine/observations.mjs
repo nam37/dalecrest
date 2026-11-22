@@ -1,5 +1,21 @@
-import { remember } from './civic.mjs';
+import { remember } from './memory.mjs';
 import { noticeForRequests, ovenFact } from './request-review.mjs';
+
+// A harvest shift puts grain in the barn and a milling shift draws it out. Only the handler
+// sees how full it is. Keep a new observation when that changes materially or a day has passed.
+export function observeGrain(actor, state, job) {
+  if (job !== 'harvest' && job !== 'mill') return;
+  const { world } = state, grain = world.supplies.grain, capacity = world.capacity.grain;
+  const prior = actor.observations?.grain;
+  if (prior && prior.capacity === capacity && (prior.grain >= capacity / 2) === (grain >= capacity / 2) &&
+      Math.abs(prior.grain - grain) < 6 && world.minute - prior.minute < 1440) return;
+  const count = { grain, capacity, minute: world.minute, resident: actor.id,
+    observation: actor.id + ':' + ((actor.memorySeq || 0) + 1) };
+  actor.observations ??= {};
+  actor.observations.grain = count;
+  remember(actor, world.minute, actor.name + ' handled the barley and counted ' + grain +
+    ' measures in a barn with room for ' + capacity + '.', [actor.id], 'observation', { grainCount: count });
+}
 
 export function atOven(actor, site) {
   return site?.kind === 'oven' && site.stage === 2 &&

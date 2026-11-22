@@ -52,6 +52,7 @@ export async function readout(db, { hours = 168, tick = tickSeconds() } = {}) {
   [['world.ticks', 'activity_log.basis', 'decision_traces.token_charge', 'goal_reviews.token_charge', 'goal_versions.status', 'goal_chain.trace_id', 'observations.details', 'events.salience']])).map(r => r.need);
   if (missing.length) throw new Error('This database predates the records the readout reads (' + missing.join(', ') + '). Start the current server on it once to bring it up to date.');
   const world = await one(`SELECT (state->>'minute')::bigint AS minute, (state->>'allowanceSince')::bigint AS allowance_since,
+    (state#>>'{bylaws,allowance,adultBread}')::numeric AS adult_bread,
     ticks, late_ms_max, (SELECT count(*)::int FROM dalecrest.actors) AS residents FROM dalecrest.world WHERE id=1`);
   if (!world) throw new Error('This database holds no village.');
   const now = Number(world.minute), residents = world.residents;
@@ -215,7 +216,7 @@ export async function readout(db, { hours = 168, tick = tickSeconds() } = {}) {
   const afterRate = split?.after_n ? per(split.after_n, split.after_who * (now - Number(world.allowance_since)) / DAY) : null;
   const stage3a = [
     line('Loaves drawn per resident per village day', fixed(loafRate, 2), '1 to 1.5', loafRate == null ? 'no data'
-      : loafRate >= 1 && loafRate <= 1.5 ? 'met' : 'not met', 'The allowance is ' + ALLOWANCE + ' a grown resident and a loaf for each child old enough to eat.'),
+      : loafRate >= 1 && loafRate <= 1.5 ? 'met' : 'not met', 'The current allowance is ' + (world.adult_bread ?? ALLOWANCE) + ' loaves per adult and one per child old enough to eat.'),
     line('Meals chosen at a hunger under ' + MEAL_FLOOR, String(early.n), '0', logged ? (early.n === 0 ? 'met' : 'not met') : 'no data',
       early.n ? 'The lowest was ' + fixed(num(early.lowest), 0) + '.' : null),
     line('Days a household ran short while the storehouse did not', String(householdOnly.size), 'at least one',
@@ -223,6 +224,29 @@ export async function readout(db, { hours = 168, tick = tickSeconds() } = {}) {
     line('A viewer can tell from the storehouse what is short', '—', 'yes', 'needs a viewer'),
     line('Fresh choices per resident per village day, before and after the allowance', fixed(beforeRate) + ' and ' + fixed(afterRate),
       'known', beforeRate != null && afterRate != null ? 'met' : 'no data', 'Over the whole activity log, not only the window.'),
+  ];
+
+  const ballots = await one(`SELECT count(*)::int AS n,
+      count(*) FILTER (WHERE t.status='applied' AND cardinality(t.goal_keys)>0 AND cardinality(t.observation_keys)>0)::int AS linked
+    FROM dalecrest.events e LEFT JOIN dalecrest.decision_traces t
+      ON t.id::text=e.outcome->>'traceId' AND t.actor_id=e.actor_ids[1]
+    WHERE e.minute >= $1 AND e.outcome->>'civic'='ballot'`, [from]);
+  const moots = await one(`SELECT count(*) FILTER (WHERE complete)::int AS complete, count(*)::int AS n FROM (
+      SELECT outcome->>'mootId', bool_and((outcome->>'missing')::int=0) AS complete
+      FROM dalecrest.events WHERE minute >= $1 AND outcome->>'civic'='resolution'
+      GROUP BY outcome->>'mootId'
+      HAVING bool_or(jsonb_path_exists(outcome, '$.ballots[*] ? (@.trace.source == "decisions")'))
+    ) voted`, [from]);
+  const news = await one(`SELECT count(*)::int AS n FROM dalecrest.events e
+    WHERE e.minute >= $1 AND e.outcome->>'civic'='position' AND EXISTS (
+      SELECT 1 FROM dalecrest.observations o WHERE o.actor_id=e.actor_ids[1] AND o.source='told'
+        AND o.details ? 'civicNews' AND (e.outcome->'observationKeys') ? (o.actor_id || ':' || o.seq))`, [from]);
+  const stage4 = [
+    line('Ballots linked to a decision with goals and observations', ballots.linked+' of '+ballots.n, 'every ballot',
+      !ballots.n ? 'no data' : ballots.linked === ballots.n ? 'met' : 'not met'),
+    line('Positions taken on news heard from another resident', String(news.n), 'at least one recorded chain', news.n ? 'met' : 'no data'),
+    line('Completed moots with every ballot returned', moots.complete+' of '+moots.n, 'at least one on the Decisions path',
+      !moots.n ? 'no data' : moots.complete ? 'met' : 'not met'),
   ];
 
   return {
@@ -233,6 +257,7 @@ export async function readout(db, { hours = 168, tick = tickSeconds() } = {}) {
       { stage: '2', title: 'Goals and memory', lines: stage2 },
       { stage: '3', title: 'A village with stakes', lines: stage3 },
       { stage: '3a', title: 'The common store', lines: stage3a },
+      { stage: '4', title: 'Voices and the moot', lines: stage4 },
     ],
   };
 }

@@ -215,8 +215,9 @@ function renderProfile(actor) {
   }
   const activity=actor.action;
   const at=state.locations[activity.target]?.name || activity.target;
+  const where = at ? 'At '+at : 'Out in the parish';
   if (activity.kind === 'waiting') {
-    const waiting = block('At '+at, el('strong','activity','Deciding what to do next'), chip('waiting','Deciding'));
+    const waiting = block(where, el('strong','activity','Deciding what to do next'), chip('waiting','Deciding'));
     if (activity.reason) waiting.append(el('p','reason',activity.reason));
     if (activity.why) waiting.append(el('p','reason',whyText(activity.why)));
     const since = Number.isFinite(activity.since) ? 'Since '+date(activity.since)+' at '+time(activity.since) : '';
@@ -224,7 +225,7 @@ function renderProfile(actor) {
     detail.append(waiting);
   } else {
     const travelling = activity.phase === 'travelling';
-    const now = block(travelling ? 'On the way' : 'At '+at, el('strong','activity',doing(actor)));
+    const now = block(travelling ? 'On the way' : where, el('strong','activity',doing(actor)));
     if (travelling) now.append(el('p','reason','On arrival · '+activity.label));
     // How this activity came about: a fresh choice by the model, or routine on a choice it made earlier.
     const basis = activity.basis;
@@ -288,7 +289,17 @@ function renderProfile(actor) {
 }
 function renderAffairs() {
   const affairs=state.affairs||{works:[],talk:[]}, rows=[];
-  if(affairs.moot) rows.push(el('p','affair-note','The moot meets at the hall, '+date(affairs.moot)+' at '+time(affairs.moot)+'.'));
+  const sitting = state.world.moot;
+  const panel = $('affairs'), last = affairs.mootHistory?.at(-1);
+  const signature = JSON.stringify([affairs.moot, sitting?.attendees?.length, sitting?.ballots?.length,
+    affairs.works, affairs.talk, last?.id, affairs.bylaws]);
+  if (panel.dataset.signature === signature) return;
+  panel.dataset.signature = signature;
+  const opened = new Set([...panel.querySelectorAll('details[open]')].map(detail => detail.dataset.motion));
+  if (sitting?.agenda) {
+    const votes = sitting.ballots.length, expected = sitting.attendees.length * sitting.agenda.length;
+    rows.push(el('p','affair-note','The moot is sitting at the hall. '+sitting.attendees.length+' present, '+sitting.quorum+' needed. '+votes+' of '+expected+' ballots returned.'));
+  } else if (affairs.moot) rows.push(el('p','affair-note','The moot meets at the hall, '+date(affairs.moot)+' at '+time(affairs.moot)+'.'));
   for(const work of affairs.works){
     const row=el('div','affair'), track=el('span','track'), fill=el('i');
     fill.style.width=Math.round(100*work.done/work.need)+'%'; track.append(fill);
@@ -297,11 +308,37 @@ function renderAffairs() {
   }
   for(const talk of affairs.talk){
     const row=el('div','affair talk');
-    row.append(el('span','affair-title',talk.title),el('span','num',talk.voices+' of '+talk.needed+' voices'));
+    const positions = [talk.voices+' of '+talk.needed+' backers', talk.opposed && talk.opposed+' opposed', talk.undecided && talk.undecided+' undecided'].filter(Boolean);
+    row.append(el('span','affair-title',talk.title),el('span','num',positions.join(' · ')));
     rows.push(row);
   }
+  if (last) {
+    rows.push(el('h3', 'moot-heading', 'Last moot · '+date(last.at)));
+    rows.push(el('p', 'reason', last.attendees.length+' attended. Quorum was '+last.quorum+'.'));
+    for (const item of last.items) {
+      const result = item.status[0].toUpperCase()+item.status.slice(1);
+      rows.push(el('p','goal',item.title[0].toUpperCase()+item.title.slice(1)+' · '+result+(item.reason?' ('+item.reason+')':'')));
+      rows.push(el('p','reason',item.support+' for, '+item.oppose+' against, '+item.abstain+' abstained'+(item.missing?', '+item.missing+' unreturned':'')+'.'));
+      if (last.attendees.length) {
+        const roll = el('details','moot-roll');
+        roll.dataset.motion = last.id + '/' + item.key;
+        roll.open = opened.has(roll.dataset.motion);
+        roll.append(el('summary','','Roll call'));
+        for (const id of last.attendees) {
+          const vote = last.ballots.find(b => b.actorId === id && b.proposalKey === item.key);
+          const resident = state.actors.find(a => a.id === id);
+          const name = resident?.name || id;
+          const wording = vote ? { support:'For', oppose:'Against', abstain:'Abstained' }[vote.choice] : 'Unreturned';
+          roll.append(el('p','reason',name+' · '+wording));
+        }
+        rows.push(roll);
+      }
+    }
+  }
+  const allowance = affairs.bylaws?.allowance;
+  if (allowance) rows.push(el('p','affair-note','Bread allowance in force since '+date(allowance.enactedAt)+' · '+allowance.adultBread+' loaves per adult each day.'));
   if(!rows.length) rows.push(el('p','empty','Nothing is being built or argued over today.'));
-  $('affairs').replaceChildren(...rows);
+  panel.replaceChildren(...rows);
 }
 // Every entry carries a salience. The snapshot holds the notable ones; meals, shifts and other routine stay in
 // the residents' own memories and are fetched only when the full chronicle asks for them.
@@ -327,7 +364,7 @@ function locate(event) {
 }
 function journal(target,events,withDay=false) {
   // The list is left alone while it has nothing new to say, so a click on it is never lost to a redraw.
-  const signature=events.map(e=>e.id).join(',')+'|'+withDay+'|'+(state?formatDate(state.world.minute):'');
+  const signature=events.map(e=>e.id+(e.account?'*':'')).join(',')+'|'+withDay+'|'+(state?formatDate(state.world.minute):'');
   if(target.dataset.signature===signature)return;
   target.dataset.signature=signature;
   const fragment=document.createDocumentFragment();
@@ -348,6 +385,7 @@ function journal(target,events,withDay=false) {
       where.addEventListener('click', () => locate(e));
       entry.append(' ', where);
     }
+    if (e.account) entry.append(el('span','civic-account','Model-written account · '+e.account));
     // In the short list on the village page, an entry from an earlier day says so.
     const earlier = !withDay && state && formatDate(e.minute) !== formatDate(state.world.minute);
     row.append(el('time','journal-time',(earlier ? formatDate(e.minute,'short')+' · ' : '')+time(e.minute)),entry);

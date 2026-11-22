@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createVillage, stepVillage, adoptVillage, locationsOf } from './sim.mjs';
 import { generateMap } from './engine/worldgen.mjs';
-import { place, placesOf, outline, walkLength, route } from './engine/roads.mjs';
+import { place, placesOf, outline, walkLength, route, nearestOnRoads } from './engine/roads.mjs';
 import { extendLane, fieldSite } from './engine/sites.mjs';
 import { isWater } from './engine/terrain.mjs';
 import { polysTouch, rng } from './engine/geom.mjs';
@@ -32,12 +32,15 @@ test('a seed always grows the same sound village', () => {
   assert.notDeepEqual(generateMap(1).nodes, generateMap(2).nodes);
 });
 
-test('residents keep to dry ground and reach where they are going', () => {
+test('residents keep to dry ground or the bridge and reach where they are going', () => {
   const village = createVillage();
   for (let i = 0; i < 2880; i++) {
     stepVillage(village, { minutes: 1 });
     for (const a of village.actors) {
-      assert.ok(!isWater(village.map, a.position.x, a.position.y, -0.5), a.name + ' is in the river at minute ' + village.world.minute);
+      if (isWater(village.map, a.position.x, a.position.y, -0.5)) {
+        const bridge = nearestOnRoads(village.map, [a.position.x, a.position.y], kind => kind === 'bridge');
+        assert.ok(bridge && bridge.d < 0.001, a.name + ' is in the river away from the bridge at minute ' + village.world.minute);
+      }
     }
   }
   const walk = route(village.map, place(village.map, 'cottage-1').at, 'mill');

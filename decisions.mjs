@@ -1,4 +1,5 @@
 import { recalledOvenStores } from './engine/observations.mjs';
+import { civicContext } from './engine/civic-news.mjs';
 import { recentMissedMeeting, socialContext, villageTime } from './engine/exchanges.mjs';
 import { ownWorkContext } from './engine/village-work.mjs';
 import { lifeContext } from './engine/lives.mjs';
@@ -34,6 +35,7 @@ export const DECISIONS_URL = 'https://api.openai.com/v1/decisions';
 
 // names maps a place ID to what residents call it, so a model never reads "cottage-3".
 export function actionDescription(action, names = {}) {
+  if (action.kind === 'ballot' || action.kind === 'civic') return action.label + '.';
   if (action.kind === 'review') return action.label + '.';
   if (action.kind === 'report') return action.label + ' and taking eyewitness notes (' + action.remaining + ' village minutes).';
   if (action.onSpot) return action.label + ' here (' + action.remaining + ' village minutes).';
@@ -50,11 +52,17 @@ export function actionDescription(action, names = {}) {
 export function actionBody(actor, world, menu, names = {}, weather, menuContext = {}) {
   const last = actor.action.previous, hearth = actor.observations?.hearth;
   const outing = preferredOuting(actor, menu);
+  const ballot = [...menu.values()].find(action => action.kind === 'ballot');
+  const civic = civicContext(actor, world);
   const observation = {
     name: actor.name, role: actor.role, traits: actor.traits, goals: actor.goalBook ? goalContext(actor, names) : actor.goals,
     desires: actor.desires.map(({ focus, weight, target }) => ({ focus, weight, target })),
     ...(outing && { preferredActivity: outing }),
     ...menuContext,
+    ...civic,
+    ...((ballot || civic.civicNews || [...menu.values()].some(action => action.kind === 'civic')) &&
+      { home: names[actor.home]?.name || actor.home }),
+    ...(ballot && { ballot: { moot: ballot.mootId, motion: ballot.title, proposalKey: ballot.proposalKey } }),
     needs: Object.fromEntries(Object.entries(actor.needs).map(([need, value]) => [need, Math.round(value)])),
     lastActivity: last && { kind: last.kind, label: last.label, place: names[last.target]?.name || last.target },
     whyThisIsAChoice: actor.action.why,
@@ -73,7 +81,9 @@ export function actionBody(actor, world, menu, names = {}, weather, menuContext 
   return JSON.stringify({
     model: DECISIONS_MODEL, input: [{ role: 'user', content: [{ type: 'input_json', data: observation }] }],
     questions: [{ type: 'choice', name: 'next_action', choices: options,
-      instructions: 'Choose the activity this resident will begin now. Weigh goals, needs (100 is urgent), time, weather and memories. The last oven check is what they personally counted then. Null means they have not checked. Stocks can change.' + preference + review }]
+      instructions: ballot
+        ? 'Cast this resident’s ballot on the motion before the moot. Choose support, opposition or abstention in light of their goals, obligations and observations. Consider who witnessed each claim and who passed it on. A report can be mistaken.'
+        : 'Choose the activity this resident will begin now. Weigh goals, needs (100 is urgent), time, weather and memories. The last oven check is what they personally counted then. Null means they have not checked. Stocks can change.' + preference + review }]
   });
 }
 

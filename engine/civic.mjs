@@ -5,6 +5,7 @@ import { place, placesOf, addNode, addEdge, walkLength, clearWalk, touch } from 
 import { FIELD_NAMES, addPlace, pickLot, extendLane, fieldSite } from './sites.mjs';
 import { prepareCottage } from './village-work.mjs';
 import { GRANARY, foodDays, keepStores, mouths, ripen, storeDays } from './stores.mjs';
+import { witnessProposal } from './civic-news.mjs';
 import { weatherAt } from './seasons.mjs';
 
 // Shifts of labour and bundles of wood each kind of work needs.
@@ -19,7 +20,7 @@ export const WORKS = {
 const ALEHOUSES = ['The Barley Mow', 'The Plough', 'The Green Man', 'The Wheatsheaf'];
 const PATH_WEAR = 12;
 
-const first = actor => actor.name.split(' ')[0];
+export const BYLAWS = { allowance: { a: 'a daily bread allowance of one and a half loaves per adult', adultBread: 1.5 } };
 export const isLodger = (actor, map) => place(map, actor.home)?.kind !== 'cottage';
 export { remember } from './memory.mjs';
 import { remember } from './memory.mjs';
@@ -60,28 +61,7 @@ export function concerns(actor, { world, actors, map }) {
   return out.sort((a, b) => b.weight - a.weight);
 }
 
-// One of two residents in conversation presses a concern the other has not yet answered.
-export function discuss(a, b, state, random) {
-  const { world } = state;
-  const mine = concerns(a, state), theirs = concerns(b, state);
-  const order = (mine[0]?.weight || 0) >= (theirs[0]?.weight || 0) ? [[a, b, mine, theirs], [b, a, theirs, mine]] : [[b, a, theirs, mine], [a, b, mine, theirs]];
-  for (const [speaker, listener, list, other] of order) {
-    for (const c of list) {
-      if (c.weight < 40) break;
-      let p = world.proposals.find(x => x.key === c.key);
-      if (p && p.supporters.includes(speaker.id) && (p.supporters.includes(listener.id) || p.heard.includes(listener.id))) continue;
-      if (!p) world.proposals.push(p = { key: c.key, kind: c.kind, by: speaker.id, since: world.minute, supporters: [], heard: [] });
-      if (!p.supporters.includes(speaker.id)) p.supporters.push(speaker.id);
-      const already = p.supporters.includes(listener.id);
-      const agreed = already || other.some(x => x.key === c.key) || (listener.relationships[speaker.id] || 0) >= 40
-        || listener.traits.includes('generous') || random() < (c.kind === 'cottage' ? 0.5 : 0.3);
-      if (agreed && !already) p.supporters.push(listener.id);
-      if (!agreed) p.heard.push(listener.id);
-      return { key: c.key, agreed, text: speaker.name + ' told ' + listener.name + ' ' + c.claim + '. ' + first(listener) + (agreed ? ' agreed.' : ' was not persuaded.') };
-    }
-  }
-  return null;
-}
+export { shareProposalNews as discuss } from './civic-news.mjs';
 
 function siteScore(kind, state, owner, random) {
   const { map, actors } = state, green = place(map, 'green'), G = [green.x, green.y];
@@ -151,81 +131,165 @@ function describe(project, state) {
   return owner ? 'a cottage for ' + owner.name : WORKS[project.kind].a;
 }
 
-function resolve(state, emit, random) {
-  const { world, actors, map } = state;
-  const present = actors.filter(a => a.action.kind === 'meeting' && a.action.phase === 'working');
-  for (const a of present) a.action.remaining = 1;
-  if (present.length < Math.max(3, Math.ceil(actors.length * 0.4))) {
-    if (++world.moot.tries >= 2) {
-      world.moot = null;
-      emit('civic', 'Too few came to the hall again, and the moot was put off.', [], undefined, 'hall');
-    } else {
-      world.moot.at += 1440;
-      emit('civic', 'Only ' + present.length + ' came to the hall. The moot will meet again tomorrow evening.', [], undefined, 'hall');
-    }
-    return;
+export function agendaTitle(proposal, state) {
+  if (proposal.kind === 'cottage') {
+    const owner = state.actors.find(a => a.id === proposal.key.split(':')[1]);
+    return 'a cottage for ' + (owner?.name || 'the lodger');
   }
-  const ids = present.map(a => a.id);
-  const agenda = world.proposals.filter(p => ready(p, actors)).sort((a, b) => b.supporters.length - a.supporters.length || a.since - b.since);
-  let open = slots(actors) - world.projects.length;
-  const settled = [];
-  for (const p of agenda) {
-    if (open <= 0) break;
-    world.proposals = world.proposals.filter(x => x !== p);
-    const share = p.supporters.length / actors.length;
-    let yes = 0;
-    for (const a of present) if (p.supporters.includes(a.id) || random() < 0.35 + share * 0.5) yes++;
-    const what = p.kind === 'cottage' ? 'a cottage for ' + (actors.find(a => a.id === p.key.split(':')[1])?.name || 'the lodger') : WORKS[p.kind].a;
-    if (yes * 2 <= present.length) {
-      world.cooldown[p.key] = world.minute + 2880;
-      emit('civic', 'The moot heard the case for ' + what + ', but ' + (present.length - yes) + ' of the ' + present.length + ' present spoke against it.', ids);
-      continue;
+  return (WORKS[proposal.kind] || BYLAWS[proposal.kind]).a;
+}
+
+const choices = ['support', 'oppose', 'abstain'];
+const quorumFor = count => Math.max(3, Math.ceil(count * 0.4));
+const jsonCopy = value => JSON.parse(JSON.stringify(value));
+
+function eligible(p, state) {
+  const { world, actors } = state;
+  if (!ready(p, actors) || world.cooldown[p.key] > world.minute) return false;
+  if (Object.hasOwn(BYLAWS, p.kind)) return !world.bylaws?.[p.kind] && p.key === p.kind;
+  return Object.hasOwn(WORKS, p.kind) && world.projects.length < slots(actors);
+}
+
+// Attendance and the order of business survive a save while a Decisions request is in flight.
+function openMoot(state) {
+  const { world, actors } = state, moot = world.moot;
+  moot.id = 'moot-' + moot.at;
+  moot.quorum = quorumFor(actors.length);
+  moot.attendees = [];
+  moot.ballots = [];
+  moot.agenda = world.proposals.filter(p => eligible(p, state))
+    .sort((a, b) => b.supporters.length - a.supporters.length || a.since - b.since)
+    .map(p => ({ ...jsonCopy(p), title: agendaTitle(p, state) }));
+}
+
+// There is one question at a time per voter. A replayed reply cannot cast a second ballot.
+export function ballotOffers(actor, { world }) {
+  const moot = world.moot;
+  if (!moot?.attendees?.includes(actor.id) || world.minute > moot.at + 100) return [];
+  const item = moot.agenda.find(p => !moot.ballots.some(b => b.actorId === actor.id && b.proposalKey === p.key));
+  if (!item) return [];
+  return choices.map(choice => ({ mootId: moot.id, proposalKey: item.key, title: item.title, choice }));
+}
+
+export function recordBallot(actor, state, offer, trace) {
+  const permitted = ballotOffers(actor, state).some(b => b.mootId === offer.mootId && b.proposalKey === offer.proposalKey && b.choice === offer.choice);
+  if (!permitted || !trace) return null;
+  const ballot = { actorId: actor.id, mootId: offer.mootId, proposalKey: offer.proposalKey,
+    choice: offer.choice, minute: state.world.minute, trace: jsonCopy(trace) };
+  state.world.moot.ballots.push(ballot);
+  return ballot;
+}
+
+function localBallot(actor, proposal, agenda) {
+  const position = proposal.positions?.[actor.id]?.position;
+  if (position === 'oppose') return 'oppose';
+  if (position === 'undecided') return 'abstain';
+  if (proposal.supporters.includes(actor.id)) return 'support';
+  const otherPriority = agenda.some(p => p !== proposal && p.supporters.includes(actor.id));
+  return otherPriority ? 'abstain' : 'support';
+}
+
+function enroll(state, externalBallots) {
+  const { world, actors } = state, moot = world.moot;
+  for (const actor of actors) {
+    if (moot.attendees.includes(actor.id) || actor.action.kind !== 'meeting' || actor.action.target !== 'hall' || actor.action.phase !== 'working') continue;
+    moot.attendees.push(actor.id);
+    for (const p of moot.agenda) {
+      witnessProposal(actor, p, state, { place: 'hall' });
+      if (externalBallots) continue;
+      const choice = localBallot(actor, p, moot.agenda);
+      recordBallot(actor, state, { mootId: moot.id, proposalKey: p.key, choice },
+        { source: 'local', position: p.positions?.[actor.id]?.position || null, backedProposal: p.supporters.includes(actor.id) });
     }
-    const project = begin(state, p, random, emit);
-    if (!project) {
-      world.cooldown[p.key] = world.minute + 1440;
-      emit('civic', 'The moot agreed on ' + what + ' but could not settle where to put it.', ids);
-      continue;
-    }
-    open--;
-    settled.push(what);
-    const site = place(map, project.id);
-    const spot = p.kind === 'field' ? ', to be called ' + site.name : whereabouts(map, site);
-    emit('civic', 'The moot agreed, ' + yes + ' voices to ' + (present.length - yes) + ', to ' + (p.kind === 'field' ? 'clear' : 'build') + ' ' + what + spot + '.', ids);
   }
-  if (!agenda.length) emit('civic', 'The moot met at the hall but found nothing left to settle.', ids);
-  for (const a of present) {
+}
+
+function settleItem(p, state, moot, emit, random) {
+  const { world } = state, votes = moot.ballots.filter(b => b.proposalKey === p.key);
+  const count = choice => votes.filter(b => b.choice === choice).length;
+  const item = { key: p.key, kind: p.kind, title: p.title, by: p.by, status: 'postponed',
+    support: count('support'), oppose: count('oppose'), abstain: count('abstain'), missing: moot.attendees.length - votes.length };
+  if (moot.attendees.length < moot.quorum) item.reason = 'too few attended';
+  else if (item.missing) item.reason = 'ballots outstanding';
+  else if (item.oppose * 2 > moot.attendees.length) item.status = 'rejected';
+  else if (item.support * 2 <= moot.attendees.length) item.reason = 'no majority';
+  else if (Object.hasOwn(BYLAWS, p.kind)) {
+    world.bylaws ??= {};
+    world.bylaws[p.kind] = { adultBread: BYLAWS[p.kind].adultBread, enactedAt: world.minute, mootId: moot.id };
+    item.status = 'enacted';
+  } else if (world.projects.length >= slots(state.actors)) item.reason = 'all building crews committed';
+  else {
+    const backers = votes.filter(b => b.choice === 'support').map(b => b.actorId);
+    const project = begin(state, { ...p, supporters: backers }, random, emit);
+    if (project) {
+      item.status = 'agreed';
+      item.projectId = project.id;
+    } else item.reason = 'no suitable site';
+  }
+  if (item.status !== 'postponed') world.proposals = world.proposals.filter(other => other.key !== p.key || other.since !== p.since);
+  if (item.status === 'rejected') world.cooldown[p.key] = world.minute + 2880;
+  if (item.status === 'postponed' && moot.attendees.length >= moot.quorum) world.cooldown[p.key] = world.minute + 1440;
+  const positions = Object.entries(p.positions || {}).map(([actorId, entry]) =>
+    ({ actorId, name: state.actors.find(a => a.id === actorId)?.name || actorId, position: entry.position }));
+  const tally = item.support + ' in support, ' + item.oppose + ' opposed and ' + item.abstain + ' abstained';
+  const verb = item.status === 'agreed' || item.status === 'enacted' ? 'agreed to ' : item.status === 'rejected' ? 'rejected ' : 'postponed ';
+  emit('civic', 'The moot ' + verb + p.title + ' (' + tally + (item.missing ? ', ' + item.missing + ' unreturned' : '') + ')'
+    + (item.reason ? ' — ' + item.reason : '') + '.', moot.attendees.slice(),
+    { civic: 'resolution', mootId: moot.id, at: moot.at, proposalKey: p.key, ...item, positions,
+      attendees: moot.attendees.slice(), quorum: moot.quorum, ballots: votes }, 'hall');
+  return item;
+}
+
+function closeMoot(state, emit, random) {
+  const { world, actors } = state, moot = world.moot, ids = moot.attendees;
+  const items = moot.agenda.map(p => settleItem(p, state, moot, emit, random));
+  (world.mootHistory ??= []).push({ id: moot.id, at: moot.at, closedAt: world.minute, attendees: ids,
+    quorum: moot.quorum, status: ids.length < moot.quorum || (items.length && items.every(i => i.status === 'postponed')) ? 'postponed' : 'resolved',
+    ballots: moot.ballots, items });
+  if (world.mootHistory.length > 10) world.mootHistory.splice(0, world.mootHistory.length - 10);
+  for (const a of actors.filter(a => ids.includes(a.id))) {
+    if (a.action.kind === 'meeting') a.action.remaining = 1;
     a.needs.loneliness = clamp(a.needs.loneliness - 22, 0, 100);
-    remember(a, world.minute, a.name + ' attended the moot at the hall' + (settled.length ? ', which agreed on ' + settled.join(' and ') : '') + '.', [a.id], 'social');
+    remember(a, world.minute, a.name + ' attended the moot at the hall.', [a.id], 'social', { place: 'hall', mootId: moot.id });
   }
   world.moot = null;
+  if (ids.length < moot.quorum && !moot.tries) {
+    world.moot = { at: moot.at + 1440, tries: 1 };
+    emit('civic', 'Only ' + ids.length + ' came to the hall. The moot will meet again tomorrow evening.', ids, { mootId: moot.id }, 'hall');
+  } else if (!items.length) emit('civic', 'The moot met at the hall but found nothing left to settle.', ids, { mootId: moot.id }, 'hall');
 }
 
 // What is being built and debated, in words, for whoever shows the village to a visitor.
 export function affairs(state) {
   const { world, actors, map } = state;
-  const who = key => actors.find(a => a.id === key.split(':')[1])?.name || 'a lodger';
-  const title = (kind, key) => kind === 'cottage' ? 'A cottage for ' + who(key) : WORKS[kind].a[0].toUpperCase() + WORKS[kind].a.slice(1);
+  const title = (kind, key) => {
+    const words = agendaTitle({ kind, key }, state);
+    return words[0].toUpperCase() + words.slice(1);
+  };
   return {
     moot: world.moot ? world.moot.at : null,
+    mootHistory: (world.mootHistory || []).slice(-10),
+    bylaws: world.bylaws || {},
     works: (world.projects || []).map(p => {
       const site = place(map, p.id);
       return { id: p.id, title: p.kind === 'field' ? site.name : title(p.kind, p.key), where: lane(map, site) || '', done: Math.min(p.need, Math.floor(p.done)), need: p.need, stage: site.stage };
     }),
     talk: (world.proposals || []).map(p => ({
       title: title(p.kind, p.key), voices: p.supporters.length,
+      opposed: Object.values(p.positions || {}).filter(s => s.position === 'oppose').length,
+      undecided: Object.values(p.positions || {}).filter(s => s.position === 'undecided').length,
       needed: p.kind === 'cottage' ? Math.max(2, Math.ceil(actors.length / 4)) : Math.max(3, Math.ceil(actors.length / 3)),
     })).sort((a, b) => b.voices / b.needed - a.voices / a.needed),
   };
 }
 
 // Called once a simulated minute.
-export function tick(state, emit, random, onMootInterruption) {
+export function tick(state, emit, random, onMootInterruption, { externalBallots = false } = {}) {
   const { world, actors } = state, minute = world.minute, day = minute % 1440;
   if (minute % 20 === 0 && !world.moot) {
     world.proposals = world.proposals.filter(p => minute - p.since < 8640
       && (p.kind !== 'cottage' || actors.some(a => a.id === p.key.split(':')[1] && isLodger(a, state.map))));
-    if (world.projects.length < slots(actors) && world.proposals.some(p => ready(p, actors))) {
+    if (world.proposals.some(p => eligible(p, state))) {
       let at = minute - day + 1110;
       if (at - minute < 90) at += 1440;
       world.moot = { at, tries: 0 };
@@ -241,7 +305,12 @@ export function tick(state, emit, random, onMootInterruption) {
       actor.action.remaining = 0;
     }
   }
-  if (minute === world.moot.at + 40) resolve(state, emit, random);
+  if (minute < world.moot.at) return;
+  const moot = world.moot;
+  if (!moot.agenda) openMoot(state);
+  if (minute <= moot.at + 40) enroll(state, externalBallots);
+  if (minute >= moot.at + 40 && (moot.ballots.length === moot.agenda.length * moot.attendees.length ||
+      minute >= moot.at + 100)) closeMoot(state, emit, random);
 }
 
 export const mootOpen = world => world.moot && world.minute >= world.moot.at - 40 && world.minute <= world.moot.at + 25;

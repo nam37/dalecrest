@@ -30,7 +30,9 @@ With `CLAUDE_KEY` set, Claude Haiku 5.5 reviews a resident's goals when one is m
 
 ## Watch it grow
 
-The village map is generated from a seed and then belongs to the village. Residents raise concerns in conversation, settle them at a moot in the hall, and build what was agreed: cottages for newcomers, fields, a granary, wells, a bakehouse, an alehouse, and new lanes when the old ones fill up. The Village page shows the map, the works in progress and the proposals under discussion. Choose **Walk** above the map to follow the selected resident through the village in 3D.
+When a moot settles a proposal on which at least two attendees voted, its Chronicle entry can carry a model-written **Account**. The editor reconstructs how two voters might have voiced the positions on their ballots, using the recorded outcome for context. With `CLAUDE_KEY` configured, civic accounts use Claude Haiku 5.5 by default and have their own allowance of 6,000 tokens per rolling hour. Set `CIVIC_ACCOUNT_TOKENS_PER_HOUR=0` to disable them or `DALECREST_CIVIC_MODEL` to choose another Claude model that supports structured output. A failed account can be tried again after ten minutes, up to three attempts in total.
+
+The village map is generated from a seed and then belongs to the village. A lodger can ask for a cottage while the growers ask for another field. Residents who hear a motion can take a position. At the hall, each attendee can support it, oppose it or abstain. Open **Roll call** under village affairs to see how each person voted and which work or bylaw passed. Choose **Walk** above the map to follow a resident in 3D.
 
 Open the village with no resident chosen and it is **Watching**: the view goes to whoever is in the middle of something, moves to a place when news arrives there, and says underneath what you are looking at and the recorded reason for it. Click a resident or move the map to take over, and press **Watch** to hand it back. **Show where** beside a chronicle entry turns the map or the walking view to the spot where it happened.
 

@@ -71,11 +71,15 @@ The map changes rarely and is larger than a resident record, so it has its own t
 
 ### 8. The village grows from what residents ask for
 
-New buildings should have a reason a visitor can read in the chronicle. Each resident derives concerns from their own circumstances: a lodger wants a cottage, a farmer knows how many mouths the fields can feed, the wellkeeper knows how far one well stretches. A concern is voiced in an ordinary conversation, which needs the two residents to be in the same place. The listener agrees or not, depending on shared need, friendship and temperament. A proposal with enough voices calls a moot at the hall that evening. Residents who attend vote, and an agreed work becomes a staked site on a lot chosen for its purpose. Building takes shifts of labour and bundles of wood from the common stores, with a limit on how many can work a site at once.
+A lodger can propose a cottage while a grower asks for a field. Neighbours can witness the proposal or hear about it later. Each telling retains the observation it came from, even when a secondhand estimate changes. A resident who knows about a motion can speak for it, oppose it or reserve judgment. Enough backers put it on the moot’s agenda.
+
+Attendance at the hall opens a ballot on each motion. In the model-driven village each voter chooses through the Decisions API with their own goals, obligations and observations. The hall reading establishes the official terms and preserves any earlier report the voter heard. A quorum is at least three residents and at least 40% of the village. More than half of attendees must support a motion to pass it. An opposing majority rejects it. A divided vote, missing ballots or insufficient quorum postpones it. The record distinguishes an explicit abstention from an unreturned ballot.
+
+An agreed work needs a site, a crew and the labour and materials in its catalogue entry. Workers draw wood as they build. The moot can also raise the daily adult bread allowance from 1.25 to 1.5 loaves, effective at the next issue. The Chronicle can attach a labelled model-written reconstruction to the recorded result.
 
 The loop that drives it: a village with bread on the table, land to feed one more and room at the hall draws a traveller off the road. They take up the trade the village is shortest of and lodge at the hall, which starts the case for a cottage. More residents strain the fields, bins, well and oven in turn. When the lots near the green are taken, the residents stake out a new lane. Arrivals slow as the village grows and stop at 36 residents.
 
-The rules live in `engine/civic.mjs`, `engine/people.mjs` and `engine/sites.mjs`. They use the village's own seeded random state, so a stored village replays identically. Model planning does not take part in these decisions yet. A model arguing a case or casting a vote at the moot is a natural next step, and the proposal and moot records are shaped to allow it.
+The sandbox records its rule-based votes with their source. The hosted village links each returned ballot to the voter’s exact model exchange. The ten latest moots stay in village state and the full roll calls remain in PostgreSQL. [Follow a ballot](decision-tracing.md#follow-a-ballot)
 
 ### 9. Two views draw the same stored map
 

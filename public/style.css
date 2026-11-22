@@ -235,6 +235,11 @@ h3 { font-size: 1.75rem; line-height: 1.1; }
 .supply small { color: var(--muted); font-weight: 400; }
 .affair { display: grid; grid-template-columns: minmax(0, 1fr) 64px auto; align-items: center; gap: 9px; padding: 7px 0; border-bottom: 1px dotted var(--rule); }
 .affair.talk { grid-template-columns: minmax(0, 1fr) auto; }
+.affair.talk .num { white-space: normal; text-align: right; }
+.moot-heading { margin: .8rem 0 .15rem; }
+.moot-roll { margin: .2em 0 .7em; }
+.moot-roll summary { cursor: pointer; color: var(--rust); }
+.civic-account { display: block; margin-top: .3em; font-style: italic; color: var(--muted); }
 .affair:last-child { border: 0; }
 .affair .num { color: var(--muted); font-size: .88rem; white-space: nowrap; }
 .affair-note { line-height: 1.4; padding: 4px 0 9px; color: var(--rust); font-style: italic; }

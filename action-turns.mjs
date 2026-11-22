@@ -1,6 +1,8 @@
 import { DECISIONS_MODEL, DECISIONS_URL, actionBody, actionDescription, recalledFor } from './decisions.mjs';
 import { activeGoals, goalKey } from './engine/goals.mjs';
 import { memoryKey } from './engine/memory.mjs';
+import { civicObservationKeys } from './engine/civic-news.mjs';
+import { ballotOffers } from './engine/civic.mjs';
 import { availableActions, startChosen, locationsOf } from './sim.mjs';
 import { residentState, writeActivities } from './decision-trace.mjs';
 import { weatherAt } from './engine/seasons.mjs';
@@ -22,7 +24,7 @@ export async function reserveAction(db, village, hourlyBudget) {
     const last = recent.get(actor.id);
     return Math.max(actor.action.since, Number(last?.observed_minute ?? 0));
   };
-  const pressing = actor => Number(Boolean(actor.action.why?.startsWith('would run into')));
+  const pressing = actor => ballotOffers(actor, village).length ? 2 : Number(Boolean(actor.action.why?.startsWith('would run into')));
   const eligible = waiting.filter(actor => {
     const last = recent.get(actor.id);
     if (!last) return true;
@@ -59,7 +61,8 @@ export async function reserveAction(db, village, hourlyBudget) {
       limited = true;
       continue;
     }
-    const goals = activeGoals(actor).map(g => goalKey(actor, g)), seen = recalledFor(actor, village.world).map(m => memoryKey(actor, m));
+    const goals = activeGoals(actor).map(g => goalKey(actor, g));
+    const seen = [...new Set([...recalledFor(actor, village.world).map(m => memoryKey(actor, m)), ...civicObservationKeys(actor, village.world)])];
     const result = await db.query(`INSERT INTO dalecrest.decision_traces
       (actor_id,observed_minute,model,endpoint,request_body,decision_since,token_charge,goal_keys,observation_keys,menu_audit)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
@@ -83,10 +86,16 @@ export async function startChosenAction(db, trace, choice, village, recordEvents
   await db.query(`UPDATE dalecrest.decision_traces SET ended_minute=$2,end_reason='replaced'
     WHERE actor_id=$1 AND status='applied' AND ended_minute IS NULL`, [actor.id, minute]);
   await db.query('UPDATE dalecrest.actors SET state=$1 WHERE id=$2', [actor, actor.id]);
+  if (started.ballot) await db.query('UPDATE dalecrest.world SET state=$1 WHERE id=1', [village.world]);
   await writeActivities(db, [{ actorId: actor.id, minute, basis: 'fresh', routine: started.routine, reason: started.why,
     traceId: trace.id, waited: started.waited, action: { kind: action.kind, label: action.label, target: action.target } }]);
-  const [event] = await recordEvents(db, [{ minute, type: 'plan', actorIds: [actor.id],
-    text: actor.name + ' chose the next activity: ' + action.label + '.' }]);
+  const hall = started.ballot && village.map.places.find(p => p.id === 'hall');
+  const voting = { support: 'voted for', oppose: 'voted against', abstain: 'abstained on' };
+  const [event] = await recordEvents(db, [started.ballot ? {
+    minute, type: 'civic', actorIds: [actor.id], place: { id: 'hall', x: hall.x, y: hall.y },
+    text: actor.name + ' ' + voting[action.choice] + ' ' + action.title + '.',
+    outcome: { civic: 'ballot', mootId: action.mootId, proposalKey: action.proposalKey, choice: action.choice, traceId: trace.id },
+  } : { minute, type: 'plan', actorIds: [actor.id], text: actor.name + ' chose the next activity: ' + action.label + '.' }]);
   await db.query(`INSERT INTO dalecrest.decision_steps(trace_id,minute,kind,details,event_id)
     VALUES ($1,$2,'selected',$3,$4)`, [trace.id, minute, residentState(actor), event.id]);
   return { status: 'applied', state };

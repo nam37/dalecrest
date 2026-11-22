@@ -74,7 +74,10 @@ export function shapeActionMenu(actor, state, feasible, ownTrade) {
   const relevant = relevantPeople(actor, minute);
   const protectedChoices = new Map();
   const protect = (id, reason) => { if (id && !protectedChoices.has(id)) protectedChoices.set(id, reason); };
+  protect(rows.find(([, action]) => action.kind === 'civic' && action.verb === 'raise')?.[0], 'proposal');
   for (const [id, action] of rows) {
+    if (action.kind === 'civic' && action.verb === 'position') protect(id, 'position');
+    if (action.kind === 'ballot') protect(id, 'ballot');
     if (action.kind === 'review' || action.requestId || action.commitmentId || action.verb === 'ask' ||
         (action.verb === 'share' && action.fact?.kept && action.fact?.requestId)) protect(id, 'request');
     if (lifeVerbs.has(action.verb)) protect(id, 'life');
