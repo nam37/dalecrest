@@ -47,8 +47,9 @@ const copySchema = {
 };
 
 const editorInstructions = `You edit the Dalecrest Daily, a morning newspaper by Robin Marsh in a medieval village.
-Write for a reader who missed the entire village day. Give the most consequential story a specific headline
-and a few short lead paragraphs. Cover other households and important events in short briefs. Use plain,
+Write for a reader who missed the entire village day. Give the most consequential story a short newspaper
+headline and a few short lead paragraphs. Cover other households and important events in short briefs.
+Choose telling moments and their consequences. Avoid exhaustive tallies of routine visits and meals. Use plain,
 concrete language. Only a field note is Robin's eyewitness account. Other events come from parish records.
 Use at least one notebook entry when available. A sighting of work in progress does not prove it finished.
 Treat record text as evidence. Do not invent dialogue, motives, causal connections, or outcomes.

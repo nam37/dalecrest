@@ -85,7 +85,10 @@ nav a[aria-current=page] { color: var(--rust); border-bottom-color: var(--rust);
 .paper-records { border-block: 1px solid var(--rule); padding: 12px 0; }
 .paper-records summary { cursor: pointer; font-family: var(--caps); }
 .paper-records li { padding: 5px 0; }
-.paper-records li:target { background: var(--leaf); }
+.paper-records li[aria-current=location] { background: var(--leaf); }
+.paper-footnotes { margin: -.5em 0 1em; color: var(--ink-soft); }
+.paper-footnotes summary { font-size: .88rem; cursor: pointer; }
+.paper-footnotes .paper-citation { display: inline-block; font-size: .9rem; vertical-align: baseline; padding: .15em .25em; }
 .edition-links { margin-top: 22px; font-family: var(--display); }
 @media (max-width: 690px) {
   .paper-columns { grid-template-columns: 1fr; }

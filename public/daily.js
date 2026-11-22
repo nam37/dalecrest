@@ -7,10 +7,12 @@ const link = (label, href) => Object.assign(document.createElement('a'), { textC
 let displayedDay;
 
 function showRecord() {
+  document.querySelector('.paper-records [aria-current="location"]')?.removeAttribute('aria-current');
   if (!/^#record-\d+$/.test(location.hash)) return;
   const target = $(location.hash.slice(1));
   if (target) {
     $('records').open = true;
+    target.setAttribute('aria-current', 'location');
     target.scrollIntoView({ block: 'nearest' });
   }
 }
@@ -31,15 +33,26 @@ function showIssue({ day, edition, older, newer }) {
     $(id).replaceChildren(...items.map(item => {
       const p = document.createElement('p');
       p.append(item.text);
+      const passage = document.createDocumentFragment();
+      passage.append(p);
+      let references = p;
+      if (item.sources.length > 3) {
+        references = document.createElement('details');
+        references.className = 'paper-footnotes';
+        const summary = document.createElement('summary');
+        summary.textContent = item.sources.length + ' source records';
+        references.append(summary);
+        passage.append(references);
+      }
       for (const source of item.sources) {
         const n = numbers.get(source);
         const citation = link('[' + n + ']', address(day) + '#record-' + source);
         citation.className = 'paper-citation';
         citation.setAttribute('aria-label', 'Read source ' + n);
         citation.addEventListener('click', () => { $('records').open = true; });
-        p.append(citation);
+        references.append(citation);
       }
-      return p;
+      return passage;
     }));
   }
   paragraphs('lead', edition.lead);
