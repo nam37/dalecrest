@@ -331,7 +331,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
 
 <section class="state" id="state" aria-labelledby="state-h">
   <h2 id="state-h">State of the plan</h2>
-  <p>Marked off on 21 November 2026 against the code on <code>main</code> at <code>9095681</code>. A tick means built, tested and merged. It does not mean measured in the live village: each stage's own “done when” is shown separately. <a href="roadmap.md">roadmap.md</a> remains the canonical text and carries the same marks. This page is a rendering of it.</p>
+  <p>Marked off on 21 November 2026 against the request archive (<code>996c2c1</code>) and resident cards (<code>836bec3</code>). A tick means built, tested and merged. It does not mean measured in the live village: each stage's own “done when” is shown separately. <a href="roadmap.md">roadmap.md</a> remains the canonical text and carries the same marks. This page is a rendering of it.</p>
   <div class="tally" aria-live="polite">
     <div class="d"><b id="n-done">–</b><span>stage items done</span></div>
     <div class="p"><b id="n-part">–</b><span>under way</span></div>
@@ -396,7 +396,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
   <ol class="checks">
     <li data-s="done"><div class="what"><strong>The former clock slowed when money for calls ran short.</strong> Stage 0 moved timekeeping off the decision queue.</div><span class="st">The clock runs at a fixed pace whatever the models are doing.</span></li>
     <li data-s="done"><div class="what"><strong>Many activities repeat.</strong> One night's sleep spanned about five boundaries in the local runs. Stage 0 lets a still-valid model instruction cover routine repeats.</div><span class="st">Standing instructions, in <code>engine/standing.mjs</code>.</span></li>
-    <li data-s="part"><div class="what"><strong>Promises need durable records.</strong> Residents remember encounters, but the model sees only the latest two memory texts. A promise needs to survive later meals and shifts.</div><span class="st">A request for help is now a stored record with its terms, deadline and ending. A viewer cannot yet open one.</span></li>
+    <li data-s="done"><div class="what"><strong>Promises need durable records.</strong> The archive retains the terms, deadline and recorded ending.</div><span class="st">Each participant remembers the outcome they learned, and their three most recent request memories can inform the next decision.</span></li>
   </ol>
 </section>
 
@@ -486,7 +486,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
           <li data-s="done">two needs are urgent at once</li>
           <li data-s="done">the instructed action can no longer be started</li>
         </ul>
-        <span class="st">Five of six conditions are in. The engine's only known stake today is a moot falling due, so the breakfast example below is not yet possible.</span>
+        <span class="st">The engine checks time needed for an accepted work request and an approaching moot. Personal appointments such as the breakfast example remain a design proposal.</span>
       </li>
     </ul>
 
@@ -577,15 +577,15 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
         <div class="what"><strong>A thread a viewer can follow.</strong></div>
         <ul class="sub">
           <li data-s="done">A link to a resident</li>
-          <li data-s="todo">A link to a promise</li>
-          <li data-s="todo">The resident panel shows the open promise, its status and the last verified change</li>
-          <li data-s="todo">History can be read by participant or commitment beyond the latest 100 entries</li>
-          <li data-s="todo">A follow button kept in the browser, and “since your last visit”</li>
+          <li data-s="done">A permanent link to each delivered request</li>
+          <li data-s="done">The resident panel shows open requests and their status, with a link to the recorded changes</li>
+          <li data-s="done">History can be read by participant or commitment beyond the latest 100 entries</li>
+          <li data-s="done">A follow button kept in the browser, and “since your last visit”</li>
           <li data-s="part">Mabel with a peel at the oven, Oswin working at the woodpile</li>
           <li data-s="todo">A stack that changes with the store</li>
           <li data-s="done">An oven that is lit during a bake</li>
         </ul>
-        <span class="st">The promise lives in the records and cannot yet be seen on the page. The peel and the axe are in the walking view, from commit <code>c3353a5</code>.</span>
+        <span class="st">The <a href="https://dalecrest.trinsicstudios.com/requests.html">request archive</a> reads the recorded outcomes. The peel and axe are in the walking view.</span>
       </li>
     </ul>
     <p>The pilot uses the residents' existing goals. Goal reviews arrive in Stage 2.</p>
@@ -731,7 +731,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
     <ul class="checks">
       <li data-s="todo"><div class="what"><strong>Show events where they happen</strong>, on the map and in the walking view. A chronicle entry takes you to its place and time.</div></li>
       <li data-s="todo"><div class="what"><strong>A director.</strong> A watch mode that follows whoever is in the middle of something and holds on the scene. It is what a first-time visitor sees.</div></li>
-      <li data-s="done"><div class="what"><strong>Show the basis.</strong> A resident who is waiting on a decision looks like someone making up their mind. A resident following routine looks like routine.</div><span class="st">Each activity in the resident panel is tagged routine, fresh choice or deciding, with the reason in plain words. A deciding resident carries a question mark on the map and a hand on the chin in the walking view.</span></li>
+      <li data-s="done"><div class="what"><strong>Show the basis.</strong> A resident who is waiting on a decision looks like someone making up their mind. A resident following routine looks like routine.</div><span class="st">The resident panel and the map card show the recorded reason for an activity or a wait. A deciding resident carries a question mark on the map and a hand on the chin in the walking view.</span></li>
       <li data-s="todo"><div class="what"><strong>Yesterday in Dalecrest.</strong> A short account of each village day written by the general-purpose model on its own budget. Every claim in it must cite an event.</div></li>
       <li data-s="part"><div class="what"><strong>Seasons, weather and the hour</strong> in both views. Tools in hand, a movement for each trade, residents who go indoors.</div><span class="st">Seasons, weather, night and going indoors are in both views. Tools and trade movements arrived in commit <code>c3353a5</code>, in the walking view only.</span></li>
       <li data-s="part"><div class="what"><strong>A richer parish.</strong> Gardens, fences, woodpiles, animals, moving water, sound.</div><span class="st">Kitchen gardens, shaded relief, canopy woods, light moving on the river and drifting cloud shadow. No fences, woodpiles, animals or sound.</span></li>
@@ -880,16 +880,16 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
 <section id="acceptance">
   <h2><span class="sec">§ 9</span>Acceptance tests for the first milestone</h2>
   <p class="central">Can someone follow Mabel, return the next day, and tell whether Oswin kept his word, and can we trace the answer to choices the residents actually made?</p>
-  <p class="aside"><b>How these are marked</b>None of the ten has been signed off, because the pilot has not run. A half mark means it is partly in place, and its label says whether an automated test exercises it today. On 21 November the suite ran 56 tests: 49 passed, none failed, and 7 were skipped for want of a PostgreSQL database on this machine.</p>
+  <p class="aside"><b>How these are marked</b>None of the ten has been signed off, because the pilot has not run. A half mark means it is partly in place, and its label says whether an automated test exercises it today. All 59 tests passed on 21 November, including the eight PostgreSQL integration tests.</p>
   <ol class="checks">
     <li data-s="part"><div class="what"><strong>Every ending is reachable.</strong> Exercise kept, broken, declined, unanswered and released in a test village. Change the store between choice and execution in one run. Each ending must agree with the work and conversations that actually took place.</div><span class="st tested">All five endings in <code>social-turns.test.mjs</code>. The changed store in <code>oven-observation.test.mjs</code>.</span></li>
-    <li data-s="part"><div class="what"><strong>It survives a restart.</strong> Restarting between a choice and its completion yields each outcome exactly once. Earlier history still opens.</div><span class="st tested">Covered by the PostgreSQL tests, which were among the seven skipped in today's run.</span></li>
+    <li data-s="part"><div class="what"><strong>It survives a restart.</strong> Restarting between a choice and its completion yields each outcome exactly once. Earlier history still opens.</div><span class="st tested">Covered by the PostgreSQL integration tests in the merge run.</span></li>
     <li data-s="part"><div class="what"><strong>The promise reaches the model.</strong> With the menu held fixed, changing an open promise or the standing between two residents changes the serialized action request.</div><span class="st">The request now carries open requests and the standing between the two. No test yet holds the menu fixed and compares the bytes.</span></li>
     <li data-s="part"><div class="what"><strong>Knowledge stays local.</strong> A resident who did not see or hear of the shortage receives no trace of it in their request. Mabel's request shows the wood she last observed and when, and a test makes that differ from the true store.</div><span class="st tested">“Unseen flour and wood cannot change the request”, in <code>oven-observation.test.mjs</code>.</span></li>
     <li data-s="part"><div class="what"><strong>The chronicle claims only what it can verify.</strong> Every statement about the promise links to a recorded event or outcome. A plain woodcutting shift is not credited to the promise. Wood supplied by someone else relieves the shortage and gives Oswin no credit.</div><span class="st tested">“Only a chosen shift for the promise earns credit”, in <code>social-turns.test.mjs</code>.</span></li>
     <li data-s="part"><div class="what"><strong>The answer can be traced.</strong> Starting from the outcome, one query returns the choice that produced it, whether that activity was a fresh choice or routine, the commitment and observations the model was given, and the exact exchange.</div><span class="st">The trace records and worked queries are in <a href="decision-tracing.md">decision tracing</a>. Not yet checked as a single query from an outcome.</span></li>
     <li data-s="todo"><div class="what"><strong>Time kept moving.</strong> Through the pilot, including a deliberate provider outage, the clock was never more than one tick late and no resident followed a stale instruction.</div><span class="st await">Both rules have unit tests. The claim is about a live week.</span></li>
-    <li data-s="todo"><div class="what"><strong>A viewer can read it.</strong> Four of five first-time viewers, on a mix of phones and desktops, can say who wanted what and what happened within 90 seconds. On a second visit a day later they can find the ending after it has left the latest 100 entries.</div><span class="st await">The page does not show promises yet.</span></li>
+    <li data-s="part"><div class="what"><strong>A viewer can read it.</strong> Four of five first-time viewers, on a mix of phones and desktops, can say who wanted what and what happened within 90 seconds. On a second visit a day later they can find the ending after it has left the latest 100 entries.</div><span class="st await">The archive is available. The trial with first-time viewers remains open.</span></li>
     <li data-s="part"><div class="what"><strong>It can happen unprompted.</strong> With the one chosen pressure in place and no scripting, a morning with flour and no wood arises in seeded runs, and Mabel learns of it by going to look.</div><span class="st tested">“A first winter under local rules brings a morning with flour and no firewood, unscripted”, in <code>seasons.test.mjs</code>.</span></li>
     <li data-s="todo"><div class="what"><strong>It was affordable.</strong> Spending stayed inside both caps and every measurement in the list above was captured.</div><span class="st await"><code>tools/pilot-report.mjs</code> is ready to report it.</span></li>
   </ol>
@@ -967,7 +967,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
     </li>
     <li>
       <h3>The tests that need a database</h3>
-      <p>Seven of the 56 tests are skipped without PostgreSQL. They include the ones that prove a restart yields each outcome exactly once, which is acceptance test 2.</p>
+      <p>Eight of the 59 tests require PostgreSQL. They include the ones that prove a restart yields each outcome exactly once, which is acceptance test 2.</p>
       <p>It is worth confirming that the deploy run includes them, so the promise is checked on every release and not only on a machine that happens to have a database.</p>
       <p class="when"><b>Before</b>acceptance test 2 is signed off.</p>
     </li>
@@ -975,7 +975,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
 </section>
 
 <footer>
-  Dalecrest roadmap · HTML edition of <a href="roadmap.md">docs/roadmap.md</a> · Status marked 21 November 2026 against <code>main</code> at <code>9095681</code> and the working tree.
+  Dalecrest roadmap · HTML edition of <a href="roadmap.md">docs/roadmap.md</a> · Status marked 21 November 2026 against <code>996c2c1</code> and <code>836bec3</code>.
 </footer>
 
 </main>

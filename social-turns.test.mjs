@@ -155,6 +155,8 @@ test('only a chosen shift for the promise earns credit, and the requester can le
   assert.equal(alternative.world.helpRequests[request].status, 'accepted');
   alternative.world.minute = alternative.world.helpRequests[request].due;
   assert.ok(tick(alternative).some(e => e.outcome?.verb === 'broken'));
+  assert.equal(other.requestMemories.at(-1).status, 'broken');
+  assert.equal(who(alternative, 'mabel').requestMemories.at(-1).status, 'unconfirmed');
   choose(v, o, 'help:' + request + ':', '5');
   assert.equal(o.action.basis.kind, 'fresh');
   assert.equal(Object.values(o.instructions || {}).some(i => i.trace === '5'), false);
@@ -166,6 +168,40 @@ test('only a chosen shift for the promise earns credit, and the requester can le
   choose(v, o, 'share:mabel:work-', '6');
   complete(v, o);
   assert.equal(m.helpBook[request].status, 'kept');
+});
+
+test('personal request histories survive the deadline and a late account can confirm a named shift', () => {
+  let v = start();
+  const id = ask(v), o = who(v, 'oswin'), e = who(v, 'edith');
+  choose(v, o, 'accept:mabel:', '3');
+  complete(v, o);
+  choose(v, o, 'help:' + id + ':', '4');
+  complete(v, o);
+  const proof = o.observations.lastWork;
+  at(v, e, 'wood');
+  choose(v, o, 'share:edith:work-', '5');
+  complete(v, o);
+  choose(v, o, 'work:cut:', '6');
+  complete(v, o);
+  assert.notEqual(o.observations.lastWork.id, proof.id);
+  v.world.minute = o.helpBook[id].due;
+  tick(v);
+  v = JSON.parse(JSON.stringify(v));
+  const helper = who(v, 'oswin'), requester = who(v, 'mabel'), relay = who(v, 'edith');
+  const past = a => body(v, a).input[0].content[0].data.pastRequests;
+  assert.equal(past(helper)[0].status, 'kept');
+  assert.equal(past(requester)[0].status, 'unconfirmed');
+  assert.equal(past(relay), undefined);
+  assert.equal(requester.helpBook[id], undefined);
+  assert.ok(options(v, helper).some(key => key.startsWith('share:mabel:' + proof.id + ':')));
+  at(v, requester, 'wood');
+  choose(v, relay, 'share:mabel:' + proof.id, '7');
+  const shared = complete(v, relay).find(event => event.outcome?.verb === 'share');
+  assert.equal(shared.outcome.requestId, id);
+  assert.equal(past(requester).length, 1);
+  assert.deepEqual([past(requester)[0].status, past(requester)[0].witnessedBy, past(requester)[0].toldBy],
+    ['kept', helper.name, relay.name]);
+  assert.equal(past(who(v, 'alice')), undefined);
 });
 
 const adminUrl = process.env.DALECREST_TEST_ADMIN_URL;

@@ -7,7 +7,7 @@ import { newcomer, wantsNewcomer } from './engine/people.mjs';
 import * as standing from './engine/standing.mjs';
 import { atOven, inspectOven } from './engine/observations.mjs';
 import { conversationChoices, finishConversation, missedConversation, recordPrivateReview, requestReviewMenu, knownStores, noteWork, settleHelp, expireHelp } from './engine/exchanges.mjs';
-import { weatherAt, dayTemp, daylight, chill, fuelPerHearth } from './engine/seasons.mjs';
+import { weatherAt, dayTemp, nextOutdoorStart, chill, fuelPerHearth } from './engine/seasons.mjs';
 
 export const FOCUSES = ['work', 'social', 'rest', 'food'];
 export const DEFAULT_SEED = 26111;
@@ -163,7 +163,7 @@ function jobOptions(actor, state, perceived, allFeasible) {
   const list = [...new Set([actor.trade, 'harvest', 'cut', 'draw'])];
   const options = [];
   // The fields and the coppice are worked by daylight: from first light until half an hour before sunset.
-  const sun = daylight(perceived.minute), now = perceived.minute % 1440, light = now >= sun.sunrise - 30 && now <= sun.sunset - 30;
+  const light = nextOutdoorStart(perceived.minute) === perceived.minute;
   for (const key of list) {
     const job = jobs[key];
     if (!light && (job.at === 'field' || job.at === 'wood')) continue;
@@ -339,6 +339,10 @@ function atBoundary(actor, state, records, pilot) {
   const verdict = standing.consider(actor, state, availableActions(actor, state), finished, pilot);
   for (const end of verdict.ended) records?.push({ actorId: actor.id, minute, basis: 'instruction_ended', routine: end.routine, reason: end.reason, traceId: end.trace });
   if (!verdict.follow) {
+    if (waiting && verdict.fresh?.startsWith('would run into my promise') && actor.action.why !== verdict.fresh) {
+      actor.action.why = verdict.fresh;
+      actor.action.since = minute;
+    }
     if (waitForDecision(actor, minute, verdict.fresh)) records?.push({ actorId: actor.id, minute, basis: 'waiting', reason: verdict.fresh, action: brief(finished) });
     return;
   }

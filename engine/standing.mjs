@@ -1,6 +1,8 @@
 // Standing instructions. A resident's routine follows a choice a model already made, for as long as
 // the situation that choice answered still holds. Anything that is a real choice goes back to the model.
 // See Stage 0 of docs/roadmap.md. Everything here is pure and uses only the village's own state.
+import { place, route, walkingSpeed } from './roads.mjs';
+import { nextOutdoorStart } from './seasons.mjs';
 
 // Pilot parameters, in village minutes unless noted. These are starting values to be tuned.
 export const PILOT = {
@@ -34,11 +36,34 @@ export function keep(actor, state, action, trace, pilot = PILOT) {
   return actor.instructions[routine] = { match: matchOf(action), label: action.label, trace, since: minute, until: minute + lasts, uses: 0, goals: goalsKey(actor) };
 }
 
-// Things the resident has a stake in that fall due at a known time. Today that is only the moot.
-// Promises between residents join this list in Stage 1.
-function due(state) {
-  const moot = state.world.moot;
-  return moot ? [{ what: 'the moot', from: moot.at - 40, until: moot.at + 25 }] : [];
+// Arrival also counts as the first minute of the activity. Use the same waypoints and pace as travel.
+function activityMinutes(actor, map, from, action) {
+  if (!action || action.onSpot) return action?.remaining ?? 0;
+  const path = route(map, from, action.target);
+  if (!path) return Infinity;
+  let distance = 0, last = from;
+  for (const point of path.pts) {
+    distance += Math.hypot(point[0] - last[0], point[1] - last[1]);
+    last = point;
+  }
+  return action.remaining + Math.max(0, Math.ceil(distance / walkingSpeed(actor)) - 1);
+}
+
+function promiseAtRisk(actor, state, menu, routine, lookahead) {
+  const { world, map } = state;
+  const promises = Object.values(actor.helpBook || {}).filter(r =>
+    r.helperId === actor.id && r.status === 'accepted' && r.due >= world.minute).sort((a, b) => a.due - b.due);
+  if (!promises.length) return;
+  const here = [actor.position.x, actor.position.y];
+  const after = routine && !routine.onSpot ? place(map, routine.target)?.at : here;
+  const freeAt = world.minute + activityMinutes(actor, map, here, routine);
+  for (const r of promises) {
+    const shift = [...menu.values()].find(a => a.commitmentId === r.id);
+    // An unavailable shift can still leave an imminent deadline worth discussing.
+    const needed = shift && after ? activityMinutes(actor, map, after, shift) : 0;
+    const canStart = r.job === 'cut' || r.job === 'harvest' ? nextOutdoorStart(freeAt) : freeAt;
+    if (canStart + needed + lookahead > r.due) return 'would run into my promise to ' + r.asker + ' to ' + r.terms;
+  }
 }
 
 // Something heard since the last fresh choice that the resident had not heard in the past day.
@@ -76,7 +101,7 @@ export function consider(actor, state, menu, finished, pilot = PILOT) {
   if (actor.observations?.ovenStores?.minute > (actor.decidedAt ?? -1)) return result('checked the oven stores');
   if (!routine) {
     const was = ended.find(e => candidates.includes(e.routine));
-    return result(was ? 'instruction ' + was.reason : 'no instruction applies');
+    return result(promiseAtRisk(actor, state, menu, null, pilot.lookahead) || (was ? 'instruction ' + was.reason : 'no instruction applies'));
   }
   const ins = book[routine];
   const id = [...menu.keys()].find(key => matchOf(menu.get(key)) === ins.match);
@@ -86,7 +111,9 @@ export function consider(actor, state, menu, finished, pilot = PILOT) {
   const action = menu.get(id), there = map.places.find(p => p.id === action.target);
   const walk = there ? Math.hypot(there.at[0] - actor.position.x, there.at[1] - actor.position.y) / 2.15 : 0;
   const busyUntil = minute + walk + action.remaining;
-  const clash = due(state).find(d => minute <= d.until && busyUntil >= d.from - pilot.lookahead);
-  if (clash) return result('would run into ' + clash.what);
+  const moot = world.moot;
+  if (moot && minute <= moot.at + 25 && busyUntil >= moot.at - 40 - pilot.lookahead) return result('would run into the moot');
+  const promise = promiseAtRisk(actor, state, menu, action, pilot.lookahead);
+  if (promise) return result(promise);
   return { follow: { routine, id, action, instruction: ins }, ended };
 }

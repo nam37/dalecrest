@@ -9,7 +9,7 @@
 
 ## State of the plan
 
-**Marked off · 21 November 2026**, against `main` at `9095681`. A ticked box means built, tested and merged. It does not mean measured in the live village: each stage's "Done when" is a separate test, and none has been met. An unticked box is labelled under way or not begun.
+**Marked off · 21 November 2026**, against the request archive (`996c2c1`) and resident cards (`836bec3`). A ticked box means built, tested and merged. It does not mean measured in the live village: each stage's "Done when" is a separate test, and none has been met. An unticked box is labelled under way or not begun.
 
 | Stage | State | Done | Under way | Not begun |
 | --- | --- | ---: | ---: | ---: |
@@ -24,7 +24,7 @@
 | 8. A wider world | Not begun | 0 | 0 | 1 |
 | All stages | | 12 | 12 | 26 |
 
-The test suite ran 56 tests on 21 November: 49 passed, none failed, and 7 were skipped for want of a PostgreSQL database on the machine that ran them.
+The merge passed all 59 tests on 21 November, including eight tests with disposable PostgreSQL databases.
 
 ## The roles this plan keeps
 
@@ -62,7 +62,7 @@ Three conclusions shape the plan.
 
 1. [x] **The former clock slowed when money for calls ran short.** Stage 0 moved timekeeping off the decision queue. *Done: the clock runs at a fixed pace whatever the models are doing.*
 2. [x] **Many activities repeat.** One night's sleep spanned about five boundaries in the local runs. Stage 0 lets a still-valid model instruction cover routine repeats. *Done: standing instructions, in `engine/standing.mjs`.*
-3. [ ] **Promises need durable records.** Residents remember encounters, but the model sees only the latest two memory texts. A promise needs to survive later meals and shifts. *Under way: a request for help is now a stored record with its terms, deadline and ending. A viewer cannot yet open one.*
+3. [x] **Promises need durable records.** The archive retains the terms, deadline and recorded ending. Each participant remembers the outcome they learned, and their three most recent request memories can inform the next decision.
 
 ## Review: how the residents think
 
@@ -114,7 +114,7 @@ Stages 0 and 1 together are the first milestone, the promise pilot. Sizes are re
 
 - [x] **A clock that advances independently.** Done. Commit `19c3f47`, tested by "village time passes when no decision ever arrives".
 - [x] **Standing instructions.** Done. An instruction keeps its routine, action, exchange, goals and lapse. Anything touching a request for help is always a fresh choice, so no commitment is stored on it.
-- [ ] **When a fresh decision is needed.** Under way. Five of the six conditions are in. The engine's only known stake today is a moot falling due, so the breakfast example is not yet possible.
+- [ ] **When a fresh decision is needed.** Under way. The engine checks time needed for an accepted work request and an approaching moot. Personal appointments such as the breakfast example remain a design proposal.
 - [x] **What happens when things go wrong.** Done. Each row of the table has a test in `standing.test.mjs` or `work-outcomes.test.mjs`.
 - [x] **Record the basis of every activity.** Done. `dalecrest.activity_log`, reported by `tools/pilot-report.mjs`.
 - [ ] **Pilot parameters.** Under way. Starting values are set. None has been tuned against a pilot week.
@@ -177,12 +177,12 @@ Build one promise that can survive a night's sleep, and let a viewer find out ho
 - [x] **Requests and commitments.** Done. All seven statuses exist in `engine/exchanges.mjs`. A request asks for one shift's output within 24 village hours.
 - [x] **Choices.** Done.
 - [x] **Credit.** Done. Commit `45e3e16` added reconsidering and release. Tested in `social-turns.test.mjs`.
-- [ ] **A thread a viewer can follow.** Under way. The promise lives in the records and cannot yet be seen on the page.
+- [ ] **A thread a viewer can follow.** Under way. The request archive is live. Work remains on how the oven and woodpile look.
   - [x] A link to a resident
-  - [ ] A link to a promise
-  - [ ] The resident panel shows the open promise, its status and the last verified change
-  - [ ] History by participant or commitment beyond the latest 100 entries
-  - [ ] A follow button kept in the browser, and "since your last visit"
+  - [x] A permanent link to each delivered request
+  - [x] The resident panel shows open requests and their status, with a link to the recorded changes
+  - [x] History by participant or commitment beyond the latest 100 entries
+  - [x] A follow button kept in the browser, and "since your last visit"
   - [ ] Mabel with a peel at the oven, Oswin working at the woodpile. Under way: in the walking view only, from commit `c3353a5`.
   - [ ] A stack that changes with the store
   - [x] An oven that is lit during a bake
@@ -191,6 +191,8 @@ Build one promise that can survive a night's sleep, and let a viewer find out ho
 - **Done when:** not yet met. Five of the ten acceptance tests have automated cover, two are partly in place and three await the pilot.
 
 Mabel Ash needs wood for the oven. Oswin Holt cuts it. Mabel may ask Oswin for help, and he may accept, decline or leave it unanswered. An accepted promise can be kept, broken or released by Mabel. Each ending has a record a viewer can return to find.
+
+Helpers reconsider standing routines when walking and working would put a promise at risk. At the deadline both parties keep personal memories. Mabel can learn later that Oswin kept his promise. Viewers can follow a permanent request link and read the recorded outcome from PostgreSQL, even after it leaves the chronicle. The four-of-five viewer trial below remains open. [Request archive](https://dalecrest.trinsicstudios.com/requests.html)
 
 **Three kinds of knowledge, kept apart.**
 
@@ -313,7 +315,7 @@ Presentation. The pilot delivers the first of it: links, the promise thread and 
 
 - [ ] **Show events where they happen.** Not begun.
 - [ ] **A director.** Not begun.
-- [x] **Show the basis.** Done. Each activity in the resident panel is tagged routine, fresh choice or deciding, with the reason in plain words. A deciding resident carries a question mark on the map and a hand on the chin in the walking view.
+- [x] **Show the basis.** Done. The resident panel and the map card show the recorded reason for an activity or a wait. A deciding resident carries a question mark on the map and a hand on the chin in the walking view.
 - [ ] **Yesterday in Dalecrest.** Not begun.
 - [ ] **Seasons, weather and the hour.** Under way. Seasons, weather, night and going indoors are in both views. Tools and trade movements arrived in commit `c3353a5`, in the walking view only.
 - [ ] **A richer parish.** Under way. Kitchen gardens, shaded relief, canopy woods, light moving on the river and drifting cloud shadow. No fences, woodpiles, animals or sound.
@@ -455,7 +457,7 @@ The central test: **can someone follow Mabel, return the next day, and tell whet
 5. [ ] **The chronicle claims only what it can verify.** Every statement about the promise links to a recorded event or outcome. A plain woodcutting shift is not credited to the promise. Wood supplied by someone else relieves the shortage and gives Oswin no credit. *Has test cover: "only a chosen shift for the promise earns credit", in `social-turns.test.mjs`.*
 6. [ ] **The answer can be traced.** Starting from the outcome, one query returns the choice that produced it, whether that activity was a fresh choice or routine, the commitment and observations the model was given, and the exact exchange. *Under way: the trace records and worked queries are in [decision tracing](decision-tracing.md). Not yet checked as a single query from an outcome.*
 7. [ ] **Time kept moving.** Through the pilot, including a deliberate provider outage, the clock was never more than one tick late and no resident followed a stale instruction. *Awaiting pilot: both rules have unit tests. The claim is about a live week.*
-8. [ ] **A viewer can read it.** Four of five first-time viewers, on a mix of phones and desktops, can say who wanted what and what happened within 90 seconds. On a second visit a day later they can find the ending after it has left the latest 100 entries. *Awaiting pilot: the page does not show promises yet.*
+8. [ ] **A viewer can read it.** Four of five first-time viewers, on a mix of phones and desktops, can say who wanted what and what happened within 90 seconds. On a second visit a day later they can find the ending after it has left the latest 100 entries. *Awaiting pilot: the archive is available for the trial with first-time viewers.*
 9. [ ] **It can happen unprompted.** With the one chosen pressure in place and no scripting, a morning with flour and no wood arises in seeded runs, and Mabel learns of it by going to look. *Has test cover: "a first winter under local rules brings a morning with flour and no firewood, unscripted", in `seasons.test.mjs`.*
 10. [ ] **It was affordable.** Spending stayed inside both caps and every measurement in the list above was captured. *Awaiting pilot: `tools/pilot-report.mjs` is ready to report it.*
 
@@ -485,4 +487,4 @@ Questions the stages above do not answer. This section was added on 21 November 
 6. **Model-written prose in public.** Stage 2 publishes a resident's own sentence, Stage 4 an account of what was said, and Stage 5 a daily account. Each is text nobody reviewed, shown under the village's name. The plan labels these as accounts. It does not yet say how they are screened, how a wrong one is withdrawn, or how they keep a period voice. *Before Stage 2's first published sentence.*
 7. **History beyond the parish.** Dalecrest was founded on 1 August 1312 and keeps the real Julian calendar. The Great Famine of 1315 to 1317 lies under three village years ahead, about a year and a half of real time at the present pace. Whether the outside world reaches the village at all is undecided, and a 48-day year would cut the calendar loose from history altogether. *With open decisions 8 and 10.*
 8. **Knowing when the village is in trouble.** The caps bound what can be spent and the activity log records every wait. What tells an operator that the provider has been down for an hour, or that half the village has stood waiting since noon? The pilot's deliberate outage is the natural rehearsal, and open decision 2 depends on how long such waits really last. *Before the pilot week.*
-9. **The tests that need a database.** Seven of the 56 tests are skipped without PostgreSQL. They include the ones that prove a restart yields each outcome exactly once, which is acceptance test 2. It is worth confirming that the deploy run includes them, so the promise is checked on every release and not only on a machine that happens to have a database. *Before acceptance test 2 is signed off.*
+9. **The tests that need a database.** Eight of the 59 tests require PostgreSQL. They include the ones that prove a restart yields each outcome exactly once, which is acceptance test 2. It is worth confirming that the deploy run includes them, so the promise is checked on every release and not only on a machine that happens to have a database. *Before acceptance test 2 is signed off.*

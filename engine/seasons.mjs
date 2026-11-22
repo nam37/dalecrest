@@ -30,6 +30,14 @@ export function daylight(minute) {
   return { sunrise: 720 - half, sunset: 720 + half, length: half * 2 };
 }
 
+// Field and coppice shifts can start from first light until half an hour before sunset.
+export function nextOutdoorStart(minute) {
+  const dawn = minute - minute % DAY, sun = daylight(minute);
+  if (minute < dawn + sun.sunrise - 30) return dawn + Math.ceil(sun.sunrise - 30);
+  if (minute <= dawn + sun.sunset - 30) return minute;
+  return dawn + DAY + Math.ceil(daylight(dawn + DAY).sunrise - 30);
+}
+
 // A value between 0 and 1 that drifts smoothly as t advances, one new value per unit of t.
 function drift(seed, salt, t) {
   const i = Math.floor(t), f = t - i, k = f * f * (3 - 2 * f);
