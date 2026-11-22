@@ -143,14 +143,17 @@ test('the keeper counts the shelves, and a short count can be passed on and beco
   const count = until(village, e => e.type === 'work' && e.actorIds.includes(keeper.id));
   assert.match(count.text, /counted the shelves at the storehouse: 2 loaves, /);
   assert.equal(keeper.lastLowCount.item, 'bread');
-  // The keeper can tell a neighbour, and can ask the baker for bread.
+  assert.ok(!menuOf(village, keeper).some(k => k.startsWith('ask:mabel:bread-')), 'Mabel is resting');
+  // The keeper can tell an awake neighbour, and can ask the baker for bread.
+  for (const neighbour of [mabel, resident(village, 'agnes')]) {
+    neighbour.position = { ...keeper.position };
+    neighbour.action = { kind: 'leisure', label: 'Walking', target: 'storehouse', phase: 'working', remaining: 200 };
+  }
   const menu = menuOf(village, keeper);
   assert.ok(menu.some(k => k.startsWith('share:mabel:store-' + keeper.id)), menu.join(' '));
   assert.ok(menu.some(k => k.startsWith('ask:mabel:bread-store-')), menu.join(' '));
   assert.ok(!menu.some(k => k.startsWith('ask:agnes:bread-')), 'only a baker is asked to bake');
   // Told, Mabel knows what the shelves held and who counted them.
-  mabel.position = { ...keeper.position };
-  mabel.action = { kind: 'leisure', label: 'Walking', target: 'storehouse', phase: 'working', remaining: 200 };
   choose(village, keeper, 'share:mabel:store-');
   until(village, e => e.type === 'social' && e.outcome?.verb === 'share');
   assert.equal(mabel.reports.store.fact.stock.bread, 2);

@@ -87,12 +87,23 @@ export function socialContext(actor, minute) {
 
 const near = (a, b) => Math.hypot(a.position.x - b.position.x, a.position.y - b.position.y) <= 3;
 const awake = a => a.action.kind !== 'rest' && a.action.kind !== 'arrive';
+const RETRY_AFTER = 30; // Village minutes before trying another visit after a missed meeting.
+
+export function recentMissedMeeting(actor, minute, recipientId) {
+  return actor.memories.findLast(m => m.missedMeeting && minute - m.minute < RETRY_AFTER &&
+    (!recipientId || m.missedMeeting === recipientId));
+}
+
+export function canContact(actor, other, minute) {
+  return awake(other) && (!recentMissedMeeting(actor, minute, other.id) ||
+    (other.action.phase !== 'travelling' && near(actor, other)));
+}
 
 export function bedConversationChoices(actor, { actors, world }, menu) {
   const request = bedRepairRequest(actor, world);
   if (world.cottages?.[actor.home]?.brokenBed && !request && actor.id !== 'thomas' && !actor.askedAbout?.thomas?.bed) {
     const thomas = actors.find(other => other.id === 'thomas');
-    if (thomas && awake(thomas)) {
+    if (thomas && canContact(actor, thomas, world.minute)) {
       const target = thomas.action.target;
       menu.set(['ask', thomas.id, 'bed', actor.home, target].join(':'), {
         kind: 'conversation', verb: 'ask', label: 'Ask ' + thomas.name + ' to repair my bed', target,
@@ -103,7 +114,7 @@ export function bedConversationChoices(actor, { actors, world }, menu) {
   for (const r of Object.values(actor.helpBook || {})) {
     if (r.job !== bedJob || r.helperId !== actor.id || r.status !== 'asked' || r.due < world.minute) continue;
     const asker = actors.find(other => other.id === r.askerId);
-    if (!asker || !awake(asker)) continue;
+    if (!asker || !canContact(actor, asker, world.minute)) continue;
     for (const verb of ['accept', 'decline']) {
       menu.set([verb, asker.id, r.id, asker.action.target].join(':'), {
         kind: 'conversation', verb, label: verb === 'accept' ? 'Promise ' + asker.name + ' to repair the bed' : 'Tell ' + asker.name + ' I cannot repair the bed',
@@ -122,11 +133,13 @@ export function conversationChoices(actor, state, menu) {
   const requests = Object.values(actor.helpBook || {}).filter(r => world.minute <= r.due);
   for (const other of actors) {
     if (other.id === actor.id) continue;
-    const nearby = near(actor, other) && awake(other);
+    const available = canContact(actor, other, world.minute);
+    const nearby = near(actor, other);
     const target = nearby ? map.places.find(p => p.stage === 2 &&
       Math.hypot(actor.position.x - p.at[0], actor.position.y - p.at[1]) <= 3)?.id : null;
     const destination = target || other.action.target || other.workplace;
     function offer(verb, label, data, key) {
+      if (!available) return;
       const id = [verb, other.id, key, destination].join(':');
       menu.set(id, { kind: 'conversation', verb, label, target: destination, friendId: other.id, onSpot: nearby, remaining: 2, ...data });
     }
@@ -251,11 +264,14 @@ function recordExchange(speaker, listener, minute, text, outcome, emit) {
 }
 
 export function missedConversation(actor, minute, emit, cause) {
-  const { verb, label, friendId, requestId, basis } = actor.action;
+  const { verb, label, friendId, requestId, basis, fact, target } = actor.action;
   const text = actor.name + ' could not ' + label.replace(/^./, c => c.toLowerCase()) + ' because ' + cause + '.';
-  remember(actor, minute, text, [actor.id], 'social');
+  const missedMeeting = cause === 'they did not meet' || cause === 'the meeting place could not be reached';
+  remember(actor, minute, text, missedMeeting ? [actor.id, friendId] : [actor.id], 'social',
+    missedMeeting ? { missedMeeting: friendId } : {});
   emit('social', text, [actor.id], { verb, delivered: false, to: friendId, cause, traceId: basis?.trace ?? null,
-    ...(requestId && { requestId }), ...(actor.action.update && { evidence: actor.action.update }) });
+    target, ...(fact && { factId: fact.id }), ...(requestId && { requestId }),
+    ...(actor.action.update && { evidence: actor.action.update }) });
 }
 
 export function finishConversation(actor, state, emit) {

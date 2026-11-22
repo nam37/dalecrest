@@ -85,6 +85,54 @@ test('a missed visit does not deliver knowledge or create a request', () => {
   assert.equal(v.world.helpRequests, undefined);
 });
 
+test('a failed report stays in the next decision but the same visit waits for a chance to meet', () => {
+  let v = start();
+  inspect(v);
+  let m = who(v, 'mabel'), a = who(v, 'agnes');
+  at(v, a, 'green');
+  const closeReport = 'share:agnes:oven-';
+  const distant = body(v, m).questions[0].choices.find(o => o.value.startsWith(closeReport));
+  assert.match(distant.description, /if they are still there .*after arrival/);
+  assert.ok(startChosen(m, v, distant.value, { id: '2', model: 'fixture' }));
+  at(v, a, a.home);
+  a.action = { kind: 'rest', target: a.home, label: 'Resting at home', phase: 'working', remaining: 105 };
+
+  const failure = complete(v, m).find(e => e.outcome?.verb === 'share');
+  assert.equal(failure.outcome.delivered, false);
+  assert.equal(failure.outcome.traceId, '2');
+  assert.equal(failure.outcome.target, 'green');
+  assert.equal(failure.outcome.factId, 'oven-mabel-' + m.observations.ovenStores.minute);
+  assert.equal(a.reports, undefined);
+
+  // Preserve the failed encounter through a reload and make it compete with weightier memories.
+  v = JSON.parse(JSON.stringify(v));
+  m = who(v, 'mabel');
+  a = who(v, 'agnes');
+  for (let i = 0; i < 6; i++) m.memories.push({ minute: v.world.minute, importance: 9, text: 'Important memory ' + i });
+  const after = body(v, m);
+  const canReport = decision => decision.questions[0].choices.some(o => o.value.startsWith(closeReport));
+  assert.ok(after.input[0].content[0].data.recentMemories.some(memory => memory.endsWith(failure.text)));
+  assert.equal(canReport(after), false);
+  assert.ok(after.questions[0].choices.some(o => o.value.startsWith('share:oswin:oven-')));
+  assert.ok(after.questions[0].choices.some(o => o.value === 'leisure:green'));
+  assert.equal(startChosen(m, v, distant.value, { id: '3' }), null);
+
+  a.action = { kind: 'waiting', target: a.home, phase: 'waiting', remaining: 0 };
+  assert.equal(canReport(body(v, m)), false);
+  assert.ok(!options(v, m).some(k => k.startsWith('social:agnes:')));
+  v.world.minute = failure.minute + 30;
+  assert.equal(canReport(body(v, m)), true);
+  a.action.kind = 'rest';
+  assert.equal(canReport(body(v, m)), false);
+
+  v.world.minute = failure.minute + 2;
+  a.action.kind = 'waiting';
+  at(v, a, 'green');
+  choose(v, m, closeReport, '4');
+  assert.equal(complete(v, m).find(e => e.outcome?.verb === 'share').outcome.delivered, true);
+  assert.equal(a.reports.oven.fact.id, failure.outcome.factId);
+});
+
 test('an interrupted conversation records the attempted contact once', () => {
   const v = start(), m = who(v, 'mabel');
   inspect(v);

@@ -9,7 +9,7 @@ import { dawnLives, finishLifeConversation, lifeChoices, lifeVerbs, maybeCourt, 
 import * as standing from './engine/standing.mjs';
 import { atOven, inspectOven } from './engine/observations.mjs';
 import { appointReporter, reportingGoal, offerReporting, takeFieldNotes } from './engine/reporting.mjs';
-import { bedConversationChoices, conversationChoices, finishConversation, missedConversation, recordPrivateReview, requestReviewMenu, knownStores, noteWork, settleHelp, expireHelp } from './engine/exchanges.mjs';
+import { bedConversationChoices, canContact, conversationChoices, finishConversation, missedConversation, recordPrivateReview, requestReviewMenu, knownStores, noteWork, settleHelp, expireHelp } from './engine/exchanges.mjs';
 import { weatherAt, dayTemp, nextOutdoorStart, chill, fuelPerHearth } from './engine/seasons.mjs';
 import { bedJob, finishVillageWork, normalizeVillageWork, ownWorkChoices, repairBedSpec, tickBarley, villageJobs, villageWorkObstacle } from './engine/village-work.mjs';
 import { advanceForageShift, finishForageShift, outingResult } from './engine/foraging.mjs';
@@ -326,7 +326,7 @@ function choose(actor, state, menu) {
   // Seek a friend with a reachable destination. Recent pleasant meetings favor a return visit.
   let friend, best = -Infinity;
   for (const other of actors) {
-    if (other === actor || other.action.kind === 'rest' || other.action.kind === 'arrive') continue;
+    if (other === actor || !canContact(actor, other, world.minute)) continue;
     const site = place(map, other.action.target);
     if (!site) continue;
     if (menu) {

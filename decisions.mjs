@@ -1,5 +1,5 @@
 import { recalledOvenStores } from './engine/observations.mjs';
-import { socialContext, villageTime } from './engine/exchanges.mjs';
+import { recentMissedMeeting, socialContext, villageTime } from './engine/exchanges.mjs';
 import { ownWorkContext } from './engine/village-work.mjs';
 import { lifeContext } from './engine/lives.mjs';
 import { buildingsContext, restDay } from './engine/workday.mjs';
@@ -14,7 +14,11 @@ import { preferredOuting } from './engine/foraging.mjs';
 export function recalledFor(actor, world) {
   const people = [...new Set([...activeGoals(actor).map(g => g.about), actor.spouse,
     ...Object.values(actor.helpBook || {}).flatMap(r => [r.askerId, r.helperId])])].filter(id => id && id !== actor.id);
-  return recall(actor, { minute: world.minute, people, place: actor.action.target, limit: 6 });
+  const options = { minute: world.minute, people, place: actor.action.target };
+  const memories = recall(actor, options);
+  const missed = recentMissedMeeting(actor, world.minute);
+  if (!missed || memories.includes(missed)) return memories;
+  return [...recall(actor, { ...options, limit: 5 }), missed].sort((a, b) => a.minute - b.minute);
 }
 
 export const DECISIONS_MODEL = 'gpt-6-luna';
@@ -33,7 +37,12 @@ export function actionDescription(action, names = {}) {
   if (action.kind === 'review') return action.label + '.';
   if (action.kind === 'report') return action.label + ' and taking eyewitness notes (' + action.remaining + ' village minutes).';
   if (action.onSpot) return action.label + ' here (' + action.remaining + ' village minutes).';
-  return action.label + ' at ' + (names[action.target]?.name || action.target) + ' (' + action.remaining + ' village minutes).';
+  const at = ' at ' + (names[action.target]?.name || action.target);
+  if (action.kind === 'conversation') {
+    return 'Try to ' + action.label[0].toLowerCase() + action.label.slice(1) + at +
+      ' if they are still there (' + action.remaining + ' village minutes after arrival).';
+  }
+  return action.label + at + ' (' + action.remaining + ' village minutes).';
 }
 
 // weather is what anyone out of doors can see and feel, in a few words. A resident also knows

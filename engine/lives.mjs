@@ -8,6 +8,7 @@ import { dateOf, formatDate } from './calendar.mjs';
 import { place } from './roads.mjs';
 import { remember } from './memory.mjs';
 import { warm, warmthOf, trustOf } from './bonds.mjs';
+import { canContact } from './exchanges.mjs';
 
 const DAY = 1440, YEAR = 365.25 * DAY;
 export const ADULT = 16, COMES_OF_AGE = 14;
@@ -166,11 +167,10 @@ export function maybeCourt(a, b, state, emit) {
 // What courtship offers on a resident's menu: asking, and answering.
 export function lifeChoices(actor, { actors, world }, add) {
   const minute = world.minute, near = other => Math.hypot(actor.position.x - other.position.x, actor.position.y - other.position.y) <= 3;
-  const awake = other => other.action.kind !== 'rest' && other.action.kind !== 'arrive';
   const c = actor.courting;
   if (c && !actor.proposal && minute - c.since >= 30 * DAY && !(world.weddings || []).some(w => w.a === actor.id || w.b === actor.id)) {
     const other = actors.find(a => a.id === c.with);
-    if (other && awake(other) && other.proposal?.from !== actor.id) {
+    if (other && canContact(actor, other, minute) && other.proposal?.from !== actor.id) {
       add(['propose', other.id, other.action.target].join(':'), { kind: 'conversation', verb: 'propose', label: 'Ask ' + other.name + ' to marry me',
         target: other.action.target, friendId: other.id, onSpot: near(other), remaining: 3 }, 30 + warmthOf(actor, other.id) * 0.5);
     }
@@ -178,7 +178,7 @@ export function lifeChoices(actor, { actors, world }, add) {
   const asked = actor.proposal;
   if (asked) {
     const other = actors.find(a => a.id === asked.from);
-    if (other && awake(other)) {
+    if (other && canContact(actor, other, minute)) {
       add(['wed', other.id, other.action.target].join(':'), { kind: 'conversation', verb: 'wed', label: 'Tell ' + other.name + ' I will marry them',
         target: other.action.target, friendId: other.id, onSpot: near(other), remaining: 3 }, 50 + warmthOf(actor, other.id) * 0.4);
       add(['refuse', other.id, other.action.target].join(':'), { kind: 'conversation', verb: 'refuse', label: 'Tell ' + other.name + ' I will not marry them',
@@ -200,7 +200,7 @@ export function finishLifeConversation(actor, state, emit, missed) {
   const { world, actors } = state, minute = world.minute, { verb, friendId } = actor.action;
   const other = actors.find(a => a.id === friendId);
   const near = other && Math.hypot(actor.position.x - other.position.x, actor.position.y - other.position.y) <= 3;
-  if (!other || !near || other.action.kind === 'rest') return missed(actor, minute, emit, 'they did not meet');
+  if (!near || other.action.kind === 'rest' || other.action.kind === 'arrive') return missed(actor, minute, emit, 'they did not meet');
   const ids = [actor.id, other.id];
   let text;
   if (verb === 'propose') {
