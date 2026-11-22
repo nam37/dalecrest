@@ -118,6 +118,9 @@ export async function initialize() {
         WHEN kind = 'build' THEN 7 WHEN kind = 'arrival' THEN 8 ELSE 4 END
       WHERE salience IS NULL`);
     await db.query(`CREATE INDEX IF NOT EXISTS events_public ON dalecrest.events (id DESC) WHERE salience >= ${PUBLIC}`);
+    // Missed visits were once rated as public news. Those with no request for help riding on them are not.
+    await db.query(`UPDATE dalecrest.events SET salience = ${PUBLIC - 1} WHERE salience >= ${PUBLIC} AND kind = 'social'
+      AND outcome->>'delivered' = 'false' AND NOT outcome ? 'requestId'`);
     await db.query(knowledgeSchema);
     await db.query(`ALTER TABLE dalecrest.world ADD COLUMN IF NOT EXISTS ticks bigint NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS late_ms_max integer NOT NULL DEFAULT 0`);

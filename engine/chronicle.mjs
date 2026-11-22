@@ -21,7 +21,7 @@ export function judge(world, events) {
     if (event.salience < PUBLIC || ALWAYS.has(event.type)) continue;
     // Talk of the same shortage anywhere in the village is one piece of news.
     const talk = / discussed the dwindling (.+?) (reserve|stores)/.exec(event.text);
-    const key = talk ? 'talk:' + talk[1] : event.text.replace(/d+/g, '#');
+    const key = talk ? 'talk:' + talk[1] : event.text.replace(/\d+/g, '#');
     if (world.told[key] > event.minute - SEEN_FOR) event.salience = PUBLIC - 1;
     else world.told[key] = event.minute;
   }
@@ -41,6 +41,9 @@ export function salienceOf(event) {
     return outcome.status === 'blocked' && ['bake', 'mill', 'build'].includes(outcome.job) && /too little (flour|wood|grain) |out of use/.test(outcome.reason || '') ? 3 : 1;
   }
   if (type === 'social') {
+    // A walk that ended without finding the other person is the walker's own disappointment. It is news
+    // only when a request for help hung on it.
+    if (outcome.delivered === false) return outcome.requestId ? PUBLIC : PUBLIC - 1;
     if (outcome.verb) return EXCHANGES[outcome.verb] ?? 3;
     // A hand lent at someone else's work is the ordinary kindness of the day. It stays in their own memories.
     if (/ lent .+ a hand /.test(text)) return 2;
