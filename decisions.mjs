@@ -1,6 +1,9 @@
 import { recalledOvenStores } from './engine/observations.mjs';
 import { socialContext, villageTime } from './engine/exchanges.mjs';
 import { ownWorkContext } from './engine/village-work.mjs';
+import { lifeContext } from './engine/lives.mjs';
+import { buildingsContext, restDay } from './engine/workday.mjs';
+import { visitorContext } from './engine/visitors.mjs';
 
 export const DECISIONS_MODEL = 'gpt-6-luna';
 
@@ -31,8 +34,9 @@ export function actionBody(actor, world, menu, names = {}, weather) {
     needs: Object.fromEntries(Object.entries(actor.needs).map(([need, value]) => [need, Math.round(value)])),
     lastActivity: last && { kind: last.kind, label: last.label, place: names[last.target]?.name || last.target },
     whyThisIsAChoice: actor.action.why,
-    time: villageTime(world.minute), ...socialContext(actor, world.minute), ...ownWorkContext(actor, world),
-    ...(weather && { weather }),
+    time: villageTime(world.minute), ...lifeContext(actor, world.minute), ...socialContext(actor, world.minute), ...ownWorkContext(actor, world),
+    ...(weather && { weather }), ...(restDay(world.minute) && { dayOfRest: restDay(world.minute) }),
+    ...visitorContext(actor, world, names), ...buildingsContext(actor, world, names),
     ...(hearth && world.minute - hearth.minute < 1440 && !hearth.lit && { ownHearth: world.cottages?.[actor.home] ? 'Cold since this morning: the woodpile at home ran out.' : 'Cold since this morning: there was no firewood left in the common store for the hall.' }),
     lastOvenCheck: recalledOvenStores(actor, world.minute), recentMemories: actor.memories.slice(-5).map(m => m.text)
   };

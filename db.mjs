@@ -44,9 +44,14 @@ async function saveMap(db, map) {
     ON CONFLICT (id) DO UPDATE SET revision = excluded.revision, state = excluded.state`, [map.revision, map]);
 }
 async function saveActors(db, actors) {
-  await db.query(`INSERT INTO dalecrest.actors(id, ordinal, state)
-    SELECT payload.actor->>'id', payload.n - 1, payload.actor
-    FROM jsonb_array_elements($1::jsonb) WITH ORDINALITY AS payload(actor, n)
+  // A resident who has left or died is no longer in the village. A new one takes the next place in the order.
+  await db.query('DELETE FROM dalecrest.actors WHERE NOT (id = ANY($1::text[]))', [actors.map(a => a.id)]);
+  await db.query(`WITH payload AS (SELECT actor, n FROM jsonb_array_elements($1::jsonb) WITH ORDINALITY AS p(actor, n)),
+      fresh AS (SELECT n, row_number() OVER (ORDER BY n) AS k FROM payload
+        WHERE NOT EXISTS (SELECT 1 FROM dalecrest.actors a WHERE a.id = payload.actor->>'id'))
+    INSERT INTO dalecrest.actors(id, ordinal, state)
+    SELECT payload.actor->>'id', (SELECT coalesce(max(ordinal), -1) FROM dalecrest.actors) + coalesce(fresh.k, 0), payload.actor
+    FROM payload LEFT JOIN fresh USING (n) ORDER BY payload.n
     ON CONFLICT (id) DO UPDATE SET state = excluded.state`, [JSON.stringify(actors)]);
 }
 export async function currentMap() {

@@ -47,11 +47,13 @@ function show() {
   }) : [el('p', 'empty', 'Nothing built or decided yet. Advance the days to watch the village grow.')]));
 }
 function advance(minutes) {
-  for (const e of stepVillage(village, { minutes })) if (['civic', 'build', 'arrival'].includes(e.type) && !/ told /.test(e.text)) log.push(e);
+  for (const e of stepVillage(village, { minutes })) if (['civic', 'build', 'arrival', 'life', 'storm', 'visit', 'herd'].includes(e.type) && !/ told /.test(e.text)) log.push(e);
   show();
 }
 function found() {
   village = createVillage(Number($('seed').value) || 26111);
+  // The Sandbox shows whole lives, death included. The live village leaves death out.
+  village.world.mortal = true;
   revision = -1; log = []; selected = village.actors[0].id;
   show(); map.home();
 }

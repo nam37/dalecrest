@@ -4,7 +4,8 @@ import { generateMap } from './engine/worldgen.mjs';
 import { r2 } from './engine/geom.mjs';
 import { place, placesOf, route, walkingSegment } from './engine/roads.mjs';
 import * as civic from './engine/civic.mjs';
-import { newcomer, wantsNewcomer } from './engine/people.mjs';
+import { grownChild, newcomer, wantsNewcomer } from './engine/people.mjs';
+import { dawnLives, finishLifeConversation, lifeChoices, lifeVerbs, maybeCourt, normalizeLife, tickLives, tooIll } from './engine/lives.mjs';
 import * as standing from './engine/standing.mjs';
 import { atOven, inspectOven } from './engine/observations.mjs';
 import { appointReporter, reportingGoal, offerReporting, takeFieldNotes } from './engine/reporting.mjs';
@@ -14,9 +15,11 @@ import { bedJob, finishVillageWork, normalizeVillageWork, ownWorkChoices, repair
 import { advanceForageShift, finishForageShift, outingResult } from './engine/foraging.mjs';
 import { BARN, foodDays, mouths, normalizeStores } from './engine/stores.mjs';
 import { burnHearths } from './engine/households.mjs';
+import { FEAST_HOURS, feastOf, feastOn, normalizeBuildings, repairLoss, tradeOpen, waitTurn, waitedTooLong, wear } from './engine/workday.mjs';
+import { dawnVisitors, tickVisitors } from './engine/visitors.mjs';
 import { forgetTold, judge } from './engine/chronicle.mjs';
 import { normalizeMemories } from './engine/memory.mjs';
-import { fade, warm } from './engine/bonds.mjs';
+import { familiar, fade, warm } from './engine/bonds.mjs';
 
 export const FOCUSES = ['work', 'social', 'rest', 'food'];
 export const DEFAULT_SEED = 26111;
@@ -109,6 +112,7 @@ function normalize({ world, actors, map }) {
     appointReporter(actor);
     actor.needs.cold ??= 0;
     normalizeMemories(actor);
+    normalizeLife(actor, world.minute);
     if (!Array.isArray(actor.desires)) actor.desires = inferDesires(actor);
     const lastChoice = /^Selected by .+? after (.+)\.$/.exec(actor.action.reason);
     if (lastChoice) actor.action.reason = decisionAfter('Chose this', lastChoice[1]);
@@ -116,6 +120,7 @@ function normalize({ world, actors, map }) {
     if (!actor.action.reason) actor.action.reason = 'Continuing an activity chosen earlier in the day.';
   }
   normalizeVillageWork({ world, actors, map });
+  normalizeBuildings({ world, map });
 }
 
 export function createVillage(seed = DEFAULT_SEED) {
@@ -193,6 +198,7 @@ function jobOptions(actor, state, perceived, allFeasible) {
   for (const key of list) {
     const job = jobs[key];
     if (!light && (job.at === 'field' || job.at === 'wood')) continue;
+    if (!tradeOpen(key, perceived.minute)) continue;
     if (stockObstacle(perceived, job, true)) continue;
     const material = Object.keys(job.makes)[0];
     const amount = perceived.supplies[material];
@@ -230,7 +236,7 @@ function choose(actor, state, menu) {
   if (!place(map, actor.home)) actor.home = 'hall';
   function offer(kind, label, target, duration, score, reason, extra = {}) {
     if (menu) {
-      const id = [kind, extra.job || extra.friendId || extra.meal, target].filter(Boolean).join(':');
+      const id = [kind, extra.job || extra.friendId || extra.meal || (extra.feast && 'feast'), target].filter(Boolean).join(':');
       menu.set(id, { kind, label, target, remaining: duration, ...extra });
       return;
     }
@@ -250,14 +256,15 @@ function choose(actor, state, menu) {
   const duty = actor.traits.includes('steadfast') ? 5 : 0;
   const weary = (night ? 48 : 0) + Math.max(0, fatigue - 65);
   if (actor.trade === 'report' && !night) offerReporting(actor, state, offer, weary);
-  for (const job of (menu ? jobsHere : jobsHere.slice(0, 1))) {
+  const ill = tooIll(actor);
+  for (const job of (ill ? [] : menu ? jobsHere : jobsHere.slice(0, 1))) {
     const spec = jobs[job.key];
     const material = Object.keys(spec.makes)[0];
     const reason = perceived.supplies[material] == null ? 'I can put in a shift at the ' + spec.at + '.'
       : 'The last known reserve of ' + material + ' was ' + perceived.supplies[material] + ' units.';
     offer('work', spec.label, job.site, spec.duration, job.score + duty - weary, reason, { job: job.key });
   }
-  ownWorkChoices(actor, state, (job, target, score, reason, extra = {}) => {
+  if (!ill) ownWorkChoices(actor, state, (job, target, score, reason, extra = {}) => {
     const spec = job === bedJob ? repairBedSpec(actor) : jobs[job];
     if (menu ? stockObstacle(perceived, spec, true) : stockObstacle(world, spec)) return;
     const { label = spec.label, duration = spec.duration, ...details } = extra;
@@ -265,14 +272,19 @@ function choose(actor, state, menu) {
   }, weary);
   if (!menu) {
     const conversations = new Map();
-    bedConversationChoices(actor, state, conversations);
+    if (!ill) bedConversationChoices(actor, state, conversations);
+    // Courtship under local rules: the asking and the answer weighed on warmth.
+    lifeChoices(actor, state, (id, action, score) => {
+      const { kind, label, target, remaining, ...extra } = action;
+      offer(kind, label, target, remaining, score - weary, extra.verb === 'propose' ? 'We have walked out together a while now.' : 'I have been asked to marry.', extra);
+    });
     for (const action of conversations.values()) {
       const { kind, label, target, remaining, verb, ...extra } = action;
       const score = verb === 'ask' ? 46 + (action.onSpot ? 12 : 0) : verb === 'accept' ? 72 : 40;
       offer(kind, label, target, remaining, score - weary, 'There is a broken bed that needs attention.', { verb, ...extra });
     }
   }
-  const build = civic.buildChoice(actor, { ...state, world: perceived });
+  const build = !ill && tradeOpen('build', world.minute) && civic.buildChoice(actor, { ...state, world: perceived });
   if (build) offer('work', build.label, build.project.id, 70, build.score + duty - weary, build.reason, { job: 'build' });
   if (civic.mootOpen(world)) {
     const backs = world.proposals.some(p => p.supporters.includes(actor.id));
@@ -315,6 +327,9 @@ function choose(actor, state, menu) {
   if (friend) offer('social', 'Visiting ' + friend.name.split(' ')[0], friend.action.target, 28, loneliness + (actor.traits.includes('gregarious') ? 13 : 0) - (night ? 28 : 0), 'I could use some company and know where to find ' + friend.name + '.', { friendId: friend.id });
   const alehouse = dayTime >= 960 && nearest(actor, map, 'alehouse');
   if (alehouse) offer('leisure', 'Sitting in ' + alehouse.name, alehouse.id, 50, 26 + loneliness * 0.4 + (actor.traits.includes('gregarious') ? 8 : 0) - (night ? 12 : 0), 'The day’s work is done and there will be company at ' + alehouse.name + '.');
+  const feast = feastOn(world.minute);
+  if (feast) offer('leisure', 'Keeping ' + feast + ' at the feast on the green', 'green', Math.max(20, FEAST_HOURS[1] - dayTime), 64 + loneliness * 0.3 - weary * 0.5,
+    'The village keeps ' + feast + ' with a feast on the green this afternoon.', { feast });
   offer('leisure', 'Walking on the green', 'green', 44, 30 + (actor.traits.includes('restless') ? 6 : 0) - (night ? 17 : 0), 'A walk on the green will ease my fatigue.');
   if (menu) return;
   choices.sort((a, b) => b.score - a.score);
@@ -359,6 +374,8 @@ export function availableActions(actor, state) {
   choose(actor, state, menu);
   bedConversationChoices(actor, state, menu);
   conversationChoices(actor, state, menu);
+  lifeChoices(actor, state, (id, action) => menu.set(id, action));
+  if (tooIll(actor)) for (const [id, action] of menu) if (action.kind === 'work' || action.kind === 'report') menu.delete(id);
   const reachable = new Map();
   for (const [id, action] of menu) {
     if (action.onSpot) continue;
@@ -498,7 +515,15 @@ function finishShift(actor, state, emit, sky) {
   const minute = world.minute, dry = key !== 'cut' ? 3 : sky.lying > 0.5 ? 1 : sky.snow || sky.lying > 0.1 ? 2 : 3;
   const spec = key === bedJob ? repairBedSpec(actor) : jobs[key];
   const changes = dry < 3 ? snowedWood[dry] : outingResult(actor, state, sky);
-  const job = changes ? { ...spec, ...changes } : spec;
+  let job = changes ? { ...spec, ...changes } : spec;
+  // A mill, oven or well in poor repair turns out less, and one out of use turns out nothing.
+  const worn = ['mill', 'bake', 'draw'].includes(key) ? repairLoss(world, target) : 0, what = { mill: 'mill', bake: 'oven', draw: 'well' }[key];
+  if (worn === Infinity) {
+    endShiftEarly(actor, minute, emit, 'blocked', 'the ' + what + ' was out of use for want of repair');
+    return;
+  }
+  if (worn) job = { ...job, makes: Object.fromEntries(Object.entries(job.makes).map(([k, v]) => [k, v - worn])),
+    result: job.result.replace(/\b(five|four|three)\b(?= (loaves|of flour|buckets))/, w => ({ five: 'four', four: 'three', three: 'two' })[w]) + ', the ' + what + ' being in poor repair' };
   const obstacle = villageWorkObstacle(actor, world, sky) || stockObstacle(world, job);
   if (obstacle) {
     if (key === 'hunt' || key === 'fish') finishForageShift(actor, world, job.result);
@@ -536,6 +561,7 @@ function spotOf({ actors, map }, actorIds, site) {
 function arrival(state) {
   const { world, actors } = state;
   const resident = newcomer(state, () => random(world));
+  normalizeLife(resident, world.minute);
   resident.desires = inferDesires(resident);
   actors.push(resident);
   world.lastArrival = world.minute;
@@ -562,7 +588,9 @@ function stepMinute(state, events, externalActions, records, pilot) {
     civic.dawn(state);
     forgetTold(world);
     for (const actor of actors) fade(actor, minute);
-    for (const [key, used] of Object.entries({ cloth: 1, repair: 2, water: actors.length })) world.supplies[key] = Math.max(0, world.supplies[key] - used);
+    for (const [key, used] of Object.entries({ cloth: 1, water: actors.length })) world.supplies[key] = Math.max(0, world.supplies[key] - used);
+    wear(state, emit);
+    dawnVisitors(state, emit, () => random(world), sky);
     const burned = fuelHearths(state);
     emit('village', 'Dawn breaks ' + sky.phrase + '. The households collect water and take what they need from the village stores'
       + (world.hearthRate ? ', and light their hearths.' : '.'));
@@ -584,7 +612,16 @@ function stepMinute(state, events, externalActions, records, pilot) {
       spoiled += loss;
     }
     if (spoiled) emit('village', 'Some fresh fish, game or cooked food spoiled in the hall’s stores overnight.', [], undefined, 'hall');
+    dawnLives(state, emit, () => random(world), (child, home) => {
+      const grown = grownChild(state, child, home, () => random(world));
+      grown.desires = inferDesires(grown);
+      actors.push(grown);
+      emit('life', grown.name + ' has come of age and takes up work as a ' + grown.role.toLowerCase() + '.', [grown.id], { life: 'grown' });
+    });
   }
+  tickLives(state, emit);
+  tickVisitors(state, emit);
+  if (minute % 1440 === FEAST_HOURS[0] && feastOf(minute)) emit('feast', 'Dalecrest keeps ' + feastOf(minute) + ' with a feast on the green this afternoon.', [], undefined, 'green');
   tickBarley(world, sky, map.seed);
   if (minute % 1440 === 540 && wantsNewcomer(state) && random(world) < 0.7) {
     events.push(arrival(state));
@@ -604,7 +641,7 @@ function stepMinute(state, events, externalActions, records, pilot) {
     // Cold air sharpens the appetite.
     n.hunger = clamp(n.hunger + 0.042 + 0.012 * bite);
     // Nobody sleeps well in a house without a fire.
-    n.fatigue = clamp(n.fatigue + (resting ? recovery : action.kind === 'work' ? 0.074 : 0.043));
+    n.fatigue = clamp(n.fatigue + (resting ? recovery * (actor.illness ? 0.7 : 1) : (action.kind === 'work' ? 0.074 : 0.043) * (actor.illness ? 1.5 : 1)));
     n.cold = clamp(n.cold + (!bite ? -0.25 : warm ? -0.4 : bite * (indoors(action) ? 0.07 : sky.rain || sky.snow ? 0.15 : 0.11)));
     n.loneliness = clamp(n.loneliness + (resting ? 0.006 : 0.043));
     if (action.remaining <= 0) {
@@ -626,6 +663,13 @@ function stepMinute(state, events, externalActions, records, pilot) {
         }
       }
     }
+    if (waitTurn(actor, actors, minute)) {
+      if (waitedTooLong(actor, minute)) {
+        endShiftEarly(actor, minute, emit, 'blocked', 'the ' + (action.job === 'bake' ? 'oven' : 'millstones') + ' stayed in use too long');
+        action.remaining = 0;
+      }
+      continue;
+    }
     advanceForageShift(actor);
     action.remaining--;
     if (action.kind === 'report') takeFieldNotes(actor, state, emit);
@@ -633,7 +677,8 @@ function stepMinute(state, events, externalActions, records, pilot) {
     if (action.kind === 'review') {
       recordPrivateReview(actor, minute, emit);
     } else if (action.kind === 'conversation') {
-      finishConversation(actor, state, emit);
+      if (lifeVerbs.has(action.verb)) finishLifeConversation(actor, state, emit, missedConversation);
+      else finishConversation(actor, state, emit);
     } else if (action.kind === 'inspect') {
       inspectOven(actor, place(map, action.target), world, emit);
     } else if (action.kind === 'work' && action.job === 'build') {
@@ -651,6 +696,13 @@ function stepMinute(state, events, externalActions, records, pilot) {
       emit('meal', actor.name + ' ' + meal + '.', [actor.id]);
     } else if (action.kind === 'leisure') {
       n.fatigue = clamp(n.fatigue - 7);
+      if (action.feast) {
+        // Everyone at the feast eats from the common stores while there is bread or salt fish to share.
+        const shared = world.supplies.bread > 0 ? 'bread' : world.supplies.preserved > 0 ? 'preserved' : null;
+        if (shared) { world.supplies[shared]--; n.hunger = clamp(n.hunger - 40); }
+        n.loneliness = clamp(n.loneliness - 35);
+        memory(actor, minute, actor.name + ' kept ' + action.feast + ' at the feast on the green.', [actor.id], 'social', { importance: 4 });
+      }
       if (action.target !== 'green') n.loneliness = clamp(n.loneliness - 8);
     }
   }
@@ -702,10 +754,12 @@ function stepMinute(state, events, externalActions, records, pilot) {
     for (const [a, b] of [[actor, other], [other, actor]]) {
       a.needs.loneliness = clamp(a.needs.loneliness - 41);
       warm(a, b.id, bond, minute);
+      familiar(a, b.id, minute);
       a.lastChat = minute;
       memory(a, minute, text, ids, 'social', details);
     }
     emit(type, text, ids);
+    maybeCourt(actor, other, state, emit);
   }
   if (externalActions) {
     // An activity that ended this minute is settled now, so routine carries straight on.

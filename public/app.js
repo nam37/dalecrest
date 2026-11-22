@@ -3,6 +3,7 @@ import { dateOf, formatDate } from '/engine/calendar.mjs';
 import { light, skyOver } from '/ambient.js';
 import { residentCard, eventCard, kinds, portrait as likeness, whyText, whyLine, choiceExplanation, doing as doingAt } from '/card.js';
 import { createDirector } from '/director.js';
+import { ageOf } from '/engine/lives.mjs';
 
 const $ = id => document.getElementById(id);
 const el = (tag, cls, value) => {
@@ -201,8 +202,13 @@ function renderProfile(actor) {
       memories.append(row);
     }
     if(!actor.memories.length)memories.append(el('p','empty','No encounters or completed work recorded yet.'));
-    const bonds=Object.entries(actor.relationships).sort((a,b)=>b[1]-a[1]).slice(0,2);
-    detail.append(memories,block('Closest ties',...bonds.map(([id])=>el('p','goal',state.actors.find(a=>a.id===id)?.name||id))));
+    // Warmth is fondness and trust is how far they would rely on someone. They are kept apart.
+    const bonds=Object.entries(actor.relationships).filter(([id])=>state.actors.some(a=>a.id===id)).sort((a,b)=>b[1]-a[1]).slice(0,3);
+    detail.append(memories,block('Closest ties',...bonds.map(([id,w])=>{
+      const row=el('p','goal',state.actors.find(a=>a.id===id).name);
+      row.append(el('small','tie',' · warmth '+Math.round(w)+' · trust '+Math.round(actor.trust?.[id]??40)));
+      return row;
+    })));
     detail.append(requests);
     return;
   }
@@ -246,6 +252,18 @@ function renderProfile(actor) {
   if (minute >= cottage?.floorDue) repairs.push('Rotten floorboard');
   if (minute >= cottage?.sweepDue) repairs.push('Needs sweeping');
   if (repairs.length) detail.append(block('Cottage', el('p','goal',repairs.join(' · '))));
+  // Their own life and household: age, family, health, and what the house has laid in.
+  const life=['Aged '+ageOf(actor,minute)];
+  if(actor.spouseName) life.push('married to '+actor.spouseName);
+  else if(actor.courting) life.push('walking out with '+actor.courting.name);
+  if(actor.proposal) life.push('asked to marry by '+actor.proposal.name);
+  if(actor.expecting) life.push('expecting a child about '+formatDate(actor.expecting.due,'day'));
+  const kids=(cottage?.children||[]).map(c=>c.name+', '+Math.max(0,ageOf(c,minute)));
+  const household=block('Life and household', el('p','goal',life.join(' · ')));
+  if(actor.illness) household.append(chip('ill','Ill', 'Unwell since '+date(actor.illness.since)), el('p','reason',{hungry:'A fever brought on by hunger',cold:'A chill on the chest',worn:'Exhaustion',age:'An ague of old age'}[actor.illness.cause]+(actor.illness.severity>=2?'. Too ill to work.':'.')));
+  if(kids.length) household.append(el('p','goal','Children: '+kids.join(' · ')));
+  if(cottage && Number.isFinite(cottage.woodpile)) household.append(el('p','goal','Woodpile at home: '+Math.floor(cottage.woodpile)+' bundles · Larder: '+(cottage.larder||0)+' loaves'));
+  detail.append(household);
   detail.append(requests);
   detail.append(block('Desires',...(actor.desires||[]).map(d=>el('p','goal',d.label))));
   const needs=block('Current needs');

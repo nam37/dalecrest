@@ -9,20 +9,20 @@
 
 ## State of the plan
 
-**Marked off · 21 November 2026**, against the request archive (`996c2c1`) and resident cards (`836bec3`). Stages 3 and 5 were counted again later that day, after hunting and fishing (`b6dc917`), chronicle notes in the walking view (`563e95d`) and the director. A ticked box means built, tested and merged. It does not mean measured in the live village: each stage's "Done when" is a separate test, and none has been met. An unticked box is labelled under way or not begun.
+**Marked off · 21 November 2026**, against the request archive (`996c2c1`) and resident cards (`836bec3`). Stages 3 and 5 were counted again later that day, after hunting and fishing (`b6dc917`), chronicle notes in the walking view (`563e95d`) and the director. Stages 2 and 3 were counted again on 22 November 2026, when Stage 3 was built. A ticked box means built, tested and merged. It does not mean measured in the live village: each stage's "Done when" is a separate test, and none has been met. An unticked box is labelled under way or not begun.
 
 | Stage | State | Done | Under way | Not begun |
 | --- | --- | ---: | ---: | ---: |
 | 0. Liveness and meaningful choices | Built, awaiting the pilot week | 5 | 2 | 0 |
 | 1. The promise pilot | In hand | 6 | 2 | 0 |
-| 2. Goals and memory | Not begun | 0 | 0 | 6 |
-| 3. A village with stakes | Begun | 1 | 4 | 2 |
+| 2. Goals and memory | Begun | 1 | 1 | 4 |
+| 3. A village with stakes | Built, awaiting the live measure | 7 | 0 | 0 |
 | 4. Voices: competing interests and the moot | Groundwork only | 0 | 1 | 4 |
 | 5. Worth watching | In hand | 4 | 2 | 2 |
 | 6. Worth following | Groundwork only | 0 | 1 | 3 |
 | 7. Taking part | Groundwork only | 0 | 1 | 4 |
 | 8. A wider world | Not begun | 0 | 0 | 1 |
-| All stages | | 16 | 13 | 22 |
+| All stages | | 23 | 10 | 18 |
 
 The merge passed all 59 tests on 21 November, including eight tests with disposable PostgreSQL databases. With the director the suite has 78 tests. Nine of them need a PostgreSQL database and were not run for that change. The other 69 passed.
 
@@ -73,11 +73,11 @@ Stage numbers refer to the plan below. A box is ticked once the fault it describ
 3. [ ] **The action model is shown too little.** `actionBody` in `decisions.mjs` sends needs, stores, two memories and a menu. It leaves out relationships, open obligations and what the resident has learned. (Stages 1 and 2) *Under way: the request now carries the resident's own dated oven count, open requests for help with the standing between the two, cold and the weather. Recalled memory and goals that change wait for Stage 2.*
 4. [x] **Place names.** Stage 0 added readable place names to option descriptions. Choice IDs still identify the exact action.
 5. [ ] **Moot attendance.** A scripted test exercises quorum and construction on the model-driven path. How often real residents choose to attend remains a pilot measurement. [Standing-instruction tests](../standing.test.mjs) *Under way: the test is in. The live measurement is not.*
-6. [ ] **Memory is a short list of sentences.** `remember` in `engine/civic.mjs` keeps 18 strings with no source, importance or recall. (Stages 1 and 2) *Not begun: the list of 18 is unchanged. Supply counts are kept beside it as observations with a source and a time.*
+6. [ ] **Memory is a short list of sentences.** `remember` in `engine/civic.mjs` keeps 18 strings with no source, importance or recall. (Stages 1 and 2) *Under way: memories now carry a source, importance and place, a resident keeps sixty, and recall is scored. They are not yet in PostgreSQL.*
 7. [ ] **Everyone knows everything.** The menu and the request use the true stores and every resident's true destination. "Bake" disappears from a menu the moment someone far away uses the last wood. (Stage 1) *Under way: flour and firewood are known only from an oven inspection or from being told. Barley and water are seen on depositing. Other knowledge is still shared by all.*
-8. [ ] **Residents cannot ask, agree, decline or vote.** Encounters pick one of five templates. Votes in `resolve` are supporter-or-random. One template is wrong in effect: "discussed the dwindling grain reserve" fires when a store is under a quarter of its capacity, so building a granary makes it fire more often. (Stage 1 for asking and agreeing, Stage 3 for the fix, Stage 4 for votes) *Under way: asking, agreeing and declining are model choices. The grain sentence still fires on a quarter of capacity, and votes are unchanged.*
-9. [ ] **Relationships are one number that only rises.** After 60 days, 19 of 122 are at the maximum. (Stages 2 and 3) *Not begun.*
-10. [ ] **People only arrive, and the economy has no pressure.** Nobody is born, grows old, falls ill or leaves. One harvest shift feeds the founding village for a day. (Stage 3) *Under way: winter fuel is a first real pressure. Lives are not begun.*
+8. [ ] **Residents cannot ask, agree, decline or vote.** Encounters pick one of five templates. Votes in `resolve` are supporter-or-random. One template is wrong in effect: "discussed the dwindling grain reserve" fires when a store is under a quarter of its capacity, so building a granary makes it fire more often. (Stage 1 for asking and agreeing, Stage 3 for the fix, Stage 4 for votes) *Under way: asking, agreeing and declining are model choices, and so are asking to marry and answering. The grain sentence now fires on food counted in days. Votes are unchanged.*
+9. [x] **Relationships are one number that only rises.** After 60 days, 19 of 122 are at the maximum. (Stages 2 and 3) *Done: warmth and trust are separate, both fall, and warmth fades and fills more slowly near the top.*
+10. [x] **People only arrive, and the economy has no pressure.** Nobody is born, grows old, falls ill or leaves. One harvest shift feeds the founding village for a day. (Stage 3) *Done: the harvest is seasonal and a winter has to be stored for, and residents are born, fall ill, marry and leave.*
 
 What is already right and should be kept: the simulation is deterministic and replays from JSON; every model exchange is recorded before it is applied; the engine checks a chosen action again before starting it; and the map is data the village owns.
 
@@ -232,8 +232,8 @@ Give each resident goals that persist and change for reasons, set by the general
 - [ ] **Two kinds of goal.** Not begun. Residents still hold the goals they were founded with.
 - [ ] **Goal reviews.** Not begun. The model for this work is chosen, in design decision 6. No review runs.
 - [ ] **The chain in PostgreSQL.** Not begun. Links 3 and 4 exist for action choices, through decision traces. The goal links do not.
-- [ ] **Memory.** Not begun.
-- [ ] **Relationships with substance.** Not begun.
+- [ ] **Memory.** Under way. Memories carry an id, an importance, a source and the place, and a resident keeps sixty, losing the least memorable old one first. `recall` in `engine/memory.mjs` scores them by recency, importance and relevance to the people and place at hand. They are not yet stored in PostgreSQL or used in the action request.
+- [x] **Relationships with substance.** Done. Warmth and trust are kept apart, in `engine/bonds.mjs`. Warmth rises with company, rises less between people already close, and fades between residents who stop meeting. Trust grows a little with acquaintance and otherwise moves on requests as each resident learns of them: a promise made or kept raises it, and a refusal, an unanswered request or a promise with no word of completion lowers it. Each move is kept as evidence about that person.
 - [ ] **A resident's own words.** Not begun.
 
 **Two kinds of goal.**
@@ -269,13 +269,14 @@ Give residents more to weigh. This stage is engine work and adds no model calls 
 
 **Marked off · 21 November 2026.**
 
-- [ ] **Seasons and weather.** Under way. The village has a calendar, daylight, weather and hearths that burn the woodpile. Barley is still gathered in January, and the year is the real 365 days, which is open decision 10.
-- [ ] **Households.** Under way. A broken bed slows Agnes's recovery. She can spend two bundles of wood to fix it herself or ask Thomas, who can do the job faster with one bundle. The request, reply and work are recorded. Occupied cottages need sweeping and occasional floorboard replacement. Households draw on the common store.
-- [ ] **Lives.** Not begun. Cold is now a fourth need, and a chilled resident sleeps badly. Nothing follows from it yet.
-- [ ] **A working day.** Under way. Agnes can weed or water her barley strip by daylight. Weeds and soil moisture affect how much barley is ready the next morning, and rain replenishes moisture. The other fields still follow their existing harvest cycle. Queues and feast days remain planned.
-- [x] **Hunting and fishing.** Residents can look for game in the coppice, gather bait and fish from a dry riverbank, and mend a worn fishing pole. They can dress game, tan hides, and cook, smoke or cure the catch. Fresh food spoils overnight. Cooked and preserved portions supply meals at the hall.
-- [ ] **Outside events.** Not begun.
-- [ ] **A chronicle that selects.** Under way. The page opens on highlights that leave routine out. Events carry no salience of their own, and food is still a fraction of a bin.
+- [x] **Seasons and weather.** Done. The year is the real one, as decided on 22 November 2026 under open decision 10. Barley ripens only from April to October, by an amount set for each month, in good and poor years, and heavy rain at harvest lays some of it flat. Nothing grows from November to March. The founding barn holds 160 measures and each granary 120, and barley in store is slowly lost to mice and damp. Cold air sharpens appetites, and nobody comes up the road between November and February. `engine/stores.mjs`.
+- [x] **Households.** Done. Each cottage keeps its own woodpile and larder, and its people carry firewood and loaves home from the common stores by choice. A cottage hearth burns only from its own pile, so one household can wake cold while the village woodpile stands, and children eat from the larder. The hall keeps its lodgers’ fire from the common store. A broken bed, sweeping and rotten floorboards are as before. `engine/households.mjs`.
+- [x] **Lives.** Done. Residents have ages. Days of hunger, cold or overwork bring illness, which mends when they are fed, warm and rested, and a resident too ill to work is offered no work. Close, trusting pairs with a spark between them walk out together. Asking to marry, and the answer, are the residents’ own choices, and the wedding is on the green on a Sunday. A married couple keep one house, children are born into it, and at fourteen a child becomes a resident. A lodger moves into a cottage that stands empty. A resident ill too long, or unfed or unhoused for long, leaves. Death, by a long illness or old age, happens only where the village allows it: the Sandbox does, and the live village does not, as decided on 22 November 2026 under open decision 8. `engine/lives.mjs`.
+- [x] **A working day.** Done. Trades keep hours. Nobody works at a trade on a Sunday or a feast day, and on a feast day the village eats together on the green. The mill and each oven take one worker at a time, and a second waits their turn. The common buildings wear, the carpenter’s repair work goes to the worst first, and a mill, oven or well in poor repair turns out less, or nothing once out of use. `engine/workday.mjs`.
+- [x] **Hunting and fishing.** Done. Residents can look for game in the coppice, gather bait and fish from a dry riverbank, and mend a worn fishing pole. They can dress game, tan hides, and cook, smoke or cure the catch. Fresh food spoils overnight. Cooked and preserved portions supply meals at the hall.
+- [x] **Outside events.** Done. A peddler trades salt fish for linen on the green. The lord’s reeve takes a tenth of the barley and a length of linen at Michaelmas and Lady Day. Winter storms strip roofs, lay barley flat and bring down deadwood. Stray cattle eat a ripe field until someone who has seen them drives them out. `engine/visitors.mjs`.
+- [x] **A chronicle that selects.** Done. Every event carries a salience from 0 to 10. The village snapshot serves the latest 100 notable entries. Meals, shifts and other routine stay in residents’ memories and the full record, which the Chronicle page fetches when asked. The same people doing the same thing within three days is routine the second time. Food and water are judged in days, so a granary no longer reads as a shortage. `engine/chronicle.mjs`.
+- **Done when:** Not yet met. The harness half is met: in year runs under local rules no sentence is more than 10% of the public chronicle, and seed 26111 ended its first winter with one measure of barley in store. `tools/year.mjs` reports both, and `stakes.test.mjs` holds them. The live half, the count of real tradeoffs per resident per day, waits for the live village to run under these rules.
 
 - **Seasons and weather.** A year of about 48 village days. Fields produce only in their season. Winter burns wood and eats the stores.
 - **Households.** Each cottage has its own larder and woodpile, so one household can run short while the village does not.
@@ -471,9 +472,9 @@ The central test: **can someone follow Mabel, return the next day, and tell whet
 5. **What the audience may see before residents learn it.** The starting assumption is a public record of observable events.
 6. **How the action and goal budgets are divided**, and whether the daily account in Stage 5 has a third.
 7. **When the pilot reaches the live village.** It is proved in a test village. Moving it to the live one changes what residents know about the stores. *Note, 21 November 2026: oven observations and requests for help are already on `main`, which the live village deploys, so this has in effect been settled by deployment. It should be recorded as decided or reopened.*
-8. **Whether residents die**, and whether the live village is migrated or a new one is founded when Stage 3 changes the economy.
+8. **Whether residents die**, and whether the live village is migrated or a new one is founded when Stage 3 changes the economy. *Decided, 22 November 2026: the engine knows death, but the live village has it switched off. A resident ill too long leaves to be nursed by kin instead. The Sandbox runs with death on. The live village is migrated in place.*
 9. **How far visitors may reach.** Stage 7 can stop at any step. Letters are the first with real moderation work.
-10. **How long a year is.** Stage 3 proposes a year of about 48 village days. The calendar and the weather now keep the real year of 365, which at two village days to a real day takes six real months. One of the two has to give.
+10. **How long a year is.** Stage 3 proposes a year of about 48 village days. The calendar and the weather now keep the real year of 365, which at two village days to a real day takes six real months. One of the two has to give. *Decided, 22 November 2026: the real year. Stage 3 was built on it.*
 11. **Whether the wood store grows with the village.** It holds 32 bundles at any size. With winter fuel that is about a day's burning for thirty hearths in frost, so a large village cannot lay in wood for a cold spell.
 
 ## Future considerations

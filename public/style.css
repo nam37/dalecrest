@@ -201,6 +201,7 @@ h3 { font-size: 1.75rem; line-height: 1.1; }
 .basis { display: inline-block; margin: 1px 0 6px; padding: 0 9px; font-family: var(--caps); font-size: .84rem; letter-spacing: .08em; border: 1px solid; }
 .basis-standing { background: #eef0df; border-color: #c3caa6; color: #4b5e46; }
 .basis-fresh { background: #f6e9cc; border-color: #d9bd83; color: #7a5a24; }
+.basis-ill { background: #ece4ea; border-color: #c8b2c3; color: #6a4a62; }
 .basis-waiting { background: #f3e2d8; border-color: #d9b3a2; color: var(--rust); animation: ponder 2.4s ease-in-out infinite; }
 @keyframes ponder { 50% { background: #f9efe6; } }
 .need { display: grid; grid-template-columns: 78px 1fr 30px; align-items: center; gap: 8px; font-size: .92rem; margin-top: 5px; color: var(--ink-soft); }
@@ -222,7 +223,9 @@ h3 { font-size: 1.75rem; line-height: 1.1; }
 .journal-row:first-child, .journal-day + .journal-row { border-top: 0; }
 .journal-row p { line-height: 1.4; }
 .kind { margin-right: 8px; color: var(--ochre); }
-.kind-civic, .kind-build, .kind-arrival { color: var(--rust); }
+.kind-civic, .kind-build, .kind-arrival, .kind-life, .kind-storm { color: var(--rust); }
+.kind-visit, .kind-herd, .kind-feast, .kind-intention, .kind-goal { color: #6b5a2e; }
+.tie { font-family: var(--caps, inherit); font-size: .8rem; letter-spacing: .04em; color: #8f876f; }
 .kind-plan, .kind-meal, .kind-work { color: #8f876f; }
 .journal-day { margin: 18px 0 2px; padding-bottom: 5px; border-bottom: 1px solid var(--rule); font-size: .95rem; color: var(--ink-soft); }
 .journal-day:first-child { margin-top: 6px; }

@@ -55,6 +55,34 @@ export function wantsNewcomer(state) {
     && fieldsFeed(map) >= pop + 1;
 }
 
+// A child of the village who has come of age, ready to take up a trade beside their household.
+export function grownChild(state, child, home, random) {
+  const { world, actors, map } = state;
+  const pick = list => list[Math.floor(random() * list.length)];
+  const parents = actors.filter(a => child.parents?.includes(a.id));
+  const surname = parents[0]?.name.split(' ').slice(1).join(' ') || pick(LAST);
+  const taken = new Set(actors.map(a => a.id));
+  let id = child.name.toLowerCase().replace(/[^a-z]+/g, '-');
+  while (taken.has(id)) id += '-' + (world.arrivals + actors.length);
+  const trade = parents.map(p => p.trade).find(t => TRADES[t]) || shortestTrade(state, random), [kind, roles, goal] = TRADES[trade];
+  const traits = [pick(TRAITS)];
+  let second = pick(TRAITS);
+  while (second === traits[0]) second = pick(TRAITS);
+  traits.push(second);
+  let workplace = home;
+  if (kind !== 'home') workplace = placesOf(map, kind)[0]?.id || 'hall';
+  const at = map.places.find(p => p.id === home)?.at || [map.w / 2, map.h / 2];
+  return {
+    id, name: child.name + ' ' + surname, role: pick(roles), home, workplace, trade, traits, born: child.born, sex: child.sex,
+    backstory: child.name + ' was born in Dalecrest' + (parents.length ? ' to ' + parents.map(p => p.name).join(' and ') : '') + ', and has grown up among its lanes and fields.',
+    goals: [goal, 'Make a life of my own in Dalecrest'],
+    needs: { hunger: 30, fatigue: 20, loneliness: 30, cold: 0 },
+    relationships: Object.fromEntries(parents.map(p => [p.id, 75])), memories: [], plan: null, position: { x: at[0], y: at[1] },
+    action: { kind: 'idle', label: 'Starting out', reason: 'Old enough now to work beside the household.', target: home, phase: 'working', remaining: 0 },
+    lastChat: world.minute, lastJob: world.minute, daysWorked: 0, lastWorkDay: -1, arrived: world.minute,
+  };
+}
+
 export function newcomer(state, random) {
   const { world, actors, map } = state;
   const pick = list => list[Math.floor(random() * list.length)];

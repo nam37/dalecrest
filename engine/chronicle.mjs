@@ -19,7 +19,9 @@ export function judge(world, events) {
   for (const event of events) {
     event.salience ??= salienceOf(event);
     if (event.salience < PUBLIC || ALWAYS.has(event.type)) continue;
-    const key = event.text.replace(/d+/g, '#');
+    // Talk of the same shortage anywhere in the village is one piece of news.
+    const talk = / discussed the dwindling (.+?) (reserve|stores)/.exec(event.text);
+    const key = talk ? 'talk:' + talk[1] : event.text.replace(/d+/g, '#');
     if (world.told[key] > event.minute - SEEN_FOR) event.salience = PUBLIC - 1;
     else world.told[key] = event.minute;
   }
@@ -36,7 +38,7 @@ export function salienceOf(event) {
   if (type === 'work') {
     if (outcome.commitmentId != null) return 5;
     // A shift that could not be finished for want of stores says something about the village. A full bin does not.
-    return outcome.status === 'blocked' && /too little (flour|wood|grain|water) /.test(outcome.reason || '') ? 3 : 1;
+    return outcome.status === 'blocked' && ['bake', 'mill', 'build'].includes(outcome.job) && /too little (flour|wood|grain) |out of use/.test(outcome.reason || '') ? 3 : 1;
   }
   if (type === 'social') {
     if (outcome.verb) return EXCHANGES[outcome.verb] ?? 3;

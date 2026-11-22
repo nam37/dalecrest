@@ -39,6 +39,12 @@ export function rely(actor, id, delta, minute, text) {
   note(actor, id, minute, 'trust', text, { trust: Math.round((actor.trust[id] - before) * 10) / 10 });
 }
 
+// Getting to know someone builds a little trust on its own, up to what an acquaintance earns. Beyond
+// that, trust is earned by promises kept.
+export function familiar(actor, id, minute) {
+  if (trustOf(actor, id) < 58) rely(actor, id, 0.4, minute);
+}
+
 // At dawn, warmth between people who have not met for some days slips back a little.
 export function fade(actor, minute) {
   for (const [id, value] of Object.entries(actor.relationships || {})) {

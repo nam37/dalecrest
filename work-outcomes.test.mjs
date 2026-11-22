@@ -112,6 +112,12 @@ test('PostgreSQL commits competing oven shifts and stock together, including aft
     await Promise.all([db.advance(), db.advance()]);
     await db.initialize();
     await db.advance();
+    // Robin waits for the oven while Mabel bakes, then takes his turn.
+    for (let i = 0; i < 6; i++) {
+      if ((await pool.query("SELECT 1 FROM dalecrest.events WHERE kind='work' AND outcome->>'workerId'='robin'")).rowCount) break;
+      await pool.query('UPDATE dalecrest.world SET next_tick=now()');
+      await db.advance();
+    }
     const { rows } = await pool.query("SELECT outcome FROM dalecrest.events WHERE kind='work' AND outcome IS NOT NULL ORDER BY id");
     assert.equal(rows.length, 2);
     assert.equal(rows[0].outcome.workerId, 'mabel');

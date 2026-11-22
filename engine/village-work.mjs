@@ -2,6 +2,7 @@ import { place } from './roads.mjs';
 import { nextOutdoorStart, SPELL, weatherAt } from './seasons.mjs';
 import { addFishingBank, forageJobs, LINE_WEAR_LIMIT, offerForaging, provisions } from './foraging.mjs';
 import { FIELD_HOLDS, growing, ripeningOn } from './stores.mjs';
+import { finishVisitor, visitorChoices, visitorJobs, visitorObstacle } from './visitors.mjs';
 import { finishHousehold, householdChoices, householdContext, householdJobs, householdObstacle, prepareHousehold } from './households.mjs';
 
 export const bedJob = 'repairBed';
@@ -9,6 +10,7 @@ export const bedJob = 'repairBed';
 export const villageJobs = {
   ...forageJobs,
   ...householdJobs,
+  ...visitorJobs,
   weed: { label: 'Weeding the barley strip', task: 'weeding', duration: 35, makes: {} },
   waterBarley: { label: 'Watering the barley strip', task: 'watering', duration: 29, takes: { water: 2 }, makes: {} },
   repairBed: { label: 'Repairing the bed', task: 'bed repair', duration: 68, takes: { wood: 2 }, makes: {}, indoors: true },
@@ -88,11 +90,13 @@ export function ownWorkChoices(actor, { world, map }, offer, weary) {
   if (world.minute >= cottage?.floorDue) offer('repairFloor', actor.home, 51 - weary * 0.6, 'A rotten board makes the cottage draughty.');
   offerForaging(actor, { world, map }, offer, sky, daylight, weary);
   householdChoices(actor, { world }, offer, weary, world.hearthRate || 0);
+  visitorChoices(actor, { world, map }, offer, weary);
 }
 
 export function villageWorkObstacle(actor, world, sky) {
   const { job, target, commitmentId } = actor.action;
   if (Object.hasOwn(householdJobs, job)) return householdObstacle(actor, world);
+  if (Object.hasOwn(visitorJobs, job)) return visitorObstacle(actor, world);
   if (job === 'weed' && !(world.barleyStrip?.weeds >= 2)) return 'the strip had already been weeded';
   if (job === 'waterBarley' && (!(world.barleyStrip?.moisture <= 1) || sky.rain || sky.snow)) return 'the strip no longer needed watering';
   if (job === bedJob) {
@@ -108,6 +112,7 @@ export function villageWorkObstacle(actor, world, sky) {
 export function finishVillageWork(actor, { world, map }) {
   const { job, target } = actor.action;
   if (Object.hasOwn(householdJobs, job)) return finishHousehold(actor, world);
+  if (Object.hasOwn(visitorJobs, job)) return finishVisitor(actor, { world, map });
   if (job === 'weed') {
     world.barleyStrip.weeds = 0;
     return 'cleared the weeds from the barley at ' + place(map, target).name;

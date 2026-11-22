@@ -4,7 +4,7 @@
 
 // How much a chronicle entry is worth watching while it is news. Meals, shifts and a resident's own
 // choices are the routine of the day and are left out.
-const NEWS = { build: 10, civic: 10, arrival: 10, social: 7, observation: 6, village: 6, fieldnote: 5 };
+const NEWS = { build: 10, civic: 10, arrival: 10, life: 10, storm: 9, herd: 8, feast: 8, visit: 7, intention: 7, social: 7, observation: 6, village: 6, goal: 5, fieldnote: 5 };
 // Village minutes for which an entry stays news.
 export const NEWS_FOR = 30;
 
@@ -55,7 +55,7 @@ export function scenes({ actors = [], events = [], world = {} } = {}) {
   }
   for (const event of events) {
     const age = minute - event.minute, worth = NEWS[event.type];
-    if (!worth || !event.place || age < 0 || age > NEWS_FOR) continue;
+    if (!worth || !event.place || age < 0 || age > NEWS_FOR || event.salience < 3) continue;
     const known = event.actorIds?.find(id => actors.some(a => a.id === id));
     list.push({ key: 'e:' + event.id, kind: 'event', event, age, weight: worth * (1 - 0.7 * age / NEWS_FOR), ...(known && { actorId: known }) });
   }

@@ -296,8 +296,8 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
     <ol>
       <li><a href="#stage-0"><span class="n">0</span> Liveness and choices <i class="pip built"></i></a></li>
       <li><a href="#stage-1"><span class="n">1</span> The promise pilot <i class="pip hand"></i></a></li>
-      <li><a href="#stage-2"><span class="n">2</span> Goals and memory <i class="pip"></i></a></li>
-      <li><a href="#stage-3"><span class="n">3</span> A village with stakes <i class="pip hand"></i></a></li>
+      <li><a href="#stage-2"><span class="n">2</span> Goals and memory <i class="pip hand"></i></a></li>
+      <li><a href="#stage-3"><span class="n">3</span> A village with stakes <i class="pip built"></i></a></li>
       <li><a href="#stage-4"><span class="n">4</span> Voices and the moot <i class="pip"></i></a></li>
       <li><a href="#stage-5"><span class="n">5</span> Worth watching <i class="pip hand"></i></a></li>
       <li><a href="#stage-6"><span class="n">6</span> Worth following <i class="pip"></i></a></li>
@@ -340,8 +340,8 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
   <ol class="lane">
     <li class="built"><a href="#stage-0"><span class="stone">0</span><b>Liveness</b><small>Built · measuring</small></a></li>
     <li class="hand"><a href="#stage-1"><span class="stone">1</span><b>Promise pilot</b><small>In hand</small></a></li>
-    <li><a href="#stage-2"><span class="stone">2</span><b>Goals, memory</b><small>Not begun</small></a></li>
-    <li class="begun"><a href="#stage-3"><span class="stone">3</span><b>Stakes</b><small>Begun</small></a></li>
+    <li class="begun"><a href="#stage-2"><span class="stone">2</span><b>Goals, memory</b><small>Begun</small></a></li>
+    <li class="built"><a href="#stage-3"><span class="stone">3</span><b>Stakes</b><small>Built · measuring</small></a></li>
     <li><a href="#stage-4"><span class="stone">4</span><b>Voices</b><small>Groundwork</small></a></li>
     <li class="hand"><a href="#stage-5"><span class="stone">5</span><b>Watching</b><small>In hand</small></a></li>
     <li><a href="#stage-6"><span class="stone">6</span><b>Following</b><small>Groundwork</small></a></li>
@@ -409,11 +409,11 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
     <li data-s="part"><div class="what"><strong>The action model is shown too little.</strong> <code>actionBody</code> in <code>decisions.mjs</code> sends needs, stores, two memories and a menu. It leaves out relationships, open obligations and what the resident has learned. (Stages 1 and 2)</div><span class="st">The request now carries the resident's own dated oven count, open requests for help with the standing between the two, cold and the weather. Recalled memory and goals that change wait for Stage 2.</span></li>
     <li data-s="done"><div class="what"><strong>Place names.</strong> Stage 0 added readable place names to option descriptions. Choice IDs still identify the exact action.</div></li>
     <li data-s="part"><div class="what"><strong>Moot attendance.</strong> A scripted test exercises quorum and construction on the model-driven path. How often real residents choose to attend remains a pilot measurement. <a href="../standing.test.mjs">Standing-instruction tests</a></div><span class="st">The test is in. The live measurement is not.</span></li>
-    <li data-s="todo"><div class="what"><strong>Memory is a short list of sentences.</strong> <code>remember</code> in <code>engine/civic.mjs</code> keeps 18 strings with no source, importance or recall. (Stages 1 and 2)</div><span class="st">The list of 18 is unchanged. Supply counts are kept beside it as observations with a source and a time.</span></li>
+    <li data-s="part"><div class="what"><strong>Memory is a short list of sentences.</strong> <code>remember</code> in <code>engine/civic.mjs</code> keeps 18 strings with no source, importance or recall. (Stages 1 and 2)</div><span class="st">Memories now carry a source, importance and place, a resident keeps sixty, and recall is scored. They are not yet in PostgreSQL.</span></li>
     <li data-s="part"><div class="what"><strong>Everyone knows everything.</strong> The menu and the request use the true stores and every resident's true destination. “Bake” disappears from a menu the moment someone far away uses the last wood. (Stage 1)</div><span class="st">Flour and firewood are known only from an oven inspection or from being told. Barley and water are seen on depositing. Other knowledge is still shared by all.</span></li>
-    <li data-s="part"><div class="what"><strong>Residents cannot ask, agree, decline or vote.</strong> Encounters pick one of five templates. Votes in <code>resolve</code> are supporter-or-random. One template is wrong in effect: “discussed the dwindling grain reserve” fires when a store is under a quarter of its capacity, so building a granary makes it fire more often. (Stage 1 for asking and agreeing, Stage 3 for the fix, Stage 4 for votes)</div><span class="st">Asking, agreeing and declining are model choices. The grain sentence still fires on a quarter of capacity, and votes are unchanged.</span></li>
-    <li data-s="todo"><div class="what"><strong>Relationships are one number that only rises.</strong> After 60 days, 19 of 122 are at the maximum. (Stages 2 and 3)</div></li>
-    <li data-s="part"><div class="what"><strong>People only arrive, and the economy has no pressure.</strong> Nobody is born, grows old, falls ill or leaves. One harvest shift feeds the founding village for a day. (Stage 3)</div><span class="st">Winter fuel is a first real pressure. Lives are not begun.</span></li>
+    <li data-s="part"><div class="what"><strong>Residents cannot ask, agree, decline or vote.</strong> Encounters pick one of five templates. Votes in <code>resolve</code> are supporter-or-random. One template is wrong in effect: “discussed the dwindling grain reserve” fires when a store is under a quarter of its capacity, so building a granary makes it fire more often. (Stage 1 for asking and agreeing, Stage 3 for the fix, Stage 4 for votes)</div><span class="st">Asking, agreeing and declining are model choices, and so are asking to marry and answering. The grain sentence now fires on food counted in days. Votes are unchanged.</span></li>
+    <li data-s="done"><div class="what"><strong>Relationships are one number that only rises.</strong> After 60 days, 19 of 122 are at the maximum. (Stages 2 and 3)</div><span class="st">Warmth and trust are separate, both fall, and warmth fades and fills more slowly near the top.</span></li>
+    <li data-s="done"><div class="what"><strong>People only arrive, and the economy has no pressure.</strong> Nobody is born, grows old, falls ill or leaves. One harvest shift feeds the founding village for a day. (Stage 3)</div><span class="st">The harvest is seasonal and a winter has to be stored for, and residents are born, fall ill, marry and leave.</span></li>
   </ol>
   <p>What is already right and should be kept: the simulation is deterministic and replays from JSON; every model exchange is recorded before it is applied; the engine checks a chosen action again before starting it; and the map is data the village owns.</p>
 </section>
@@ -611,7 +611,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
       <span class="numeral">2</span>
       <h3>Goals and memory</h3>
       <span class="meta">Size M · Needs the pilot's observations and commitments</span>
-      <span class="stamp">Not begun</span>
+      <span class="stamp begun">Begun</span>
     </header>
     <div class="meter"><span class="bar"><i class="d"></i><i class="p"></i></span><span class="count"></span></div>
     <p>Give each resident goals that persist and change for reasons, set by the general-purpose model.</p>
@@ -646,11 +646,13 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
         </div>
         <span class="st">Links 3 and 4 exist for action choices, through decision traces. The goal links do not.</span>
       </li>
-      <li data-s="todo">
+      <li data-s="part">
         <div class="what"><strong>Memory.</strong> Replace the 18-sentence list with stored observations that carry source, time, the people and place involved and an importance. For any request, recall by recency, importance and relevance to the people and place at hand. Start with scored SQL.</div>
+        <span class="st">Memories carry an id, an importance, a source and the place, and a resident keeps sixty, losing the least memorable old one first. <code>recall</code> in <code>engine/memory.mjs</code> scores them by recency, importance and relevance. They are not yet stored in PostgreSQL or used in the action request.</span>
       </li>
-      <li data-s="todo">
+      <li data-s="done">
         <div class="what"><strong>Relationships with substance.</strong> Separate warmth from trust. Mabel can stay fond of Oswin and become less willing to rely on him after a missed promise. Both move on recorded events and both can fall.</div>
+        <span class="st">Kept apart in <code>engine/bonds.mjs</code>. Warmth rises with company, rises less between people already close, and fades between residents who stop meeting. Trust grows a little with acquaintance and otherwise moves on requests as each resident learns of them. Each move is kept as evidence about that person.</span>
       </li>
       <li data-s="todo">
         <div class="what"><strong>A resident's own words.</strong> A review may return one sentence in the resident's voice explaining a revision. It is published as the resident's stated intention. It is not presented as a verified motive.</div>
@@ -665,41 +667,43 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
       <span class="numeral">3</span>
       <h3>A village with stakes</h3>
       <span class="meta">Size M · Engine rules</span>
-      <span class="stamp begun">Begun</span>
+      <span class="stamp built">Built<br>Measuring</span>
     </header>
     <div class="meter"><span class="bar"><i class="d"></i><i class="p"></i></span><span class="count"></span></div>
     <p>Give residents more to weigh. This stage is engine work and adds no model calls of its own. It adds situations in which a choice is real, which the pilot will have shown how to count.</p>
     <ul class="checks">
-      <li data-s="part">
+      <li data-s="done">
         <div class="what"><strong>Seasons and weather.</strong> A year of about 48 village days. Fields produce only in their season. Winter burns wood and eats the stores.</div>
-        <span class="st">The village has a calendar, daylight, weather and hearths that burn the woodpile. Barley is still gathered in January, and the year is the real 365 days, which is open decision 10.</span>
+        <span class="st">The year is the real one, as decided on 22 November 2026 under open decision 10. Barley ripens only from April to October, by an amount set for each month, in good and poor years, and heavy rain at harvest lays some of it flat. Nothing grows from November to March. The founding barn holds 160 measures and each granary 120, and barley in store is slowly lost to mice and damp. Cold air sharpens appetites, and nobody comes up the road between November and February. <code>engine/stores.mjs</code>.</span>
       </li>
-      <li data-s="part">
+      <li data-s="done">
         <div class="what"><strong>Households.</strong> Each cottage has its own larder and woodpile, so one household can run short while the village does not.</div>
-        <span class="st">A broken bed slows Agnes’s recovery. She can spend two bundles of wood to fix it herself or ask Thomas, who can do the job faster with one bundle. The request, reply and work are recorded. Occupied cottages need sweeping and occasional floorboard replacement. Households draw on the common store.</span>
+        <span class="st">Each cottage keeps its own woodpile and larder, and its people carry firewood and loaves home from the common stores by choice. A cottage hearth burns only from its own pile, so one household can wake cold while the village woodpile stands, and children eat from the larder. The hall keeps its lodgers’ fire from the common store. A broken bed, sweeping and rotten floorboards are as before. <code>engine/households.mjs</code>.</span>
       </li>
-      <li data-s="todo">
+      <li data-s="done">
         <div class="what"><strong>Lives.</strong> Courtship, marriage, children, old age and death. Illness from hunger, cold or overwork. A resident who is not housed or fed for long leaves.</div>
-        <span class="st">Cold is now a fourth need, and a chilled resident sleeps badly. Nothing follows from it yet.</span>
+        <span class="st">Residents have ages. Days of hunger, cold or overwork bring illness, which mends when they are fed, warm and rested, and a resident too ill to work is offered no work. Close, trusting pairs with a spark between them walk out together. Asking to marry, and the answer, are the residents’ own choices, and the wedding is on the green on a Sunday. A married couple keep one house, children are born into it, and at fourteen a child becomes a resident. A lodger moves into a cottage that stands empty. A resident ill too long, or unfed or unhoused for long, leaves. Death, by a long illness or old age, happens only where the village allows it: the Sandbox does, and the live village does not, as decided on 22 November 2026 under open decision 8. <code>engine/lives.mjs</code>.</span>
       </li>
-      <li data-s="part">
+      <li data-s="done">
         <div class="what"><strong>A working day.</strong> Trades have hours, the mill and oven have queues, buildings decay and need the carpenter, and feast days are for the green.</div>
-        <span class="st">Agnes can weed or water her barley strip by daylight. Weeds and soil moisture affect how much barley is ready the next morning, and rain replenishes moisture. The other fields still follow their existing harvest cycle. Queues and feast days remain planned.</span>
+        <span class="st">Trades keep hours. Nobody works at a trade on a Sunday or a feast day, and on a feast day the village eats together on the green. The mill and each oven take one worker at a time, and a second waits their turn. The common buildings wear, the carpenter’s repair work goes to the worst first, and a mill, oven or well in poor repair turns out less, or nothing once out of use. <code>engine/workday.mjs</code>.</span>
       </li>
       <li data-s="done">
         <div class="what"><strong>Hunting and fishing.</strong> Residents can look for game in the coppice, gather bait and fish from a dry riverbank, and mend a worn fishing pole.</div>
         <span class="st">They can dress game, tan hides, and cook, smoke or cure the catch. Fresh food spoils overnight. Cooked and preserved portions supply meals at the hall.</span>
       </li>
-      <li data-s="todo">
+      <li data-s="done">
         <div class="what"><strong>Outside events.</strong> A peddler, a tax collector, a storm, a stray herd.</div>
+        <span class="st">A peddler trades salt fish for linen on the green. The lord’s reeve takes a tenth of the barley and a length of linen at Michaelmas and Lady Day. Winter storms strip roofs, lay barley flat and bring down deadwood. Stray cattle eat a ripe field until someone who has seen them drives them out. <code>engine/visitors.mjs</code>.</span>
       </li>
-      <li data-s="part">
+      <li data-s="done">
         <div class="what"><strong>A chronicle that selects.</strong> Each event carries a salience. Routine goes to a resident's own log. Measure food in days, not as a fraction of a bin, so that building a granary no longer reads as a shortage.</div>
-        <span class="st">The page opens on highlights that leave routine out. Events carry no salience of their own, and food is still a fraction of a bin.</span>
+        <span class="st">Every event carries a salience from 0 to 10. The village snapshot serves the latest 100 notable entries. Meals, shifts and other routine stay in residents’ memories and the full record, which the Chronicle page fetches when asked. The same people doing the same thing within three days is routine the second time. Food and water are judged in days, so a granary no longer reads as a shortage. <code>engine/chronicle.mjs</code>.</span>
       </li>
     </ul>
     <p>Local rules can exercise these mechanics cheaply in the Sandbox and in tests. They are a harness for the engine. What residents do about a hard winter is still chosen by the models.</p>
     <p class="donewhen"><b>Done when</b> in harness runs no sentence is more than 10% of the chronicle and a hard winter arrives that the stores can fail to cover; and in the live village the number of real tradeoffs per resident per day, as Stage 0 counts them, has risen without the clock or the budget giving way.</p>
+    <p class="donewhen"><b>Status · 22 November 2026.</b> Not yet met. The harness half is met: in year runs under local rules no sentence is more than 10% of the public chronicle, and seed 26111 ended its first winter with one measure of barley in store. <code>tools/year.mjs</code> reports both, and <code>stakes.test.mjs</code> holds them. The live half, the count of real tradeoffs per resident per day, waits for the live village to run under these rules.</p>
   </article>
 
   <!-- ============ Stage 4 ============ -->
