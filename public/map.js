@@ -987,7 +987,8 @@ export function createMap(canvas, onSelect, cards) {
     zoom, home, redraw, focus,
     // Keeps a resident ({ id }), a spot ({ x, y }) or the whole village ({ whole: true }) in view until
     // told otherwise with watch(null), or until the reader moves the sheet, which calls cards.steered.
-    watch(target) { watching = target ? { ...target } : null; schedule(); },
+    // A card held open from before is put away when a watch begins: the caption speaks for the scene.
+    watch(target) { watching = target ? { ...target } : null; if (target) pinned = pinnedMark = null; schedule(); },
     destroy() {
       observer.disconnect(); cancelAnimationFrame(frame);
       card?.remove(); document.removeEventListener('keydown', key);
