@@ -142,6 +142,19 @@ function renderProfile(actor) {
     pre.textContent=JSON.stringify(actor,null,2); pre.scrollTop=top; return;
   }
   detail.replaceChildren();
+  const archive = el('a', '', 'Request history');
+  archive.href = '/requests.html?resident=' + encodeURIComponent(actor.id);
+  const requests = block('Help requests');
+  for (const r of Object.values(state.world.helpRequests || {})) {
+    if (r.askerId !== actor.id && r.helperId !== actor.id) continue;
+    const a = el('a', 'goal', r.asker + ' asked ' + r.helper + ' to ' + r.terms +
+      ' · ' + (r.status === 'accepted' ? 'Promised' : 'Awaiting a reply'));
+    a.href = '/requests.html?request=' + encodeURIComponent(r.id);
+    const item = el('p');
+    item.append(a);
+    requests.append(item);
+  }
+  requests.append(archive);
   if(tab==='memory'){
     detail.append(block('Background',el('p','bio',actor.backstory)));
     const memories=block('Recent memories');
@@ -153,6 +166,7 @@ function renderProfile(actor) {
     if(!actor.memories.length)memories.append(el('p','empty','No encounters or completed work recorded yet.'));
     const bonds=Object.entries(actor.relationships).sort((a,b)=>b[1]-a[1]).slice(0,2);
     detail.append(memories,block('Closest ties',...bonds.map(([id])=>el('p','goal',state.actors.find(a=>a.id===id)?.name||id))));
+    detail.append(requests);
     return;
   }
   const activity=actor.action;
@@ -183,6 +197,7 @@ function renderProfile(actor) {
   const event = state.events.find(e => e.type !== 'plan' && e.actorIds.includes(actor.id));
   if (event) detail.append(block('Latest chronicle event', el('p','memory-text',event.text),
     el('time','goal',date(event.minute)+' · '+time(event.minute))));
+  detail.append(requests);
   detail.append(block('Desires',...(actor.desires||[]).map(d=>el('p','goal',d.label))));
   const needs=block('Current needs');
   for(const [key,val] of Object.entries(actor.needs)){
@@ -221,6 +236,11 @@ function journal(target,events,withDay=false) {
     if (withDay && formatDate(e.minute)!==day) { day=formatDate(e.minute); fragment.append(el('h3','journal-day',formatDate(e.minute,'long'))); }
     const row=el('div','journal-row'), entry=el('p');
     entry.append(el('span','kind kind-'+e.type,kinds[e.type]||e.type),document.createTextNode(e.text));
+    if (e.requestId) {
+      const a = el('a', '', 'Request history');
+      a.href = '/requests.html?request=' + encodeURIComponent(e.requestId);
+      entry.append(' ', a);
+    }
     // In the short list on the village page, an entry from an earlier day says so.
     const earlier = !withDay && state && formatDate(e.minute) !== formatDate(state.world.minute);
     row.append(el('time','journal-time',(earlier ? formatDate(e.minute,'short')+' · ' : '')+time(e.minute)),entry);

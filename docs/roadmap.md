@@ -141,6 +141,8 @@ Build one promise that can survive a night's sleep, and let a viewer find out ho
 
 Mabel Ash needs wood for the oven. Oswin Holt cuts it. Mabel may ask Oswin for help, and he may accept, decline or leave it unanswered. An accepted promise can be kept, broken or released by Mabel. Each ending has a record a viewer can return to find.
 
+Helpers reconsider standing routines when walking and working would put a promise at risk. At the deadline both parties keep personal memories. Mabel can learn later that Oswin kept his promise. Viewers can follow a permanent request link and read the recorded outcome from PostgreSQL, even after it leaves the chronicle. The four-of-five viewer trial below remains open. [Request archive](https://dalecrest.trinsicstudios.com/requests.html)
+
 **Three kinds of knowledge, kept apart.**
 
 | Record | What it holds | In the pilot |
@@ -166,7 +168,7 @@ The pilot uses the residents' existing goals. Goal reviews arrive in Stage 2.
 
 **Second proof: one ordinary pressure.** A staged shortage shows that the branches work. It does not show that the story will ever happen. In 60-day runs today the wood store never falls below 10, and never below 20 while a site is open. Choose one ordinary pressure, such as a building project that draws its timber when the footings are set instead of a bundle a shift, and test whether it produces a morning with flour and no wood without scripting. One pressure is enough for the pilot. Personal inventories, deliveries and prices wait until a second story needs them.
 
-**Status · 21 November 2026.** Winter fuel is the chosen pressure. It is built on the `winter-fuel` branch and is not deployed. Hearths draw firewood from the common store on cold mornings, and in seeded runs under local rules a morning with flour and no wood arises unscripted, with a baker learning of it by going to look. Whether it changes what the Decisions API chooses is not yet measured. [Design decision 11](design.md)
+**Status · 21 November 2026.** Winter fuel is live on the VPS. Hearths draw firewood from the common store on cold mornings. In seeded runs under local rules, a morning with flour and no wood arises unscripted and a baker learns of it by going to look. The effect on live model choices still needs measurement. [Design decision 11](design.md)
 
 Done when: the acceptance tests at the end of this document pass.
 

@@ -1,4 +1,5 @@
 import pg from 'pg';
+import { eventRequestKey, requestIndexes } from './request-archive.mjs';
 import { reserveAction, startChosenAction } from './action-turns.mjs';
 import { createVillage, stepVillage, adoptVillage, welcomeResidents, FOCUSES, DEFAULT_SEED } from './sim.mjs';
 import { POPULATION_LIMIT } from './engine/people.mjs';
@@ -75,6 +76,7 @@ export async function initialize() {
         actor_ids text[] NOT NULL, description text NOT NULL
       );
       ALTER TABLE dalecrest.events ADD COLUMN IF NOT EXISTS outcome jsonb;
+      ${requestIndexes}
       CREATE TABLE IF NOT EXISTS dalecrest.map (
         id integer PRIMARY KEY CHECK (id = 1), revision bigint NOT NULL, state jsonb NOT NULL
       );
@@ -192,7 +194,7 @@ export async function snapshot({ withMap = false } = {}) {
         (SELECT m.state FROM dalecrest.map m WHERE m.id=w.id AND m.revision IS DISTINCT FROM $1::bigint) AS map,` : ''}
       (SELECT jsonb_agg(state ORDER BY ordinal) FROM dalecrest.actors) AS actors,
       COALESCE((SELECT jsonb_agg(to_jsonb(recent) ORDER BY recent.id DESC) FROM
-        (SELECT id, minute, kind AS type, actor_ids AS "actorIds", description AS text
+        (SELECT id, minute, kind AS type, actor_ids AS "actorIds", description AS text, ${eventRequestKey} AS "requestId"
          FROM dalecrest.events ORDER BY id DESC LIMIT 100) recent),'[]'::jsonb) AS events
     FROM dalecrest.world w WHERE w.id=1`, withMap ? [cached?.revision ?? null] : []);
   const state = result.rows[0];

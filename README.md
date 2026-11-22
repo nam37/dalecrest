@@ -24,6 +24,8 @@ The village map is generated from a seed and then belongs to the village. Reside
 
 Open `/atlas.html` on a running server to found a village from any seed in the browser and advance it by days. Set `VILLAGE_SEED` before the first start to choose the seed of a new database.
 
+Open the **Help request archive** from the chronicle, or **Request history** from a resident's panel. Each delivered request has a permanent link with its terms, deadline and recorded events. Follow it in your browser to see what changed on your next visit. [Live request archive](https://dalecrest.trinsicstudios.com/requests.html)
+
 To try a change without touching your village, run a preview against a separate database on port 4174.
 
 ```powershell

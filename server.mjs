@@ -4,6 +4,7 @@ import { initialize, advance, snapshot, currentMap, pool } from './db.mjs';
 import { planOnce, plannerStatus, plannerPollMs } from './planner.mjs';
 import { locationsOf } from './sim.mjs';
 import { affairs } from './engine/civic.mjs';
+import { requestArchive } from './request-archive.mjs';
 
 const host = process.env.HOST || '127.0.0.1';
 const port = Number(process.env.PORT || 4173);
@@ -36,6 +37,9 @@ const server = http.createServer(async (req, res) => {
       const includeMap = knownRevision !== null && knownRevision !== String(map.revision);
       res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ...state, map: includeMap ? map : undefined,
         locations: locationsOf(map, state.actors), affairs: affairs({ ...state, map }), planner: plannerStatus }));
+    } else if (path === '/api/requests' || path.startsWith('/api/requests/')) {
+      const { status, body } = await requestArchive(pool, url);
+      res.writeHead(status, { 'Content-Type': 'application/json' }).end(JSON.stringify(body));
     } else if (path === '/api/map') {
       res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(await currentMap()));
     } else if (files.has(path)) {

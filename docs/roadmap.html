@@ -577,15 +577,15 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
         <div class="what"><strong>A thread a viewer can follow.</strong></div>
         <ul class="sub">
           <li data-s="done">A link to a resident</li>
-          <li data-s="todo">A link to a promise</li>
-          <li data-s="todo">The resident panel shows the open promise, its status and the last verified change</li>
-          <li data-s="todo">History can be read by participant or commitment beyond the latest 100 entries</li>
-          <li data-s="todo">A follow button kept in the browser, and “since your last visit”</li>
+          <li data-s="done">A permanent link to each delivered request</li>
+          <li data-s="done">The resident panel shows open requests and their status, with a link to the recorded changes</li>
+          <li data-s="done">History can be read by participant or commitment beyond the latest 100 entries</li>
+          <li data-s="done">A follow button kept in the browser, and “since your last visit”</li>
           <li data-s="part">Mabel with a peel at the oven, Oswin working at the woodpile</li>
           <li data-s="todo">A stack that changes with the store</li>
           <li data-s="done">An oven that is lit during a bake</li>
         </ul>
-        <span class="st">The promise lives in the records and cannot yet be seen on the page. The peel and the axe are in the walking view, from commit <code>c3353a5</code>.</span>
+        <span class="st">The <a href="https://dalecrest.trinsicstudios.com/requests.html">request archive</a> reads the recorded outcomes. The peel and axe are in the walking view.</span>
       </li>
     </ul>
     <p>The pilot uses the residents' existing goals. Goal reviews arrive in Stage 2.</p>
@@ -600,7 +600,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
         <span class="st">Winter fuel. Seed 26113 gives 15 mornings with flour and no firewood, held as a test in <code>seasons.test.mjs</code>.</span>
       </li>
     </ul>
-    <p class="status"><b>Status · 21 November 2026</b> Winter fuel is the chosen pressure. Hearths draw firewood from the common store on cold mornings, and in seeded runs under local rules a morning with flour and no wood arises unscripted, with a baker learning of it by going to look. Whether it changes what the Decisions API chooses is not yet measured. <a href="design.md">Design decision 11</a><span class="rev">Revised for this edition: roadmap.md still says this is on the <code>winter-fuel</code> branch. It was merged to <code>main</code> in <code>db81515</code> and pushed. Whether the VPS has picked it up was not checked.</span></p>
+    <p class="status"><b>Status · 21 November 2026</b> Winter fuel is live on the VPS. Hearths draw firewood from the common store on cold mornings. In seeded runs under local rules, a morning with flour and no wood arises unscripted and a baker learns of it by going to look. The effect on live model choices still needs measurement. <a href="design.md">Design decision 11</a></p>
 
     <p class="donewhen"><b>Done when</b> the <a href="#acceptance">acceptance tests</a> at the end of this document pass.<i>Not yet met. Six of the ten have automated cover and four await the pilot.</i></p>
   </article>
@@ -889,7 +889,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
     <li data-s="part"><div class="what"><strong>The chronicle claims only what it can verify.</strong> Every statement about the promise links to a recorded event or outcome. A plain woodcutting shift is not credited to the promise. Wood supplied by someone else relieves the shortage and gives Oswin no credit.</div><span class="st tested">“Only a chosen shift for the promise earns credit”, in <code>social-turns.test.mjs</code>.</span></li>
     <li data-s="part"><div class="what"><strong>The answer can be traced.</strong> Starting from the outcome, one query returns the choice that produced it, whether that activity was a fresh choice or routine, the commitment and observations the model was given, and the exact exchange.</div><span class="st">The trace records and worked queries are in <a href="decision-tracing.md">decision tracing</a>. Not yet checked as a single query from an outcome.</span></li>
     <li data-s="todo"><div class="what"><strong>Time kept moving.</strong> Through the pilot, including a deliberate provider outage, the clock was never more than one tick late and no resident followed a stale instruction.</div><span class="st await">Both rules have unit tests. The claim is about a live week.</span></li>
-    <li data-s="todo"><div class="what"><strong>A viewer can read it.</strong> Four of five first-time viewers, on a mix of phones and desktops, can say who wanted what and what happened within 90 seconds. On a second visit a day later they can find the ending after it has left the latest 100 entries.</div><span class="st await">The page does not show promises yet.</span></li>
+    <li data-s="part"><div class="what"><strong>A viewer can read it.</strong> Four of five first-time viewers, on a mix of phones and desktops, can say who wanted what and what happened within 90 seconds. On a second visit a day later they can find the ending after it has left the latest 100 entries.</div><span class="st await">The archive is available. The trial with first-time viewers remains open.</span></li>
     <li data-s="part"><div class="what"><strong>It can happen unprompted.</strong> With the one chosen pressure in place and no scripting, a morning with flour and no wood arises in seeded runs, and Mabel learns of it by going to look.</div><span class="st tested">“A first winter under local rules brings a morning with flour and no firewood, unscripted”, in <code>seasons.test.mjs</code>.</span></li>
     <li data-s="todo"><div class="what"><strong>It was affordable.</strong> Spending stayed inside both caps and every measurement in the list above was captured.</div><span class="st await"><code>tools/pilot-report.mjs</code> is ready to report it.</span></li>
   </ol>
