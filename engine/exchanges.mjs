@@ -3,13 +3,17 @@ import { formatDate } from './calendar.mjs';
 import { currentUpdate, noticeForRequests, ovenFact, requestIsOpen } from './request-review.mjs';
 import { bedJob, bedRepairRequest } from './village-work.mjs';
 import { rely, standingWith, warm } from './bonds.mjs';
+import { BREAD_LOW, storeFact } from './storehouse.mjs';
 
 const supplies = {
   wood: { job: 'cut', terms: 'stack three bundles of firewood', low: 3, units: 3 },
   flour: { job: 'mill', terms: 'grind three measures of flour', low: 3, units: 3 },
   grain: { job: 'harvest', terms: 'bring in three measures of barley', low: 6, units: 3 },
-  water: { job: 'draw', terms: 'fill four buckets at the well', low: 8, units: 4 }
+  water: { job: 'draw', terms: 'fill four buckets at the well', low: 8, units: 4 },
+  bread: { job: 'bake', terms: 'bake five loaves for the storehouse', low: BREAD_LOW, units: 5 }
 };
+// Asking for these is asking someone of the trade. Only a miller grinds and only a baker bakes.
+const tradeOnly = new Set(['mill', 'bake']);
 
 export function villageTime(minute) {
   const clock = [Math.floor(minute / 60) % 24, minute % 60].map(n => String(n).padStart(2, '0')).join(':');
@@ -40,10 +44,11 @@ export function noteWork(actor, world, text, delta) {
 }
 
 function knownFacts(actor) {
-  const seen = actor.observations?.ovenStores;
+  const seen = actor.observations?.ovenStores, shelves = actor.observations?.storehouse;
   const ownOven = seen && ovenFact(actor, seen);
   return [newest(ownOven, actor.reports?.oven?.fact),
-    newest(actor.observations?.lastWork, actor.reports?.work?.fact)].filter(Boolean);
+    newest(actor.observations?.lastWork, actor.reports?.work?.fact),
+    newest(shelves && storeFact(actor, shelves), actor.reports?.store?.fact)].filter(Boolean);
 }
 
 const newest = (own, reported) => !own || (reported && reported.minute > own.minute) ? reported : own;
@@ -129,7 +134,7 @@ export function conversationChoices(actor, state, menu) {
       const report = actor.reports?.[fact.topic];
       if (fact.observerId === other.id || (report?.fact.id === fact.id && report.fromId === other.id) ||
           actor.told?.[other.id]?.[fact.topic] === fact.id) continue;
-      offer('share', 'Tell ' + other.name + ' about ' + (fact.topic === 'oven' ? 'the oven count' : 'the work outcome') +
+      offer('share', 'Tell ' + other.name + ' about ' + (fact.topic === 'oven' ? 'the oven count' : fact.topic === 'store' ? 'the storehouse count' : 'the work outcome') +
         ' witnessed by ' + fact.observer, { fact }, fact.id);
       if (!nearby) break;
     }
@@ -139,12 +144,12 @@ export function conversationChoices(actor, state, menu) {
     if (receipt) offer('share', 'Tell ' + other.name + ' I completed the promised work to ' + receipt.terms,
       { fact: receipt.proof }, receipt.proof.id);
     for (const { fact, item, spec } of shortages) {
-      if ((!nearby && other.trade !== spec.job) || (spec.job === 'mill' && other.trade !== 'mill')) continue;
+      if ((!nearby && other.trade !== spec.job) || (tradeOnly.has(spec.job) && other.trade !== spec.job)) continue;
       if (requests.some(r => r.askerId === actor.id && r.item === item && requestIsOpen(r)) ||
           requests.some(r => r.askerId === other.id && r.helperId === actor.id && r.item === item && requestIsOpen(r)) ||
           actor.askedAbout?.[other.id]?.[item] === fact.id) continue;
       offer('ask', 'Ask ' + other.name + ' (' + other.role + ') to ' + spec.terms +
-        (fact.topic === 'oven' ? ' for the oven' : ' for the village'), { item, fact }, item + '-' + fact.id);
+        (item === 'bread' ? '' : fact.topic === 'oven' ? ' for the oven' : ' for the village'), { item, fact }, item + '-' + fact.id);
     }
     for (const r of requests.filter(r => !r.site && r.helperId === actor.id && r.askerId === other.id && r.status === 'asked')) {
       for (const verb of ['accept', 'decline']) {

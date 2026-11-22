@@ -89,7 +89,7 @@ export function ownWorkChoices(actor, { world, map }, offer, weary) {
   if (world.minute >= cottage?.sweepDue) offer('sweep', actor.home, 36 - weary, 'The cottage needs sweeping. A clean room is easier to rest in.');
   if (world.minute >= cottage?.floorDue) offer('repairFloor', actor.home, 51 - weary * 0.6, 'A rotten board makes the cottage draughty.');
   offerForaging(actor, { world, map }, offer, sky, daylight, weary);
-  householdChoices(actor, { world }, offer, weary, world.hearthRate || 0);
+  householdChoices(actor, { world, map }, offer, weary, world.hearthRate || 0);
   visitorChoices(actor, { world, map }, offer, weary);
 }
 

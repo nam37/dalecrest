@@ -22,7 +22,7 @@ export function restDay(minute) {
 }
 
 // The trades and the hours they keep, in minutes after midnight. Everything else keeps no hours.
-const HOURS = { harvest: [300, 1170], mill: [360, 1140], bake: [240, 1020], cut: [300, 1170], weave: [360, 1260], mend: [420, 1080], build: [360, 1140] };
+const HOURS = { harvest: [300, 1170], mill: [360, 1140], bake: [240, 1020], cut: [300, 1170], weave: [360, 1260], mend: [420, 1080], build: [360, 1140], keep: [420, 1140] };
 // Water is drawn whatever the day. The rest wait for a working day.
 export function tradeOpen(job, minute) {
   const hours = HOURS[job];
@@ -47,10 +47,10 @@ export const queuesAt = job => Boolean(QUEUES[job]);
 // Holds a miller or baker who arrives to find the stones or the oven in use. Returns true while they wait.
 export function waitTurn(actor, actors, minute) {
   const action = actor.action;
-  if (action.kind !== 'work' || !QUEUES[action.job]) return false;
+  if (action.kind !== 'work' || !QUEUES[action.job] || action.carrying) return false;
   // Whoever is further through their shift keeps the stones or the oven. Between equals, the order of the village decides.
   const mine = actors.indexOf(actor);
-  const busy = actors.some((o, i) => o !== actor && o.action.kind === 'work' && o.action.job === action.job && o.action.target === action.target
+  const busy = actors.some((o, i) => o !== actor && o.action.kind === 'work' && o.action.job === action.job && o.action.target === action.target && !o.action.carrying
     && o.action.phase === 'working' && !o.action.queued && o.action.remaining > 0
     && (action.queued || o.action.remaining < action.remaining || (o.action.remaining === action.remaining && i < mine)));
   if (busy) {
@@ -69,8 +69,8 @@ export const waitedTooLong = (actor, minute) => actor.action.queued && minute - 
 
 // ------------------------------------------------------------------- the buildings
 
-const KEPT = ['hall', 'mill', 'oven', 'well', 'granary', 'alehouse'];
-const NAMES = { hall: 'the village hall', mill: 'the watermill', oven: 'the common oven', well: 'the well', granary: 'the granary', alehouse: 'the alehouse' };
+const KEPT = ['hall', 'mill', 'oven', 'well', 'granary', 'alehouse', 'storehouse'];
+const NAMES = { hall: 'the village hall', mill: 'the watermill', oven: 'the common oven', well: 'the well', granary: 'the granary', alehouse: 'the alehouse', storehouse: 'the storehouse' };
 export const buildingName = p => p.kind === 'oven' && p.id !== 'oven' ? 'the bakehouse' : p.kind === 'well' && p.id !== 'well' ? p.name.toLowerCase().replace(/^/, 'the ') : p.kind === 'alehouse' ? p.name : NAMES[p.kind];
 
 export function normalizeBuildings({ world, map }) {

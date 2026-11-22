@@ -126,7 +126,7 @@ function buildPlace(p, map, glow) {
     for (let i = 0; i < 4; i++) g.add(box(1.5, 0.07, 0.09, '#9a7d55', -w * 0.15 + (i % 2) * 0.05, 0.05 + Math.floor(i / 2) * 0.08, d / 2 + 0.5 + (i % 2) * 0.11));
     return g;
   }
-  const tall = p.kind === 'hall' ? 0.85 : p.kind === 'mill' ? 0.95 : p.kind === 'granary' ? 0.7 : p.kind === 'alehouse' ? 0.75 : 0.62;
+  const tall = p.kind === 'hall' ? 0.85 : p.kind === 'mill' ? 0.95 : p.kind === 'granary' ? 0.7 : p.kind === 'alehouse' || p.kind === 'storehouse' ? 0.75 : 0.62;
   const rise = p.kind === 'granary' ? 0.75 : p.kind === 'hall' ? 0.8 : 0.6;
   const lift = p.kind === 'granary' ? 0.22 : 0;
   if (p.stage === 1) {
@@ -143,8 +143,8 @@ function buildPlace(p, map, glow) {
     g.add(box(0.07, 0.07, d, '#a98a5d', -w / 2, tall, 0), box(0.07, 0.07, d, '#a98a5d', w / 2, tall, 0));
     return g;
   }
-  const wall = p.kind === 'mill' ? '#d8c9a4' : p.kind === 'granary' ? '#b99a6b' : p.kind === 'hall' ? '#dccb9f' : '#e6d5a8';
-  const top = p.kind === 'hall' ? '#8e7459' : p.kind === 'mill' ? '#9b7858' : p.kind === 'granary' ? '#a8935f' : p.kind === 'alehouse' ? '#9a6a4c' : roofs[h % roofs.length];
+  const wall = p.kind === 'mill' ? '#d8c9a4' : p.kind === 'granary' ? '#b99a6b' : p.kind === 'hall' ? '#dccb9f' : p.kind === 'storehouse' ? '#cbb68c' : '#e6d5a8';
+  const top = p.kind === 'hall' ? '#8e7459' : p.kind === 'mill' ? '#9b7858' : p.kind === 'granary' ? '#a8935f' : p.kind === 'alehouse' ? '#9a6a4c' : p.kind === 'storehouse' ? '#7d6b52' : roofs[h % roofs.length];
   const bw = p.kind === 'oven' ? w * 0.58 : w, bx = p.kind === 'oven' ? -w * 0.21 : 0;
   g.add(box(bw, tall + 0.6, d, wall, bx, lift + tall / 2 - 0.3, 0));
   if (lift) for (const x of [-w / 2 + 0.25, 0, w / 2 - 0.25]) for (const z of [-d / 2 + 0.2, d / 2 - 0.2]) g.add(box(0.22, lift + 0.5, 0.22, '#aaa290', x, lift / 2 - 0.25, z));
@@ -163,6 +163,14 @@ function buildPlace(p, map, glow) {
   }
   if (p.kind === 'cottage' || p.kind === 'alehouse' || p.kind === 'hall') g.add(box(0.2, rise + 0.25, 0.2, '#8f8672', bw * 0.28, lift + tall + rise * 0.55, -side * d * 0.12));
   if (p.kind === 'alehouse') { g.add(box(0.05, 0.9, 0.05, timber, -w / 2 - 0.25, 0.45, side * (d / 2 + 0.3)), box(0.42, 0.26, 0.04, '#c9a45c', -w / 2 - 0.25, 0.75, side * (d / 2 + 0.3))); }
+  // Barrels and a stack of sacks stand by the storehouse door.
+  if (p.kind === 'storehouse') {
+    for (const dx of [-0.7, -0.38]) {
+      const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.32, 10), mat('#8a6a44'));
+      barrel.position.set(along + dx, 0.16, side * (d / 2 + 0.28)); barrel.castShadow = true; g.add(barrel);
+    }
+    g.add(box(0.36, 0.16, 0.24, '#c8b48a', along + 0.62, 0.08, side * (d / 2 + 0.26)), box(0.3, 0.14, 0.2, '#bfa87c', along + 0.6, 0.23, side * (d / 2 + 0.26)));
+  }
   if (p.kind === 'oven') {
     const dome = new THREE.Mesh(new THREE.SphereGeometry(0.62, 10, 6, 0, TAU, 0, Math.PI / 2), mat('#c2946e'));
     dome.position.set(w * 0.27, 0.12, 0); dome.castShadow = true; g.add(dome);

@@ -15,7 +15,7 @@ export const forageJobs = {
   cookMeat: { label: 'Cooking game for supper', task: 'cooking', duration: 36, takes: { meat: 2, wood: 1 }, makes: { cooked: 3 }, indoors: true,
     result: 'cooked three portions of game for the hall' },
   smokeMeat: { label: 'Smoking game for later', task: 'smoking', duration: 76, takes: { meat: 3, wood: 1 }, makes: { preserved: 3 }, indoors: true,
-    result: 'hung three portions of smoked game in the hall’s stores' },
+    result: 'smoked three portions of game to keep' },
   tanHide: { label: 'Tanning a hide', task: 'tanning', duration: 92, takes: { hide: 1, water: 2 }, makes: { leather: 1 },
     result: 'finished a piece of leather from a game hide' },
   fish: { label: 'Fishing for supper', task: 'fishing', duration: CAST_MINUTES, makes: { fish: 2 } },
@@ -24,7 +24,7 @@ export const forageJobs = {
   cookFish: { label: 'Cooking the river catch', task: 'cooking', duration: 27, takes: { fish: 2, wood: 1 }, makes: { cooked: 3 }, indoors: true,
     result: 'cooked three portions of fish for the hall' },
   cureFish: { label: 'Curing fish for later', task: 'curing', duration: 62, takes: { fish: 3, wood: 1 }, makes: { preserved: 3 }, indoors: true,
-    result: 'put away three portions of cured fish in the hall’s stores' }
+    result: 'cured three portions of fish to keep' }
 };
 
 const dayOf = minute => Math.floor(minute / 1440);

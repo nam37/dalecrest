@@ -14,7 +14,8 @@ import { weatherAt, dayTemp, nextOutdoorStart, chill, fuelPerHearth } from './en
 import { bedJob, finishVillageWork, normalizeVillageWork, ownWorkChoices, repairBedSpec, tickBarley, villageJobs, villageWorkObstacle } from './engine/village-work.mjs';
 import { advanceForageShift, finishForageShift, outingResult } from './engine/foraging.mjs';
 import { BARN, foodDays, mouths, normalizeStores } from './engine/stores.mjs';
-import { burnHearths } from './engine/households.mjs';
+import { breadDraw, burnHearths } from './engine/households.mjs';
+import { MEAL_FLOOR, STORED, STOREHOUSE, addStorehouse, drawAndEat, drawable, issueAllowance, keepShelves, normalizeAllowance, storehouseOf } from './engine/storehouse.mjs';
 import { FEAST_HOURS, feastOf, feastOn, normalizeBuildings, repairLoss, tradeOpen, waitTurn, waitedTooLong, wear } from './engine/workday.mjs';
 import { dawnVisitors, tickVisitors } from './engine/visitors.mjs';
 import { forgetTold, judge } from './engine/chronicle.mjs';
@@ -46,6 +47,7 @@ const jobs = {
   weave: { at: 'home', label: 'Weaving linen', duration: 99, makes: { cloth: 1 }, result: 'finished a length of linen for the village' },
   mend: { at: 'hall', label: 'Mending the hall', duration: 84, makes: { repair: 2 }, result: 'repaired another section of the hall' },
   draw: { at: 'well', label: 'Drawing water', duration: 39, makes: { water: 4 }, result: 'filled four buckets at the well' },
+  keep: { at: 'storehouse', label: 'Counting the storehouse shelves', duration: 40, makes: {}, result: 'counted the shelves at the storehouse' },
 };
 const CAPACITY = { grain: BARN.grain, flour: BARN.flour, bread: 32, wood: 32, cloth: 12, repair: 14, water: 28 };
 const clamp = (n, lo = 0, hi = 100) => Math.min(hi, Math.max(lo, n));
@@ -122,6 +124,8 @@ function normalize({ world, actors, map }) {
     if (!actor.action.reason) actor.action.reason = 'Continuing an activity chosen earlier in the day.';
   }
   normalizeVillageWork({ world, actors, map });
+  addStorehouse(map);
+  normalizeAllowance({ world, actors });
   normalizeBuildings({ world, map });
 }
 
@@ -201,6 +205,8 @@ function jobOptions(actor, state, perceived, allFeasible) {
     const job = jobs[key];
     if (!light && (job.at === 'field' || job.at === 'wood')) continue;
     if (!tradeOpen(key, perceived.minute)) continue;
+    // A storekeeper counts the shelves morning and afternoon, and lends a hand elsewhere between.
+    if (key === 'keep' && perceived.minute - (actor.lastShelfCount?.minute ?? -Infinity) < 360) continue;
     if (stockObstacle(perceived, job, true)) continue;
     const material = Object.keys(job.makes)[0];
     const amount = perceived.supplies[material];
@@ -298,17 +304,23 @@ function choose(actor, state, menu) {
     const score = actor.trade === 'bake' && needsCheck ? 60 - weary : 6;
     offer('inspect', 'Checking the oven for flour and firewood', oven.id, 3, score, 'I can go to the oven and count what is on hand.');
   }
-  if (world.supplies.bread > 0 && oven) offer('food', 'Taking a loaf at the ' + (oven.id === 'oven' ? 'oven' : 'bakehouse'), oven.id, 17, hunger * 1.35 - 16, 'There is bread to be had and my hunger is ' + Math.round(hunger) + ' out of 100.');
-  if (world.cottages?.[actor.home]?.larder >= 1) offer('food', 'Eating bread at home', actor.home, 15, hunger * 1.35 - 12,
-    'There is bread in the larder at home.', { meal: 'larder', indoors: true });
-  if (world.supplies.cooked > 0) offer('food', 'Eating a cooked meal', 'hall', 21, hunger * 1.35 - 11,
-    'A cooked portion is ready at the hall.', { meal: 'cooked', indoors: true });
-  if (world.supplies.preserved > 0) offer('food', 'Eating preserved fish or game', 'hall', 20, hunger * 1.35 - 21,
-    'There is preserved food at the hall.', { meal: 'preserved', indoors: true });
+  // Nobody is offered a meal before they are hungry. Bread is drawn at the storehouse against the
+  // household's allowance and eaten at home; salt fish and cooked food are served at the hall.
+  if (hunger >= MEAL_FLOOR) {
+    const cottage = world.cottages?.[actor.home];
+    if (storehouseOf(map) && drawable(actor, world) >= 1) offer('food', cottage ? 'Drawing the household’s bread at the storehouse' : 'Drawing my bread at the storehouse',
+      STOREHOUSE, 17, hunger * 1.35 - 16 - (cottage?.larder >= 1 ? 8 : 0), 'The day’s bread is due at the storehouse and my hunger is ' + Math.round(hunger) + ' out of 100.', { meal: 'draw' });
+    if (cottage?.larder >= 1) offer('food', 'Eating bread at home', actor.home, 15, hunger * 1.35 - 12,
+      'There is bread in the larder at home.', { meal: 'larder', indoors: true });
+    if (world.supplies.cooked > 0) offer('food', 'Eating a cooked meal', 'hall', 21, hunger * 1.35 - 11,
+      'A cooked portion is ready at the hall.', { meal: 'cooked', indoors: true });
+    if (world.supplies.preserved > 0) offer('food', 'Eating preserved fish or game', 'hall', 20, hunger * 1.35 - 21,
+      'Salt fish and smoked game from the storehouse are served at the hall.', { meal: 'preserved', indoors: true });
+  }
   const lodging = civic.isLodger(actor, map);
   // Someone chilled through goes home to the fire, if there is one.
   const chilled = !night && actor.needs.cold > 45 && !world.coldHearths.includes(actor.home);
-  offer('rest', (night ? 'Sleeping ' : chilled ? 'Warming up ' : 'Resting ') + (lodging ? 'at the hall' : 'at home'), actor.home, night ? 105 : 54,
+  offer('rest', (night ? 'Sleeping ' : chilled ? 'Warming up ' : 'Resting ') + (!lodging ? 'at home' : actor.home === STOREHOUSE ? 'at the storehouse' : 'at the hall'), actor.home, night ? 105 : 54,
     fatigue + (night ? 48 : -9) + (chilled ? (actor.needs.cold - 45) * 0.9 : 0),
     night ? 'It is time to sleep and recover for tomorrow.' : chilled ? 'I am chilled through and there is a fire at home.' : 'My fatigue has reached ' + Math.round(fatigue) + ' out of 100.');
   // Seek a friend with a reachable destination. Recent pleasant meetings favor a return visit.
@@ -346,7 +358,7 @@ function travel(actor, state, emit) {
   if (!action.path) {
     const found = route(map, [actor.position.x, actor.position.y], action.target);
     if (!found) {
-      endShiftEarly(actor, state.world.minute, emit, 'blocked', 'the worksite could not be reached');
+      endShiftEarly(actor, state, emit, 'blocked', 'the worksite could not be reached');
       if (action.kind === 'conversation') missedConversation(actor, state.world.minute, emit, 'the meeting place could not be reached');
       action.remaining = 0;
       return false;
@@ -446,7 +458,7 @@ const tracksShift = action => action.kind === 'work' && (action.job === 'bake' |
 function recordWork(actor, minute, emit, text, status, stockDelta, reason) {
   const { action } = actor;
   const outcome = tracksShift(action) || action.commitmentId ? {
-    job: action.job, site: action.target, workerId: actor.id, helperIds: action.helpers || [],
+    job: action.job, site: action.workedAt ?? action.target, workerId: actor.id, helperIds: action.helpers || [],
     status, stockDelta, ...(reason && { reason }),
     ...(action.basis && { basis: action.basis.kind }),
     traceId: action.basis?.trace ?? action.decisionTraceId ?? null,
@@ -456,7 +468,10 @@ function recordWork(actor, minute, emit, text, status, stockDelta, reason) {
   emit('work', text, [actor.id], outcome);
 }
 
-function endShiftEarly(actor, minute, emit, status, reason) {
+// A shift cut short. Someone already carrying the shift's goods sets them down at the storehouse.
+function endShiftEarly(actor, state, emit, status, reason) {
+  const minute = state.world.minute;
+  if (actor.action.carrying) return deliver(actor, state, emit);
   if (!tracksShift(actor.action) && !actor.action.commitmentId) return;
   const task = { bake: 'baking', cut: 'woodcutting' }[actor.action.job] || jobs[actor.action.job].task || jobs[actor.action.job].label.toLowerCase();
   recordWork(actor, minute, emit, actor.name + ' could not finish the ' + task + ' shift because ' + reason + '.', status, {}, reason);
@@ -478,13 +493,13 @@ const listed = names => names.length > 3 ? names.slice(0, 2).join(', ') + ' and 
 // Under a roof: at home, at a meeting or the alehouse, or at an indoor trade.
 const indoors = action => action.phase === 'working' && (action.kind === 'rest' || action.kind === 'meeting'
   || action.indoors || (action.kind === 'leisure' && action.target !== 'green')
-  || (action.kind === 'work' && (villageJobs[action.job]?.indoors || ['bake', 'weave', 'mill'].includes(action.job))));
+  || (action.kind === 'work' && !action.carrying && (villageJobs[action.job]?.indoors || ['bake', 'weave', 'mill', 'keep'].includes(action.job))));
 // Indoors with a fire going. A house that got no firewood this morning has none. The oven warms
 // whoever is baking, and the hall and alehouse keep a fire while the common store has wood.
 function byAFire(actor, world) {
   const action = actor.action;
   if (!indoors(action) || world.coldHearths.includes(action.target)) return false;
-  return action.target === actor.home || action.job === 'bake' || world.supplies.wood > 0;
+  return action.target === actor.home || (action.job === 'bake' && !action.carrying) || world.supplies.wood > 0;
 }
 
 // Each morning in cold weather every hearth burns its day's firewood: a cottage from its own woodpile,
@@ -513,15 +528,18 @@ const snowedWood = [null,
 
 function finishShift(actor, state, emit, sky) {
   const { world } = state;
+  if (actor.action.carrying) return deliver(actor, state, emit);
   const { job: key, target } = actor.action;
   const minute = world.minute, dry = key !== 'cut' ? 3 : sky.lying > 0.5 ? 1 : sky.snow || sky.lying > 0.1 ? 2 : 3;
-  const spec = key === bedJob ? repairBedSpec(actor) : jobs[key];
+  let spec = key === bedJob ? repairBedSpec(actor) : jobs[key];
+  // A bread draw takes what is due to the household, settled now.
+  if (key === 'fetchBread') spec = { ...spec, takes: breadDraw(actor, world) };
   const changes = dry < 3 ? snowedWood[dry] : outingResult(actor, state, sky);
   let job = changes ? { ...spec, ...changes } : spec;
   // A mill, oven or well in poor repair turns out less, and one out of use turns out nothing.
   const worn = ['mill', 'bake', 'draw'].includes(key) ? repairLoss(world, target) : 0, what = { mill: 'mill', bake: 'oven', draw: 'well' }[key];
   if (worn === Infinity) {
-    endShiftEarly(actor, minute, emit, 'blocked', 'the ' + what + ' was out of use for want of repair');
+    endShiftEarly(actor, state, emit, 'blocked', 'the ' + what + ' was out of use for want of repair');
     return;
   }
   if (worn) job = { ...job, makes: Object.fromEntries(Object.entries(job.makes).map(([k, v]) => [k, v - worn])),
@@ -529,7 +547,7 @@ function finishShift(actor, state, emit, sky) {
   const obstacle = villageWorkObstacle(actor, world, sky) || stockObstacle(world, job);
   if (obstacle) {
     if (key === 'hunt' || key === 'fish') finishForageShift(actor, world, job.result);
-    endShiftEarly(actor, minute, emit, 'blocked', obstacle);
+    endShiftEarly(actor, state, emit, 'blocked', obstacle);
     return;
   }
   if (key === 'harvest') {
@@ -539,15 +557,58 @@ function finishShift(actor, state, emit, sky) {
   const stockDelta = {};
   for (const [item, quantity] of Object.entries(job.takes || {})) stockDelta[item] = -quantity;
   for (const [item, quantity] of Object.entries(job.makes)) stockDelta[item] = (stockDelta[item] || 0) + quantity;
-  for (const [item, change] of Object.entries(stockDelta)) world.supplies[item] += change;
+  // Finished goods for the storehouse count once they are on its shelves. Everything else counts now.
+  const store = storehouseOf(state.map), carried = {};
+  if (store) for (const [item, quantity] of Object.entries(job.makes)) if (STORED.includes(item) && quantity > 0) carried[item] = quantity;
+  for (const [item, change] of Object.entries(stockDelta)) world.supplies[item] += change - (carried[item] || 0);
+  if (key === 'fetchBread') actor.action.drawn = job.takes.bread;
   actor.lastJob = minute;
   if (actor.lastWorkDay !== Math.floor(minute / 1440)) { actor.daysWorked++; actor.lastWorkDay = Math.floor(minute / 1440); }
-  const result = finishVillageWork(actor, state) || finishForageShift(actor, world, job.result);
-  const text = actor.name + ' ' + result + '.';
-  recordWork(actor, minute, emit, text, 'completed', stockDelta);
+  const result = key === 'keep' ? keepShelves(actor, world, state.actors) : finishVillageWork(actor, state) || finishForageShift(actor, world, job.result);
+  if (Object.keys(carried).length) {
+    // The walk to the storehouse is the last leg of the same shift, so it needs no decision of its own. The
+    // activity is the same one, changed in place, so whatever follows the shift follows the carry too.
+    const what = goodsWords(carried);
+    Object.assign(actor.action, { label: 'Carrying ' + what + ' to the storehouse', target: store.id, phase: 'travelling', remaining: 1,
+      carrying: carried, workedAt: actor.action.target, result, stockDelta, indoors: false });
+    delete actor.action.path;
+    return;
+  }
+  settleShift(actor, state, emit, actor.name + ' ' + result + '.', stockDelta, key);
+}
+
+// The record of a finished shift, its credit and what the worker now knows.
+function settleShift(actor, state, emit, text, stockDelta, key) {
+  const { world } = state;
+  recordWork(actor, world.minute, emit, text, 'completed', stockDelta);
   noteShift(actor, key);
-  noteWork(actor, world, text, stockDelta);
+  // A storekeeper's count is passed on as the count itself, not as an account of the work.
+  if (key !== 'keep') noteWork(actor, world, text, stockDelta);
   if (actor.action.commitmentId) settleHelp(actor, world, stockDelta, emit);
+}
+
+const GOODS = { bread: ['loaf', 'loaves'], cloth: ['length of linen', 'lengths of linen'], preserved: ['portion', 'portions'], leather: ['piece of leather', 'pieces of leather'] };
+const NUMBERS = ['no', 'one', 'two', 'three', 'four', 'five', 'six'];
+function goodsWords(goods) {
+  return Object.entries(goods).map(([item, n]) => (NUMBERS[n] || n) + ' ' + GOODS[item][n === 1 ? 0 : 1]).join(' and ');
+}
+
+// Goods set on the storehouse shelves, as far as there is room. The shift is recorded now, so the stock
+// change in its record is the one the shelves show.
+function deliver(actor, state, emit) {
+  const { world } = state, action = actor.action, stockDelta = { ...action.stockDelta };
+  for (const [item, quantity] of Object.entries(action.carrying)) {
+    const room = Math.max(0, (world.capacity[item] ?? Infinity) - world.supplies[item]), placed = Math.min(quantity, room);
+    world.supplies[item] += placed;
+    stockDelta[item] -= quantity - placed;
+  }
+  const at = place(state.map, action.target);
+  const arrived = at && Math.hypot(actor.position.x - at.at[0], actor.position.y - at.at[1]) < 0.2;
+  const them = Object.values(action.carrying).reduce((a, b) => a + b, 0) === 1 ? 'it' : 'them';
+  const text = actor.name + ' ' + action.result + (arrived ? (action.result.includes(',') ? ',' : '') + ' and took ' + them + ' to the storehouse' : '') + '.';
+  delete action.carrying;
+  action.remaining = 0;
+  settleShift(actor, state, emit, text, stockDelta, action.job);
 }
 
 // Where an event took place: at the site named for it, or wherever its first resident stood.
@@ -561,23 +622,31 @@ function spotOf({ actors, map }, actorIds, site) {
   return { place: { x: r2(who.position.x), y: r2(who.position.y), ...(settled && { id: settled.id }) } };
 }
 
-function arrival(state) {
+function arrival(state, trade) {
   const { world, actors } = state;
-  const resident = newcomer(state, () => random(world));
+  const resident = newcomer(state, () => random(world), trade);
   normalizeLife(resident, world.minute);
   resident.desires = inferDesires(resident);
   normalizeGoals(resident, world.minute);
+  // A traveller is allowed a loaf on the day they arrive.
+  if (!world.cottages?.[resident.home]) resident.ration = 1;
   actors.push(resident);
   world.lastArrival = world.minute;
   world.arrivals = (world.arrivals ?? 0) + 1;
   return { type: 'arrival', minute: world.minute, actorIds: [resident.id], ...spotOf(state, [resident.id]),
-    text: resident.name + ', a ' + resident.role.toLowerCase() + ', came up the road looking for work and will lodge at the hall.' };
+    text: resident.name + ', a ' + resident.role.toLowerCase() + ', came up the road ' + (resident.home === STOREHOUSE
+      ? 'to keep the storehouse, and will sleep there until there is a cottage to spare.' : 'looking for work and will lodge at the hall.') };
+}
+
+// The storehouse needs a keeper. One is sent for as soon as it stands, whatever the season.
+function needsKeeper({ actors, map }) {
+  return storehouseOf(map) && !actors.some(a => a.trade === 'keep');
 }
 
 export function welcomeResidents(state, minimum) {
   const events = [];
   if (state.actors.length >= minimum) return events;
-  const beds = 2 - state.actors.filter(actor => civic.isLodger(actor, state.map)).length;
+  const beds = 2 - state.actors.filter(actor => actor.home === 'hall').length;
   for (let i = 0; i < beds && state.actors.length < minimum; i++) events.push(arrival(state));
   return events;
 }
@@ -596,6 +665,7 @@ function stepMinute(state, events, externalActions, records, pilot) {
     wear(state, emit);
     dawnVisitors(state, emit, () => random(world), sky);
     const burned = fuelHearths(state);
+    issueAllowance(state);
     emit('village', 'Dawn breaks ' + sky.phrase + '. The households collect water and take what they need from the village stores'
       + (world.hearthRate ? ', and light their hearths.' : '.'));
     if (burned.cold.length) {
@@ -630,9 +700,11 @@ function stepMinute(state, events, externalActions, records, pilot) {
   tickBarley(world, sky, map.seed);
   if (minute % 1440 === 540 && wantsNewcomer(state) && random(world) < 0.7) {
     events.push(arrival(state));
+  } else if (minute % 60 === 0 && minute % 1440 >= 480 && minute % 1440 <= 1080 && needsKeeper(state)) {
+    events.push(arrival(state, 'keep'));
   }
   civic.tick(state, emit, () => random(world), actor => {
-    endShiftEarly(actor, minute, emit, 'interrupted', 'the village moot was about to begin');
+    endShiftEarly(actor, state, emit, 'interrupted', 'the village moot was about to begin');
     if (actor.action.kind === 'conversation') missedConversation(actor, minute, emit, 'the village moot was about to begin');
   });
   for (const actor of actors) {
@@ -658,10 +730,10 @@ function stepMinute(state, events, externalActions, records, pilot) {
       if (!travel(actor, state, emit)) continue;
       // A remembered count can be out of date. Discover the obstacle at the oven,
       // after the decision, so a change elsewhere cannot silently alter the offered menu.
-      if (action.job === 'bake') {
+      if (action.job === 'bake' && !action.carrying) {
         const obstacle = stockObstacle(world, jobs.bake);
         if (obstacle) {
-          endShiftEarly(actor, minute, emit, 'blocked', obstacle);
+          endShiftEarly(actor, state, emit, 'blocked', obstacle);
           inspectOven(actor, place(map, action.target), world, emit, 'checking a blocked baking shift');
           action.remaining = 0;
           continue;
@@ -670,7 +742,7 @@ function stepMinute(state, events, externalActions, records, pilot) {
     }
     if (waitTurn(actor, actors, minute)) {
       if (waitedTooLong(actor, minute)) {
-        endShiftEarly(actor, minute, emit, 'blocked', 'the ' + (action.job === 'bake' ? 'oven' : 'millstones') + ' stayed in use too long');
+        endShiftEarly(actor, state, emit, 'blocked', 'the ' + (action.job === 'bake' ? 'oven' : 'millstones') + ' stayed in use too long');
         action.remaining = 0;
       }
       continue;
@@ -691,7 +763,17 @@ function stepMinute(state, events, externalActions, records, pilot) {
       noteShift(actor, 'build');
     } else if (action.kind === 'work') {
       finishShift(actor, state, emit, sky);
+    } else if (action.kind === 'food' && action.meal === 'draw') {
+      const meal = drawAndEat(actor, world);
+      if (!meal) {
+        memory(actor, minute, actor.name + ' went to draw bread and found the shelves at the storehouse bare.', [actor.id], 'observation', { shortage: 'bread', site: STOREHOUSE });
+        actor.lastLowCount = { minute, item: 'bread' };
+        continue;
+      }
+      n.hunger = clamp(n.hunger - 53);
+      emit('meal', actor.name + ' ' + meal + '.', [actor.id], undefined, STOREHOUSE);
     } else if (action.kind === 'food') {
+      // A loaf taken at the oven is how a village before the storehouse ate. An activity begun then finishes so.
       const item = action.meal ?? 'bread', larder = item === 'larder' ? world.cottages?.[actor.home] : null;
       if (larder ? !(larder.larder >= 1) : world.supplies[item] < 1) continue;
       if (larder) larder.larder--;
@@ -727,15 +809,7 @@ function stepMinute(state, events, externalActions, records, pilot) {
     let bond = 3, type = 'social', raised;
     const details = {};
     const shortage = shortTalk(state);
-    if (here?.kind === 'oven' && world.supplies.bread > 0 && Math.max(actor.needs.hunger, other.needs.hunger) > 40) {
-      world.supplies.bread--;
-      for (const a of [actor, other]) {
-        a.needs.hunger = clamp(a.needs.hunger - 26.5);
-        if (a.action.kind === 'food' && a.needs.hunger < 35) a.action.remaining = 0;
-      }
-      text = speaker + ' divided a warm loaf between them at the oven.';
-      bond = 5;
-    } else if ((raised = civic.discuss(actor, other, state, () => random(world)))) {
+    if ((raised = civic.discuss(actor, other, state, () => random(world)))) {
       text = raised.text;
       details.concern = raised.key;
       bond = raised.agreed ? 4 : 2;

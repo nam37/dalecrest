@@ -89,7 +89,10 @@ test('PostgreSQL preserves the trace, resumes a received reply, and links actual
     const alice = snapshot.actors.find(a => a.id === 'alice');
     const sleep = {kind:'rest', label:'Sleeping at home', target:alice.home, phase:'working', remaining:1};
     await db.pool.query("UPDATE dalecrest.actors SET state=jsonb_set(state,'{action,remaining}','999')");
-    await db.pool.query("UPDATE dalecrest.actors SET state=jsonb_set(jsonb_set(state,'{action}',$1),'{needs,hunger}','4') WHERE id='alice'",[sleep]);
+    // Hungry enough to be offered a meal, with bread due at the storehouse and nothing else to eat.
+    await db.pool.query("UPDATE dalecrest.actors SET state=jsonb_set(jsonb_set(state,'{action}',$1),'{needs,hunger}','40') WHERE id='alice'",[sleep]);
+    await db.pool.query(`UPDATE dalecrest.world SET state=jsonb_set(jsonb_set(jsonb_set(jsonb_set(state,
+      ARRAY['cottages',$1,'larder'],'0'),ARRAY['cottages',$1,'ration'],'2'),'{supplies,cooked}','0'),'{supplies,preserved}','0')`,[alice.home]);
     await db.pool.query("UPDATE dalecrest.world SET state=jsonb_set(state,'{minute}','1320'),next_tick=now()");
     assert.equal(await db.claimAction(7000),undefined);
     await db.advance();
@@ -114,13 +117,13 @@ test('PostgreSQL preserves the trace, resumes a received reply, and links actual
     assert.equal((await db.applyRecordedDecision(first.id)).status,'unavailable');
     assert.equal((await db.snapshot()).actors.find(a => a.id==='alice').action.kind,'waiting');
     await db.pool.query("UPDATE dalecrest.decision_traces SET requested_at=now()-interval '2 minutes' WHERE id=$1",[first.id]);
-    const empty = await db.claimAction(7000);
+    const empty = await db.claimAction(20000);
     assert.ok(!JSON.parse(empty.body).questions[0].choices.some(c => c.value.startsWith('food:')));
     await db.recordReply(empty.id,reply(meal));
     assert.equal((await db.applyRecordedDecision(empty.id)).status,'invalid_response');
     await db.pool.query("UPDATE dalecrest.decision_traces SET requested_at=now()-interval '2 minutes' WHERE id=$1",[empty.id]);
     await db.pool.query("UPDATE dalecrest.world SET state=jsonb_set(state,'{supplies,bread}','10')");
-    const fresh = await db.claimAction(7000);
+    const fresh = await db.claimAction(20000);
     await db.recordReply(fresh.id,reply(meal));
     assert.equal(await db.pendingDecision(),fresh.id);
     assert.equal((await db.applyRecordedDecision(fresh.id)).status,'applied');

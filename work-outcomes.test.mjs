@@ -112,26 +112,27 @@ test('PostgreSQL commits competing oven shifts and stock together, including aft
     await Promise.all([db.advance(), db.advance()]);
     await db.initialize();
     await db.advance();
-    // Robin waits for the oven while Mabel bakes, then takes his turn.
-    for (let i = 0; i < 6; i++) {
-      if ((await pool.query("SELECT 1 FROM dalecrest.events WHERE kind='work' AND outcome->>'workerId'='robin'")).rowCount) break;
+    // Robin waits for the oven while Mabel bakes, then takes his turn. Mabel's shift is recorded once she
+    // has carried the loaves to the storehouse.
+    for (let i = 0; i < 80; i++) {
+      if ((await pool.query("SELECT 1 FROM dalecrest.events WHERE kind='work' AND outcome IS NOT NULL")).rowCount >= 2) break;
       await pool.query('UPDATE dalecrest.world SET next_tick=now()');
       await db.advance();
     }
     const { rows } = await pool.query("SELECT outcome FROM dalecrest.events WHERE kind='work' AND outcome IS NOT NULL ORDER BY id");
     assert.equal(rows.length, 2);
-    assert.equal(rows[0].outcome.workerId, 'mabel');
-    assert.equal(rows[0].outcome.status, 'completed');
-    assert.equal(rows[0].outcome.traceId, ticket.id);
-    assert.equal(rows[0].outcome.basis, 'fresh');
-    assert.deepEqual(rows[0].outcome.stockDelta, { flour: -2, wood: -1, bread: 5 });
+    const baked = rows.find(r => r.outcome.workerId === 'mabel').outcome, blocked = rows.find(r => r.outcome.workerId === 'robin').outcome;
+    assert.equal(baked.status, 'completed');
+    assert.equal(baked.site, 'oven');
+    assert.equal(baked.traceId, ticket.id);
+    assert.equal(baked.basis, 'fresh');
+    assert.deepEqual(baked.stockDelta, { flour: -2, wood: -1, bread: 5 });
     const linked = await pool.query(`SELECT s.trace_id FROM dalecrest.decision_steps s
       JOIN dalecrest.events e ON e.id=s.event_id WHERE e.outcome->>'workerId'='mabel'`);
     assert.deepEqual(linked.rows, [{ trace_id: ticket.id }]);
-    assert.equal(rows[1].outcome.workerId, 'robin');
-    assert.equal(rows[1].outcome.status, 'blocked');
-    assert.match(rows[1].outcome.reason, /too little wood/);
-    assert.deepEqual(rows[1].outcome.stockDelta, {});
+    assert.equal(blocked.status, 'blocked');
+    assert.match(blocked.reason, /too little wood/);
+    assert.deepEqual(blocked.stockDelta, {});
     assert.deepEqual((await db.snapshot()).world.supplies, { ...stocks, flour: 2, wood: 0, bread: 5 });
   } finally {
     if (db) await db.pool.end();

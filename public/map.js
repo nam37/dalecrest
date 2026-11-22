@@ -99,7 +99,7 @@ function building(c, p, line, lodgers, snowed = color => color) {
   }
   // Light falls from the north-west, so the roof plane turned that way is the paler one.
   const sunny = Math.cos(p.a) * 0.7 - Math.sin(p.a) * 0.7 > 0 ? -1 : 1;
-  const roof = p.kind === 'hall' ? '#8e7459' : p.kind === 'mill' ? '#9b7858' : p.kind === 'granary' ? '#a8935f' : p.kind === 'alehouse' ? '#9a6a4c' : roofs[h % roofs.length];
+  const roof = p.kind === 'hall' ? '#8e7459' : p.kind === 'mill' ? '#9b7858' : p.kind === 'granary' ? '#a8935f' : p.kind === 'alehouse' ? '#9a6a4c' : p.kind === 'storehouse' ? '#7d6b52' : roofs[h % roofs.length];
   c.fillStyle = snowed(roof); c.fillRect(-hw, -hd, w, d);
   c.fillStyle = '#fff5d02e'; c.fillRect(-hw, sunny < 0 ? -hd : 0, w, hd);
   c.fillStyle = '#3a2f2026'; c.fillRect(-hw, sunny < 0 ? 0 : -hd, w, hd);
@@ -125,6 +125,13 @@ function building(c, p, line, lodgers, snowed = color => color) {
     c.stroke();
   }
   if (lodgers && p.kind === 'hall') { c.fillStyle = '#f3e4b1'; c.fillRect(-hw + 0.25, -0.14, 0.28, 0.28); }
+  // Barrels and sacks stand by the storehouse door.
+  if (p.kind === 'storehouse' && Math.abs(along) < hw) {
+    c.fillStyle = '#8a6a44'; c.strokeStyle = ink; c.lineWidth = line * 0.8;
+    for (const dx of [-0.75, -0.42, 0.55]) {
+      c.beginPath(); c.arc(along + dx, side * (hd + 0.32), 0.15, 0, Math.PI * 2); c.fill(); c.stroke();
+    }
+  }
   c.restore();
 }
 
@@ -719,11 +726,19 @@ export function createMap(canvas, onSelect, cards) {
         c.globalAlpha = 0.72; label(way.name, x, y - 9, 11.5, true, angle); c.globalAlpha = 1;
       }
     }
+    // Buildings that stand close together, such as the oven and the storehouse, would write their names
+    // over each other. A later name steps down a line until it is clear of those already written.
+    const written = [];
     for (const p of map.places) {
       if (p.kind === 'cottage' || !p.name || (p.kind === 'well' && view.scale < 11)) continue;
       const [x, y] = toScreen(p.x, p.y);
       const drop = p.kind === 'field' ? 0 : p.kind === 'well' ? -1.3 * view.scale - 4 : p.kind === 'green' ? (p.ry + 1) * view.scale + 3 : ((p.d || 2.4) / 2 + 0.9) * view.scale + 4;
-      label(p.stage < 2 && p.kind !== 'field' ? p.name + ' (building)' : p.name, x, y + drop, Math.max(13, Math.min(20, view.scale * 1.9)));
+      const text = p.stage < 2 && p.kind !== 'field' ? p.name + ' (building)' : p.name, size = Math.max(13, Math.min(20, view.scale * 1.9));
+      const half = text.length * size * 0.26;
+      let at = y + drop;
+      for (let i = 0; i < 4 && written.some(b => Math.abs(b.x - x) < b.half + half && Math.abs(b.y - at) < size); i++) at += size * 1.05;
+      written.push({ x, y: at, half });
+      label(text, x, at, size);
     }
     if (w > 560) rose();
     title();

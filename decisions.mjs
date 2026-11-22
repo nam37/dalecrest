@@ -4,6 +4,7 @@ import { ownWorkContext } from './engine/village-work.mjs';
 import { lifeContext } from './engine/lives.mjs';
 import { buildingsContext, restDay } from './engine/workday.mjs';
 import { visitorContext } from './engine/visitors.mjs';
+import { storehouseContext } from './engine/storehouse.mjs';
 import { recall } from './engine/memory.mjs';
 import { activeGoals, goalContext } from './engine/goals.mjs';
 import { preferredOuting } from './engine/foraging.mjs';
@@ -49,7 +50,7 @@ export function actionBody(actor, world, menu, names = {}, weather) {
     whyThisIsAChoice: actor.action.why,
     time: villageTime(world.minute), ...lifeContext(actor, world.minute), ...socialContext(actor, world.minute), ...ownWorkContext(actor, world),
     ...(weather && { weather }), ...(restDay(world.minute) && { dayOfRest: restDay(world.minute) }),
-    ...visitorContext(actor, world, names), ...buildingsContext(actor, world, names),
+    ...visitorContext(actor, world, names), ...buildingsContext(actor, world, names), ...storehouseContext(actor, world, world.minute),
     ...(hearth && world.minute - hearth.minute < 1440 && !hearth.lit && { ownHearth: world.cottages?.[actor.home] ? 'Cold since this morning: the woodpile at home ran out.' : 'Cold since this morning: there was no firewood left in the common store for the hall.' }),
     lastOvenCheck: recalledOvenStores(actor, world.minute), recentMemories: recalledFor(actor, world).map(m => villageTime(m.minute) + ': ' + m.text)
   };

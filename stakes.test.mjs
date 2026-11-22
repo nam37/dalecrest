@@ -74,9 +74,13 @@ test('a hard winter can outrun the stores', () => {
     if (foodDays(world, mouths(village)) < 0.5) empty = d;
   }
   assert.ok(empty != null, 'the stores lasted the winter');
-  const hungry = village.actors.filter(a => a.needs.hunger > 70).length;
-  tick(village, 6 * DAY);
-  assert.ok(village.actors.some(a => a.illness || a.hardship?.hungry >= 2) || hungry > 0, 'nobody went hungry');
+  // What is left in the larders and the catch from the river last a little while after the stores are empty.
+  let hungry = false;
+  for (let d = 0; d < 14 && !hungry; d++) {
+    tick(village, DAY);
+    hungry = village.actors.some(a => a.illness || a.hardship?.hungry >= 2 || a.needs.hunger > 85);
+  }
+  assert.ok(hungry, 'nobody went hungry');
 });
 
 test('the public chronicle selects: routine stays out and no sentence fills it', () => {
@@ -128,6 +132,9 @@ test('residents age, fall ill from hunger, mend when fed, and a long illness tak
   let ill = false;
   for (let d = 0; d < 8 && !ill; d++) {
     agnes.needs.hunger = 95;
+    // Nothing in the larder at home, nothing due at the storehouse and nothing cooked at the hall.
+    Object.assign(world.cottages[agnes.home], { larder: 0, ration: 0 });
+    Object.assign(world.supplies, { cooked: 0, preserved: 0 });
     tick(village, DAY);
     ill = Boolean(agnes.illness);
   }
@@ -251,9 +258,10 @@ test('a married couple can have a child, who eats from the larder and comes of a
   const count = village.actors.length;
   cottage.children[0].born -= 15 * 365.25 * DAY;
   const grown = tick(village, DAY);
-  assert.equal(village.actors.length, count + 1);
+  // The day may also bring the storekeeper up the road.
+  assert.equal(village.actors.length, count + 1 + grown.filter(e => e.type === 'arrival').length);
   assert.ok(grown.some(e => /has come of age/.test(e.text)));
-  assert.equal(village.actors.at(-1).home, mabel.home);
+  assert.equal(village.actors.find(a => a.backstory.includes('was born in Dalecrest')).home, mabel.home);
 });
 
 test('a lodger moves into a cottage that stands empty', () => {
@@ -308,13 +316,20 @@ test('a second baker waits for the oven, and a worn oven bakes less until the ca
   tick(village, 9, true);
   assert.equal(robin.action.queued, undefined);
   assert.ok(robin.action.remaining < 58);
-  // An oven in poor repair turns out four loaves, not five.
+  // An oven in poor repair turns out four loaves, not five, which go to the storehouse.
   world.condition.oven = 30;
   mabel.action = { kind: 'work', job: 'bake', label: 'Baking bread', target: 'oven', phase: 'working', remaining: 1 };
   robin.action = { kind: 'rest', label: 'Resting', target: robin.home, phase: 'working', remaining: 500 };
+  for (const a of village.actors) if (a !== mabel && a !== robin) a.action = { kind: 'rest', label: 'Resting', target: a.home, phase: 'working', remaining: 500 };
   const before = world.supplies.bread;
-  const baked = tick(village, 1, true).find(e => e.type === 'work' && e.actorIds.includes('mabel'));
-  assert.match(baked.text, /drew four loaves from the oven, the oven being in poor repair/);
+  tick(village, 1, true);
+  assert.equal(mabel.action.label, 'Carrying four loaves to the storehouse');
+  assert.equal(world.supplies.bread, before);
+  let baked;
+  for (let i = 0; i < 60 && !baked; i++) baked = tick(village, 1, true).find(e => e.type === 'work' && e.actorIds.includes('mabel'));
+  assert.match(baked.text, /drew four loaves from the oven, the oven being in poor repair, and took them to the storehouse/);
+  assert.equal(baked.outcome.site, 'oven');
+  assert.deepEqual(baked.outcome.stockDelta, { flour: -2, wood: -1, bread: 4 });
   assert.equal(world.supplies.bread, before + 4);
   // The stock of repair work goes to the worst building at dawn.
   world.minute = 3 * DAY + 359;

@@ -52,7 +52,9 @@ To watch the model-driven path without spending tokens, run a village whose deci
 node --env-file=.env tools/standin-village.mjs
 ```
 
-The village keeps a calendar and has weather. In cold weather every hearth burns firewood from the common store, so a hard winter can leave houses cold and the oven without fuel. To see winter without waiting for it, run a preview village that wakes on 1 January. It uses its own database and port 4176.
+The village holds its goods in common. Loaves, linen, salt fish and leather are carried to the storehouse, where each household draws a daily allowance of bread and a storekeeper counts the shelves; nobody is offered a meal before they are hungry. See [design decision 15](docs/design.md).
+
+The village keeps a calendar and has weather. In cold weather every hearth burns firewood from its own woodpile, so a hard winter can leave houses cold and the oven without fuel. To see winter without waiting for it, run a preview village that wakes on 1 January. It uses its own database and port 4176.
 
 ```powershell
 node --env-file=.env tools/winter-village.mjs

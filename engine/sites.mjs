@@ -7,7 +7,7 @@ import { HALF, place, placesOf, outline, addNode, addEdge, attach, nearestOnRoad
 // Width along the road and depth away from it.
 export const FOOTPRINT = {
   cottage: [2.7, 1.8], hall: [5, 2.8], oven: [2.2, 2], mill: [3.4, 2.5], granary: [3.3, 2.2],
-  alehouse: [3.9, 2.4], well: [1.3, 1.3], field: [13, 7.4],
+  alehouse: [3.9, 2.4], well: [1.3, 1.3], field: [13, 7.4], storehouse: [3.2, 2.2],
 };
 export const LANE_NAMES = ['Brook Lane', 'Meadow Lane', 'Orchard Lane', 'Nether Lane', 'Hollow Way', 'Long Row',
   'Pound Lane', 'Goose Lane', 'Stony Lane', 'Cuckoo Lane', 'Marsh Lane', 'Sheep Street', 'Furze Lane', 'Lark Rise'];

@@ -38,7 +38,7 @@ export function concerns(actor, { world, actors, map }) {
     if (weight < 25 || world.cooldown[key] > world.minute || world.projects.some(p => p.key === key)) return;
     out.push({ key, kind: key.split(':')[0], weight, claim });
   };
-  if (isLodger(actor, map)) add('cottage:' + actor.id, 90, 'that a corner of the hall is no home');
+  if (isLodger(actor, map)) add('cottage:' + actor.id, 90, actor.home === 'storehouse' ? 'that a cot among the storehouse shelves is no home' : 'that a corner of the hall is no home');
   for (const other of actors) {
     if (other === actor || !isLodger(other, map)) continue;
     add('cottage:' + other.id, 24 + (actor.relationships[other.id] || 0) * 0.5 + (actor.traits.includes('generous') ? 14 : 0)

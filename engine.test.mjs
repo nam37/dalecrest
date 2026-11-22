@@ -91,7 +91,8 @@ test('a village stored before the map existed is moved onto one', () => {
   assert.equal(actors[1].action.since, 90208);
   const village = { ...legacy, map };
   stepVillage(village, { minutes: 600 });
-  for (const a of actors) assert.equal(place(map, a.home).kind, 'cottage');
+  // The storekeeper sent for when the storehouse was built sleeps there.
+  for (const a of actors) assert.equal(place(map, a.home).kind, a.trade === 'keep' ? 'storehouse' : 'cottage');
   assert.equal(actors[4].workplace, actors[4].home);
   assert.equal(village.world.capacity.grain, 160);
 });

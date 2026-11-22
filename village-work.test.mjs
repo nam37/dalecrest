@@ -162,9 +162,13 @@ test('game and fish become meals, leather and preserves, while fresh stock can s
   assert.deepEqual(result.outcome.stockDelta, { game: 1 });
 
   moveTo(village, oswin, 'hall');
+  // Leather and preserves are carried to the storehouse, and count when they are on its shelves.
   const work = job => {
-    const { remaining } = choose(village, oswin, 'work:' + job + ':');
-    return tick(village, remaining).find(event => event.outcome?.job === job).outcome.stockDelta;
+    choose(village, oswin, 'work:' + job + ':');
+    for (let i = 0; i < 300; i++) {
+      const done = tick(village).find(event => event.outcome?.job === job);
+      if (done) return done.outcome.stockDelta;
+    }
   };
   assert.deepEqual(work('dressGame'), { game: -1, meat: 3, hide: 1 });
   assert.deepEqual(work('tanHide'), { hide: -1, water: -2, leather: 1 });
@@ -178,8 +182,10 @@ test('game and fish become meals, leather and preserves, while fresh stock can s
   assert.equal(world.supplies.cooked, 1);
   assert.equal(world.supplies.preserved, 6);
   oswin.needs.hunger = 80;
-  const meal = choose(village, oswin, 'food:cooked:');
-  assert.ok(tick(village, meal.remaining).some(event => event.type === 'meal' && /cooked meal/.test(event.text)));
+  choose(village, oswin, 'food:cooked:');
+  let ate = false;
+  for (let i = 0; i < 120 && !ate; i++) ate = tick(village).some(event => event.type === 'meal' && /cooked meal/.test(event.text));
+  assert.ok(ate);
   assert.equal(world.supplies.cooked, 0);
   assert.ok(oswin.needs.hunger < 25);
 });

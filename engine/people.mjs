@@ -2,7 +2,7 @@
 // and each one takes up the trade the village is shortest of.
 import { placesOf } from './roads.mjs';
 import { dist } from './geom.mjs';
-import { isLodger, fieldsFeed } from './civic.mjs';
+import { fieldsFeed } from './civic.mjs';
 import { dateOf } from './calendar.mjs';
 import { daysToHarvest, foodDays, mouths } from './stores.mjs';
 
@@ -25,6 +25,7 @@ const TRADES = {
   weave: ['home', ['Weaver', 'Spinner'], 'Set up a loom that pays its way', 'carried a spindle the whole road and never stopped turning it'],
   mend: ['hall', ['Carpenter', 'Thatcher'], 'Leave every roof in Dalecrest sounder than I found it', 'learned to cut a joint that needs no nail'],
   draw: ['well', ['Water carrier'], 'Keep every barrel in the village full', 'has a yoke worn smooth to the shape of one pair of shoulders'],
+  keep: ['storehouse', ['Storekeeper'], 'Keep the storehouse honest and tell the village what is running short', 'kept the tally sticks at a priory grange and can count a shelf at a glance'],
 };
 
 function shortestTrade(state, random) {
@@ -34,7 +35,8 @@ function shortestTrade(state, random) {
     cut: 1 + Math.floor(pop / 10), weave: 1 + Math.floor(pop / 12), mend: 1 + Math.floor(pop / 8), draw: 1 + Math.floor(pop / 14),
   };
   let best = null, lack = -Infinity;
-  for (const trade of Object.keys(TRADES)) {
+  // The storehouse sends for its own keeper. A traveller looking for work takes up another trade.
+  for (const trade of Object.keys(TRADES).filter(t => t !== 'keep')) {
     const value = ideal[trade] - actors.filter(a => a.trade === trade).length + random() * 0.9;
     if (value > lack) { lack = value; best = trade; }
   }
@@ -45,7 +47,8 @@ export function wantsNewcomer(state) {
   const { world, actors, map } = state, pop = actors.length;
   // Word of a small village with spare bread travels fast; a larger one fills more slowly.
   if (pop >= POPULATION_LIMIT || world.minute - world.lastArrival < 1440 * (2 + 0.75 * Math.max(0, pop - 8)) - 60) return false;
-  if (actors.filter(a => isLodger(a, map)).length > 1) return false;
+  // The hall has two beds for lodgers. A storekeeper sleeps at the storehouse.
+  if (actors.filter(a => a.home === 'hall').length > 1) return false;
   // Nobody takes to the roads between November and February.
   const month = dateOf(world.minute).month;
   if (month >= 11 || month <= 2) return false;
@@ -83,7 +86,8 @@ export function grownChild(state, child, home, random) {
   };
 }
 
-export function newcomer(state, random) {
+// A traveller who takes up the trade the village is shortest of, or the one named.
+export function newcomer(state, random, wanted) {
   const { world, actors, map } = state;
   const pick = list => list[Math.floor(random() * list.length)];
   const taken = new Set(actors.map(a => a.id));
@@ -91,7 +95,7 @@ export function newcomer(state, random) {
   const name = free.length ? pick(free) : pick(FIRST) + ' the younger';
   let id = name.toLowerCase().replace(/[^a-z]+/g, '-');
   while (taken.has(id)) id += '-' + (world.arrivals + 1);
-  const trade = shortestTrade(state, random), [kind, roles, goal, craft] = TRADES[trade];
+  const trade = TRADES[wanted] ? wanted : shortestTrade(state, random), [kind, roles, goal, craft] = TRADES[trade];
   const traits = [pick(TRAITS)];
   let second = pick(TRAITS);
   while (second === traits[0]) second = pick(TRAITS);
@@ -106,13 +110,16 @@ export function newcomer(state, random) {
   const surnames = new Set(actors.map(a => a.name.split(' ').pop()));
   const spare = LAST.filter(n => !surnames.has(n));
   const full = name + ' ' + pick(spare.length ? spare : LAST);
+  // A storekeeper sleeps among the goods, as a keeper should, until there is a cottage to spare.
+  const home = trade === 'keep' && workplace !== 'hall' ? workplace : 'hall';
   return {
-    id, name: full, role: pick(roles), home: 'hall', workplace, trade, traits,
+    id, name: full, role: pick(roles), home, workplace, trade, traits,
     backstory: name + ' walked in from ' + pick(TOWNS) + ' after ' + pick(REASONS) + '. ' + name + ' ' + craft + '.',
     goals: [goal, 'Find a place among the households of Dalecrest'],
     needs: { hunger: 38 + Math.floor(random() * 20), fatigue: 30 + Math.floor(random() * 20), loneliness: 45 + Math.floor(random() * 20), cold: 0 },
     relationships: {}, memories: [], plan: null, position: start,
-    action: { kind: 'arrive', label: 'Coming up the road to Dalecrest', reason: 'Word on the road was that Dalecrest had bread and work to spare.', target: 'hall', phase: 'travelling', remaining: 25 },
+    action: { kind: 'arrive', label: 'Coming up the road to Dalecrest', reason: trade === 'keep' ? 'Word on the road was that Dalecrest had built a storehouse and wanted someone to keep it.'
+      : 'Word on the road was that Dalecrest had bread and work to spare.', target: home, phase: 'travelling', remaining: 25 },
     lastChat: world.minute, lastJob: world.minute, daysWorked: 0, lastWorkDay: -1, arrived: world.minute,
   };
 }

@@ -14,8 +14,8 @@ const el = (tag, cls, value) => {
   return node;
 };
 const names = { village: 'Village observatory', residents: 'Village residents', chronicle: 'Village chronicle' };
-const stores = { grain:'Barley', flour:'Flour', bread:'Bread', wood:'Firewood', cloth:'Linen', water:'Water', repair:'Building repairs' };
-const hallStores = { game:'Undressed game', meat:'Game meat', hide:'Raw hides', fish:'Fresh fish', cooked:'Cooked meals', preserved:'Preserved portions', leather:'Leather' };
+const stores = { grain:'Barley', flour:'Flour', bread:'Loaves · storehouse', wood:'Firewood', cloth:'Linen · storehouse', water:'Water', repair:'Building repairs' };
+const hallStores = { game:'Undressed game', meat:'Game meat', hide:'Raw hides', fish:'Fresh fish', cooked:'Cooked meals', preserved:'Salt fish and smoked game · storehouse', leather:'Leather · storehouse' };
 let state, latest, frozen=false, selected='agnes', tab='life', route='village', rosterSignature='';
 let ground=null, viewMode='plan', walk=null, loadingWalk=false;
 // The chronicle entry the walking view is holding on, if any.
@@ -263,7 +263,7 @@ function renderProfile(actor) {
   const household=block('Life and household', el('p','goal',life.join(' · ')));
   if(actor.illness) household.append(chip('ill','Ill', 'Unwell since '+date(actor.illness.since)), el('p','reason',{hungry:'A fever brought on by hunger',cold:'A chill on the chest',worn:'Exhaustion',age:'An ague of old age'}[actor.illness.cause]+(actor.illness.severity>=2?'. Too ill to work.':'.')));
   if(kids.length) household.append(el('p','goal','Children: '+kids.join(' · ')));
-  if(cottage && Number.isFinite(cottage.woodpile)) household.append(el('p','goal','Woodpile at home: '+Math.floor(cottage.woodpile)+' bundles · Larder: '+(cottage.larder||0)+' loaves'));
+  if(cottage && Number.isFinite(cottage.woodpile)) household.append(el('p','goal','Woodpile at home: '+Math.floor(cottage.woodpile)+' bundles · Larder: '+(cottage.larder||0)+' loaves'+(Number.isFinite(cottage.ration)?' · Bread due at the storehouse: '+Math.floor(cottage.ration):'')));
   detail.append(household);
   detail.append(requests);
   // Goals: those the record can settle say how, and those on evidence say whom they concern. The latest

@@ -1,15 +1,20 @@
-// Households. Each cottage keeps its own woodpile and larder, filled by its people carrying firewood and
-// loaves home from the common stores. A cottage hearth burns only from its own pile, so one household
-// can wake to a cold house while the village's woodpile still stands. The hall, where lodgers sleep,
-// is kept by the village and draws on the common store directly.
+// Households. Each cottage keeps its own woodpile and larder, filled by its people carrying firewood home
+// from the common woodpile and drawing the household's bread at the storehouse. A cottage hearth burns
+// only from its own pile, so one household can wake to a cold house while the village's woodpile still
+// stands. The hall, where lodgers sleep, is kept by the village and draws on the common store directly.
+import { LARDER_HOLDS, drawable, stockLarder, storehouseOf, STOREHOUSE } from './storehouse.mjs';
 
+export { LARDER_HOLDS };
 export const WOODPILE_HOLDS = 9;
-export const LARDER_HOLDS = 8;
+const YEAR = 365 * 1440;
 
+// How many loaves a bread draw takes is settled when the shift ends, by what is due to the household.
 export const householdJobs = {
   fetchWood: { label: 'Carrying firewood home', task: 'carrying firewood', duration: 26, takes: { wood: 3 }, makes: {} },
-  fetchBread: { label: 'Taking loaves home', task: 'taking bread home', duration: 12, takes: { bread: 3 }, makes: {} },
+  fetchBread: { label: 'Drawing the household’s bread', task: 'drawing bread', duration: 12, takes: {}, makes: {} },
 };
+// The loaves a bread draw would take now.
+export const breadDraw = (actor, world) => ({ bread: Math.max(1, drawable(actor, world)) });
 
 export function prepareHousehold(cottage) {
   cottage.woodpile ??= 2;
@@ -27,7 +32,7 @@ export function householdOf(world, actors, home) {
 export const pileDays = (cottage, rate) => rate > 0 ? cottage.woodpile / rate : Infinity;
 
 // What a resident can do for their own household. `rate` is what a hearth burns today.
-export function householdChoices(actor, { world }, offer, weary, rate) {
+export function householdChoices(actor, { world, map }, offer, weary, rate) {
   const cottage = world.cottages?.[actor.home];
   if (!cottage) return;
   const days = pileDays(cottage, rate);
@@ -38,9 +43,11 @@ export function householdChoices(actor, { world }, offer, weary, rate) {
       rate > 0 ? 'The woodpile at home holds ' + count(cottage.woodpile) + ', about ' + Math.floor(days) + ' days at this cold.'
         : 'The woodpile at home holds ' + count(cottage.woodpile) + '. A pile laid in now will see the house into the cold.');
   }
-  const mouths = actor.spouse ? 2 : 1, kids = cottage.children?.length || 0;
-  if (cottage.larder + 3 <= LARDER_HOLDS && cottage.larder < mouths + kids) {
-    offer('fetchBread', 'oven', 34 + kids * 8 - weary, 'There ' + (cottage.larder === 1 ? 'is one loaf' : 'are ' + cottage.larder + ' loaves') + ' in the larder at home.');
+  // A household with children lays in their bread before morning. Anyone else draws it when they eat.
+  const kids = (cottage.children || []).filter(c => world.minute - c.born >= YEAR).length;
+  if (map && storehouseOf(map) && cottage.larder < kids + 1 && drawable(actor, world) >= 1) {
+    offer('fetchBread', STOREHOUSE, 30 + kids * 8 - weary, 'There ' + (cottage.larder === 1 ? 'is one loaf' : 'are ' + cottage.larder + ' loaves')
+      + ' in the larder at home, and the household’s bread is due at the storehouse.');
   }
 }
 
@@ -50,7 +57,10 @@ export function householdObstacle(actor, world) {
   const { job } = actor.action, cottage = world.cottages?.[actor.home];
   if (!cottage) return 'there was no house of their own to carry it to';
   if (job === 'fetchWood' && cottage.woodpile > WOODPILE_HOLDS - 3) return 'the woodpile at home was already full';
-  if (job === 'fetchBread' && cottage.larder + 3 > LARDER_HOLDS) return 'the larder at home was already full';
+  if (job === 'fetchBread') {
+    if (cottage.larder >= LARDER_HOLDS) return 'the larder at home was already full';
+    if (drawable(actor, world) < 1) return world.supplies.bread < 1 ? 'the shelves at the storehouse were bare' : 'nothing more was due to the household today';
+  }
   return null;
 }
 
@@ -61,8 +71,10 @@ export function finishHousehold(actor, world) {
     return 'carried three bundles of firewood home from the village woodpile';
   }
   if (job === 'fetchBread') {
-    cottage.larder += 3;
-    return 'took three loaves home for the larder';
+    // The loaves left the shelves with the shift's stock change. They go into the larder here.
+    const n = actor.action.drawn || 0;
+    stockLarder(actor, world, n);
+    return 'drew ' + (n === 1 ? 'the household’s loaf' : n + ' loaves') + ' at the storehouse for the larder at home';
   }
 }
 

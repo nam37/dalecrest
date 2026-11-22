@@ -106,7 +106,7 @@ test('a routine that would cost the resident something becomes a choice', () => 
   village.world.moot = null;
   // Two urgent needs at once.
   Object.assign(actor.needs, { hunger: 80, fatigue: 75 });
-  keep(actor, village, menu().get('food:oven'), '8');
+  keep(actor, village, menu().get('food:draw:storehouse'), '8');
   assert.equal(consider(actor, village, menu(), walk).fresh, 'two urgent needs');
   Object.assign(actor.needs, { hunger: 20, fatigue: 20 });
   // News the resident had not heard since they last chose.

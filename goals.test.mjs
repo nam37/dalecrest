@@ -85,7 +85,7 @@ test('a review checks each decision, and a goal about someone changes only on ci
 
 test('a changed goal ends the standing instructions chosen under the old one', () => {
   const village = createVillage(), hugh = resident(village, 'hugh');
-  hugh.instructions = { meal: { match: 'food:oven', label: 'x', trace: 1, since: 0, until: village.world.minute + 999, uses: 0, goals: JSON.stringify(hugh.goals) } };
+  hugh.instructions = { meal: { match: 'food:storehouse:draw', label: 'x', trace: 1, since: 0, until: village.world.minute + 999, uses: 0, goals: JSON.stringify(hugh.goals) } };
   review(hugh, village, [...keepAll(hugh), { action: 'new', kind: 'evidence', text: 'Teach a newcomer the stones', focus: 'work', evidence: [] }]);
   const verdict = consider(hugh, village, availableActions(hugh, village), hugh.action);
   assert.deepEqual(verdict.ended.map(e => e.reason), ['goals changed']);
