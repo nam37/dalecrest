@@ -1,7 +1,7 @@
 import { createMap } from './map.js';
 import { dateOf, formatDate } from '/engine/calendar.mjs';
 import { light, skyOver } from '/ambient.js';
-import { residentCard, portrait as likeness, whyText, doing as doingAt } from '/card.js';
+import { residentCard, eventCard, kinds, portrait as likeness, whyText, doing as doingAt } from '/card.js';
 
 const $ = id => document.getElementById(id);
 const el = (tag, cls, value) => {
@@ -11,12 +11,13 @@ const el = (tag, cls, value) => {
   return node;
 };
 const names = { village: 'Village observatory', residents: 'Village residents', chronicle: 'Village chronicle' };
-const kinds = { village: 'Village', work: 'Work', meal: 'Meal', social: 'Encounter', observation: 'Observation', plan: 'Decision', civic: 'Affairs', build: 'Building', arrival: 'Arrival' };
 const stores = { grain:'Barley', flour:'Flour', bread:'Bread', wood:'Firewood', cloth:'Linen', water:'Water', repair:'Building repairs' };
 let state, latest, frozen=false, selected='agnes', tab='life', route='village', rosterSignature='';
 let ground=null, viewMode='plan', walk=null, loadingWalk=false;
-const map = createMap($('map'), choose, (actor, others) => residentCard(actor, {
-  index: state.actors.findIndex(a => a.id === actor.id), names: state.locations, minute: state.world.minute, others }));
+const map = createMap($('map'), choose, {
+  resident: (actor, others) => residentCard(actor, { index: state.actors.findIndex(a => a.id === actor.id), names: state.locations, minute: state.world.minute, others }),
+  event: (events, spot) => eventCard(events, { names: state.locations, minute: state.world.minute, place: spot.id }),
+});
 const capacity = { grain:44, flour:34, bread:32, wood:32, cloth:12, repair:14, water:28 };
 
 function displayLatest() {
@@ -195,7 +196,18 @@ function renderAffairs() {
 const routine = new Set(['plan','meal','work']);
 const filters = { highlights: e => !routine.has(e.type), '': () => true };
 const shown = (events, filter) => events.filter(filters[filter] || (e => e.type === filter));
+// Opens the village map on the spot where a chronicle entry happened.
+function locate(event) {
+  if (route !== 'village') { history.pushState(null, '', '#village/' + selected); navigate(); }
+  if (viewMode !== 'plan') show('plan');
+  map.focus(event);
+  $('map').scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+}
 function journal(target,events,withDay=false) {
+  // The list is left alone while it has nothing new to say, so a click on it is never lost to a redraw.
+  const signature=events.map(e=>e.id).join(',')+'|'+withDay+'|'+(state?formatDate(state.world.minute):'');
+  if(target.dataset.signature===signature)return;
+  target.dataset.signature=signature;
   const fragment=document.createDocumentFragment();
   let day=null;
   for (const e of events) {
@@ -206,6 +218,13 @@ function journal(target,events,withDay=false) {
       const a = el('a', '', 'Request history');
       a.href = '/requests.html?request=' + encodeURIComponent(e.requestId);
       entry.append(' ', a);
+    }
+    if (e.place) {
+      const where = el('button', 'where', 'Show on map');
+      where.type = 'button';
+      where.title = state.locations[e.place.id]?.name ? 'At ' + state.locations[e.place.id].name : 'Where this happened';
+      where.addEventListener('click', () => locate(e));
+      entry.append(' ', where);
     }
     // In the short list on the village page, an entry from an earlier day says so.
     const earlier = !withDay && state && formatDate(e.minute) !== formatDate(state.world.minute);
@@ -240,7 +259,8 @@ function render() {
   $('clock').classList.toggle('night',night); $('orb').textContent=sky?.snow?'❄':sky?.rain?'☂':night?'☾':sky?.sky==='overcast'?'☁':'☼';
   $('weather').textContent=sky?sky.label:'';
   $('weather').title=sky?'About '+Math.round(sky.temp)+'°C as we would measure it':'';
-  const extras={coldHearths:world.coldHearths||[]};
+  // What happened in the last hour and a half is pinned to the map where it happened.
+  const extras={coldHearths:world.coldHearths||[], events:shown(events,'highlights').filter(e=>e.place&&world.minute-e.minute<=90).slice(0,12)};
   // In the village the map is the page. Its title gives way and the clock moves onto the plate.
   $('page-title').hidden=route==='village';
   $('planner-status').textContent=planner.configured?'Planner · '+planner.model+' · '+planner.state:'Planner · local decision rules';

@@ -156,10 +156,10 @@ function resolve(state, emit, random) {
   if (present.length < Math.max(3, Math.ceil(actors.length * 0.4))) {
     if (++world.moot.tries >= 2) {
       world.moot = null;
-      emit('civic', 'Too few came to the hall again, and the moot was put off.');
+      emit('civic', 'Too few came to the hall again, and the moot was put off.', [], undefined, 'hall');
     } else {
       world.moot.at += 1440;
-      emit('civic', 'Only ' + present.length + ' came to the hall. The moot will meet again tomorrow evening.');
+      emit('civic', 'Only ' + present.length + ' came to the hall. The moot will meet again tomorrow evening.', [], undefined, 'hall');
     }
     return;
   }
@@ -266,30 +266,31 @@ export function buildChoice(actor, state) {
 
 function complete(project, state, emit) {
   const { world, actors, map } = state, site = place(map, project.id);
+  const tell = (text, ids = []) => emit('build', text, ids, undefined, site.id);
   world.projects = world.projects.filter(p => p !== project);
   site.built = world.minute;
   if (project.kind === 'cottage') {
     const owner = actors.find(a => a.id === project.for);
     if (owner && isLodger(owner, map)) {
       owner.home = site.id;
-      emit('build', 'The cottage' + whereabouts(map, site) + ' is finished, and ' + owner.name + ' has moved in from the hall.', [owner.id]);
+      tell('The cottage' + whereabouts(map, site) + ' is finished, and ' + owner.name + ' has moved in from the hall.', [owner.id]);
       remember(owner, world.minute, owner.name + ' moved into a cottage of their own' + whereabouts(map, site) + '.', [owner.id], 'work');
-    } else emit('build', 'A cottage' + whereabouts(map, site) + ' is finished and stands empty.');
+    } else tell('A cottage' + whereabouts(map, site) + ' is finished and stands empty.');
   } else if (project.kind === 'field') {
     world.fields[site.id] = 3;
     world.strain.grain = 0;
     if (site.felled) world.supplies.wood = Math.min(world.capacity.wood, world.supplies.wood + Math.min(4, site.felled));
-    emit('build', site.name + ' is cleared and ploughed. Dalecrest now works ' + placesOf(map, 'field').length + ' fields.');
+    tell(site.name + ' is cleared and ploughed. Dalecrest now works ' + placesOf(map, 'field').length + ' fields.');
   } else if (project.kind === 'granary') {
     world.capacity.grain += 36; world.capacity.flour += 20;
-    emit('build', 'The granary' + whereabouts(map, site) + ' is finished. The village can now store ' + world.capacity.grain + ' measures of barley.');
+    tell('The granary' + whereabouts(map, site) + ' is finished. The village can now store ' + world.capacity.grain + ' measures of barley.');
   } else if (project.kind === 'well') {
     world.capacity.water += 16;
-    emit('build', 'Water has been struck at the new well' + whereabouts(map, site) + '.');
+    tell('Water has been struck at the new well' + whereabouts(map, site) + '.');
   } else if (project.kind === 'oven') {
     world.capacity.bread += 20;
-    emit('build', 'The bakehouse' + whereabouts(map, site) + ' has fired its first loaves.');
-  } else emit('build', site.name + ' has opened its door' + whereabouts(map, site) + '.');
+    tell('The bakehouse' + whereabouts(map, site) + ' has fired its first loaves.');
+  } else tell(site.name + ' has opened its door' + whereabouts(map, site) + '.');
 }
 
 // A finished shift on a building site.

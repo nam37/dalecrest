@@ -31,6 +31,8 @@ export function portrait(i) {
   return canvas;
 }
 
+export const kinds = { village: 'Village', work: 'Work', meal: 'Meal', social: 'Encounter', observation: 'Observation', plan: 'Decision', civic: 'Affairs', build: 'Building', arrival: 'Arrival' };
+
 // Why a moment went to the model, in plain words. The engine's own phrases are kept as a fallback.
 const whys = {
   'no instruction applies': 'Nothing already settled covers this moment.',
@@ -89,5 +91,20 @@ export function residentCard(actor, { index = 0, names = {}, minute = 0, others 
 
   card.append(head, what, why);
   if (others.length) card.append(el('p', 'map-card-others', 'Also indoors here: ' + others.map(o => o.name.split(' ')[0]).join(', ') + '.'));
+  return card;
+}
+
+// What the chronicle holds for one spot on the map, newest first. place is the id of a named place, if any.
+export function eventCard(events, { names = {}, minute = 0, place } = {}) {
+  const card = document.createDocumentFragment(), head = el('div', 'map-card-head'), title = el('div');
+  title.append(el('div', 'eyebrow', 'From the chronicle'), el('h3', '', names[place]?.name ? 'At ' + names[place].name : 'Out of doors'));
+  head.append(title);
+  card.append(head);
+  for (const e of events) {
+    const part = el('div', 'map-card-part'), text = el('p', 'memory-text');
+    text.append(el('span', 'kind kind-' + e.type, kinds[e.type] || e.type), document.createTextNode(e.text));
+    part.append(el('time', 'journal-time', when(e.minute, minute)), text);
+    card.append(part);
+  }
   return card;
 }

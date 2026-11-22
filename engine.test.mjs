@@ -108,3 +108,21 @@ test('a village that has begun to grow resumes from JSON exactly', () => {
   assert.deepEqual(restored, original);
   assert.ok(expected.some(e => e.type === 'build'));
 });
+
+test('events say where they happened', () => {
+  const village = createVillage();
+  const events = stepVillage(village, { minutes: 1440 * 30 });
+  const { w, h } = village.map;
+  for (const e of events) {
+    if (!e.place) continue;
+    assert.ok(e.place.x >= 0 && e.place.x <= w && e.place.y >= 0 && e.place.y <= h, e.text);
+    if (e.place.id) assert.ok(place(village.map, e.place.id), e.text);
+  }
+  // Whatever a resident did happened where they stood, and a finished building is news of its site.
+  for (const e of events) if (e.actorIds.length) assert.ok(e.place, e.text);
+  const raised = events.filter(e => e.type === 'build' && / is finished| stands /.test(e.text));
+  assert.ok(raised.length);
+  for (const e of raised) assert.equal(place(village.map, e.place.id)?.kind !== undefined, true, e.text);
+  const moot = events.find(e => e.type === 'civic' && e.text.startsWith('The moot'));
+  assert.equal(moot.place.id, 'hall');
+});

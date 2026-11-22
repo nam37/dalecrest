@@ -52,9 +52,9 @@ export async function currentMap() {
 
 async function recordEvents(db, events) {
   if (!events.length) return [];
-  const result = await db.query(`INSERT INTO dalecrest.events(minute, kind, actor_ids, description, outcome)
-    SELECT e.minute, e.type, e."actorIds", e.text, e.outcome FROM jsonb_to_recordset($1::jsonb)
-    AS e(minute bigint, type text, "actorIds" text[], text text, outcome jsonb) RETURNING id, minute, actor_ids`, [JSON.stringify(events)]);
+  const result = await db.query(`INSERT INTO dalecrest.events(minute, kind, actor_ids, description, outcome, place)
+    SELECT e.minute, e.type, e."actorIds", e.text, e.outcome, e.place FROM jsonb_to_recordset($1::jsonb)
+    AS e(minute bigint, type text, "actorIds" text[], text text, outcome jsonb, place jsonb) RETURNING id, minute, actor_ids`, [JSON.stringify(events)]);
   return result.rows;
 }
 
@@ -76,6 +76,7 @@ export async function initialize() {
         actor_ids text[] NOT NULL, description text NOT NULL
       );
       ALTER TABLE dalecrest.events ADD COLUMN IF NOT EXISTS outcome jsonb;
+      ALTER TABLE dalecrest.events ADD COLUMN IF NOT EXISTS place jsonb;
       ${requestIndexes}
       CREATE TABLE IF NOT EXISTS dalecrest.map (
         id integer PRIMARY KEY CHECK (id = 1), revision bigint NOT NULL, state jsonb NOT NULL
@@ -194,7 +195,7 @@ export async function snapshot({ withMap = false } = {}) {
         (SELECT m.state FROM dalecrest.map m WHERE m.id=w.id AND m.revision IS DISTINCT FROM $1::bigint) AS map,` : ''}
       (SELECT jsonb_agg(state ORDER BY ordinal) FROM dalecrest.actors) AS actors,
       COALESCE((SELECT jsonb_agg(to_jsonb(recent) ORDER BY recent.id DESC) FROM
-        (SELECT id, minute, kind AS type, actor_ids AS "actorIds", description AS text, ${eventRequestKey} AS "requestId"
+        (SELECT id, minute, kind AS type, actor_ids AS "actorIds", description AS text, place, ${eventRequestKey} AS "requestId"
          FROM dalecrest.events ORDER BY id DESC LIMIT 100) recent),'[]'::jsonb) AS events
     FROM dalecrest.world w WHERE w.id=1`, withMap ? [cached?.revision ?? null] : []);
   const state = result.rows[0];

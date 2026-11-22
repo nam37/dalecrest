@@ -1,6 +1,7 @@
 // All durable state is plain JSON. No wall-clock reads or process-local random state.
 // A village is { world, actors, map }: the map is the generated and grown ground they live on.
 import { generateMap } from './engine/worldgen.mjs';
+import { r2 } from './engine/geom.mjs';
 import { place, placesOf, route, walkingSegment } from './engine/roads.mjs';
 import * as civic from './engine/civic.mjs';
 import { newcomer, wantsNewcomer } from './engine/people.mjs';
@@ -465,6 +466,17 @@ function finishShift(actor, world, emit, sky) {
   if (actor.action.commitmentId) settleHelp(actor, world, stockDelta, emit);
 }
 
+// Where an event took place: at the site named for it, or wherever its first resident stood.
+// A resident who has settled to something is at a place with a name. One on the road is not.
+function spotOf({ actors, map }, actorIds, site) {
+  const named = site && place(map, site);
+  if (named) return { place: { x: r2(named.x), y: r2(named.y), id: named.id } };
+  const who = actors.find(a => a.id === actorIds[0]);
+  if (!who?.position) return {};
+  const settled = who.action?.phase === 'working' && place(map, who.action.target);
+  return { place: { x: r2(who.position.x), y: r2(who.position.y), ...(settled && { id: settled.id }) } };
+}
+
 function arrival(state) {
   const { world, actors } = state;
   const resident = newcomer(state, () => random(world));
@@ -472,7 +484,7 @@ function arrival(state) {
   actors.push(resident);
   world.lastArrival = world.minute;
   world.arrivals = (world.arrivals ?? 0) + 1;
-  return { type: 'arrival', minute: world.minute, actorIds: [resident.id],
+  return { type: 'arrival', minute: world.minute, actorIds: [resident.id], ...spotOf(state, [resident.id]),
     text: resident.name + ', a ' + resident.role.toLowerCase() + ', came up the road looking for work and will lodge at the hall.' };
 }
 
@@ -487,7 +499,7 @@ export function welcomeResidents(state, minimum) {
 function stepMinute(state, events, externalActions, records, pilot) {
   const { world, actors, map } = state;
   const minute = ++world.minute;
-  const emit = (type, text, actorIds = [], outcome) => events.push({ type, minute, text, actorIds, ...(outcome && { outcome }) });
+  const emit = (type, text, actorIds = [], outcome, site) => events.push({ type, minute, text, actorIds, ...(outcome && { outcome }), ...spotOf(state, actorIds, site) });
   expireHelp(state, emit);
   const sky = weatherAt(minute, map.seed), bite = chill(sky.temp);
   if (minute % 1440 === 360) {

@@ -383,8 +383,9 @@ function prepare(map) {
   return look;
 }
 
-// describe(actor, others) returns what the card over a resident should say. Without it there is no card.
-export function createMap(canvas, onSelect, describe) {
+// cards.resident(actor, others) and cards.event(events, spot) return what the card over a resident or a
+// chronicle note should say. Without them there is no card.
+export function createMap(canvas, onSelect, cards) {
   const c = canvas.getContext('2d');
   const paper = document.createElement('canvas');
   const motion = createMotion();
@@ -393,12 +394,14 @@ export function createMap(canvas, onSelect, describe) {
   let w = 0, h = 0, dpr = 1, hits = [], hover = null;
   // The card shows whoever the pointer rests on, or else whoever was last clicked.
   let pinned = null, pointed = null, shown = null, cardStale = true, cardSize = [0, 0];
-  const card = describe ? document.createElement('div') : null, cardBody = document.createElement('div');
+  // Notes mark where something lately happened. One may be held open, as a resident's card may.
+  let marks = [], noteHits = [], pointedMark = null, pinnedMark = null, awaiting = null;
+  const card = cards ? document.createElement('div') : null, cardBody = document.createElement('div');
   if (card) {
     const close = document.createElement('button'), hint = document.createElement('p');
     card.className = 'map-card'; card.hidden = true; card.setAttribute('role', 'group'); card.setAttribute('aria-label', 'Resident on the map');
     close.type = 'button'; close.className = 'map-card-close'; close.textContent = '×'; close.setAttribute('aria-label', 'Close');
-    close.addEventListener('click', () => { pinned = null; schedule(); });
+    close.addEventListener('click', () => { pinned = pinnedMark = null; schedule(); });
     hint.className = 'map-card-hint'; hint.textContent = 'Click to keep this open';
     card.append(close, cardBody, hint);
     canvas.parentElement.append(card);
@@ -697,6 +700,7 @@ export function createMap(canvas, onSelect, describe) {
     overcast(sky);
     nightfall(sky, lit);
     if (!reduced.matches && !(wx?.rain || wx?.snow)) birds(time, sky);
+    notes(still);
     hits = [];
     const crowd = new Map(), markers = [];
     for (const [index, actor] of actors.entries()) {
@@ -742,23 +746,63 @@ export function createMap(canvas, onSelect, describe) {
   // The card rides above whoever it describes, and turns below them when there is no room overhead.
   function placeCard(markers, s) {
     if (!card) return;
-    const id = pointed ?? pinned, m = id && markers.find(k => k.actor.id === id), kept = Boolean(m) && id === pinned;
-    if (!m) { card.hidden = true; shown = null; return; }
-    if (shown !== id || cardStale || card.classList.contains('pinned') !== kept) {
-      const roof = indoors(m.actor) ? m.actor.action.target : null;
-      cardBody.replaceChildren(describe(m.actor, roof ? actors.filter(a => a !== m.actor && indoors(a) && a.action.target === roof) : []));
+    // The pointer comes first: a resident, then a note. Otherwise whatever was last held open.
+    const id = pointed ?? (pointedMark ? null : pinned), m = id && markers.find(k => k.actor.id === id);
+    const note = m ? null : pointedMark ?? pinnedMark;
+    if (!m && !note) { card.hidden = true; shown = null; return; }
+    const key = m ? 'r:' + id : 'n:' + note.key, kept = m ? id === pinned : note.key === pinnedMark?.key;
+    if (shown !== key || cardStale || card.classList.contains('pinned') !== kept) {
+      const roof = m && indoors(m.actor) ? m.actor.action.target : null;
+      cardBody.replaceChildren(m ? cards.resident(m.actor, roof ? actors.filter(a => a !== m.actor && indoors(a) && a.action.target === roof) : [])
+        : cards.event?.(note.events, note) ?? '');
       card.classList.toggle('pinned', kept);
-      shown = id; cardStale = false; card.hidden = false;
+      shown = key; cardStale = false; card.hidden = false;
       cardSize = [card.offsetWidth, card.offsetHeight];
     }
+    const [ax, ay] = m ? [m.x, m.y] : toScreen(note.x, note.y), rise = m ? s : 30;
     const [cw, ch] = cardSize, gap = 14;
-    let top = m.y - s - gap - ch;
+    let top = ay - rise - gap - ch;
     const below = top < 8;
-    if (below) top = Math.min(h - ch - 8, m.y + gap);
-    const left = Math.max(8, Math.min(w - cw - 8, m.x - cw / 2));
+    if (below) top = Math.min(h - ch - 8, ay + gap);
+    const left = Math.max(8, Math.min(w - cw - 8, ax - cw / 2));
     card.classList.toggle('below', below);
     card.style.transform = 'translate(' + Math.round(left + canvas.offsetLeft) + 'px,' + Math.round(top + canvas.offsetTop) + 'px)';
-    card.style.setProperty('--notch', Math.max(18, Math.min(cw - 18, m.x - left)) + 'px');
+    card.style.setProperty('--notch', Math.max(18, Math.min(cw - 18, ax - left)) + 'px');
+  }
+  // A note is pinned beside the spot where something lately happened, or where the reader asked to look.
+  function notes(time) {
+    const all = pinnedMark && !marks.some(m => m.key === pinnedMark.key) ? [...marks, pinnedMark] : marks;
+    noteHits = [];
+    for (const m of all) {
+      const [x, y] = toScreen(m.x, m.y), held = pinnedMark?.key === m.key, nx = x - 15, ny = y - 20;
+      if (x < -24 || y < -24 || x > w + 24 || y > h + 24) continue;
+      const faded = held ? 1 : Math.max(0.5, 1 - m.age / 120);
+      c.globalAlpha = faded; c.strokeStyle = '#7a3b25'; c.lineWidth = 1;
+      c.beginPath(); c.moveTo(x, y); c.lineTo(nx + 3, ny + 6); c.stroke();
+      disc(c, x, y, 2.2, '#9a4a2e');
+      // News less than a quarter of an hour old, and the note being read, send out a ripple.
+      if (held || m.age < 15) {
+        const beat = time ? (time / 1700) % 1 : 0.5;
+        c.globalAlpha = faded * (1 - beat); c.beginPath(); c.arc(x, y, 3 + beat * 12, 0, TAU); c.stroke(); c.globalAlpha = faded;
+      }
+      c.fillStyle = '#fbf6e6'; c.strokeStyle = held ? '#9a4a2e' : '#7a6c4a'; c.lineWidth = held ? 1.7 : 1;
+      c.beginPath(); c.rect(nx - 6.5, ny - 7.5, 13, 15); c.fill(); c.stroke();
+      c.strokeStyle = '#9a4a2e'; c.lineWidth = 1; c.beginPath();
+      for (const dy of [-3.5, 0, 3.5]) { c.moveTo(nx - 3.5, ny + dy); c.lineTo(nx + (dy > 3 ? 1 : 3.5), ny + dy); }
+      c.stroke(); c.globalAlpha = 1;
+      noteHits.push({ mark: m, x: nx, y: ny });
+    }
+  }
+  const noteAt = (sx, sy) => noteHits.find(n => Math.abs(sx - n.x) < 10 && Math.abs(sy - n.y) < 11)?.mark ?? null;
+  // Turns the sheet to a spot from the chronicle and holds its note open.
+  function focus(event) {
+    if (!event?.place) return;
+    if (!w || !map) { awaiting = event; return; }
+    const { x, y, id } = event.place;
+    pinned = pointed = pointedMark = null;
+    pinnedMark = { key: Math.round(x) + ',' + Math.round(y), x, y, id, age: clock - event.minute, events: [event] };
+    view.x = x; view.y = y; view.scale = Math.min(34, Math.max(view.scale, (whole || view.scale) * 2.2));
+    moved = true; cardStale = true; clampView(); redraw();
   }
   function schedule() { if (!frame) frame = requestAnimationFrame(paint); }
   function redraw() { stale = true; schedule(); }
@@ -771,6 +815,7 @@ export function createMap(canvas, onSelect, describe) {
     canvas.width = paper.width = Math.max(1, Math.round(w * dpr));
     canvas.height = paper.height = Math.max(1, Math.round(h * dpr));
     if (first || !moved) fit(); else clampView();
+    if (awaiting && map) { const event = awaiting; awaiting = null; focus(event); }
     redraw();
   }
   function local(e) { const rect = canvas.getBoundingClientRect(); return [e.clientX - rect.left, e.clientY - rect.top]; }
@@ -809,13 +854,13 @@ export function createMap(canvas, onSelect, describe) {
       view.x = drag.x - dx / view.scale; view.y = drag.y - dy / view.scale;
       clampView(); canvas.style.cursor = 'grabbing'; redraw(); return;
     }
-    const hit = nearest(sx, sy, 15), p = hit ? null : placeAt(sx, sy);
+    const hit = nearest(sx, sy, 15), note = hit || !card ? null : noteAt(sx, sy), p = hit || note ? null : placeAt(sx, sy);
     const who = card ? hit?.id ?? lodger(p, false) : null;
     let text = who ? null : hit?.name;
     if (!text && !who && p) text = (locations[p.id]?.name || p.name || '') + (p.stage < 2 ? ' (being built)' : '');
-    canvas.style.cursor = hit || who ? 'pointer' : 'grab';
+    canvas.style.cursor = hit || who || note ? 'pointer' : 'grab';
     const next = text ? { text, x: sx, y: sy } : null;
-    if (who !== pointed) { pointed = who; schedule(); }
+    if (who !== pointed || note?.key !== pointedMark?.key) { pointed = who; pointedMark = note; schedule(); }
     if (next?.text !== hover?.text || next) { hover = next; schedule(); }
   }
   function placeAt(sx, sy) {
@@ -836,9 +881,10 @@ export function createMap(canvas, onSelect, describe) {
     pointers.delete(e.pointerId);
     if (tapped) {
       const [sx, sy] = local(e), hit = nearest(sx, sy, e.pointerType === 'touch' ? 22 : 15);
-      const id = hit?.id ?? (card ? lodger(placeAt(sx, sy), true) : null);
-      // A click keeps the card open on that resident. A click on open ground puts it away.
-      if (card) { pinned = id; pointed = e.pointerType === 'mouse' ? id : null; cardStale = true; schedule(); }
+      const note = hit || !card ? null : noteAt(sx, sy);
+      const id = hit?.id ?? (card && !note ? lodger(placeAt(sx, sy), true) : null);
+      // A click keeps the card open on that resident or note. A click on open ground puts it away.
+      if (card) { pinned = id; pinnedMark = note; pointed = e.pointerType === 'mouse' ? id : null; pointedMark = null; cardStale = true; schedule(); }
       if (id) onSelect?.(id);
     }
     if (!pointers.size) drag = null;
@@ -851,8 +897,8 @@ export function createMap(canvas, onSelect, describe) {
     const [sx, sy] = local(e);
     zoom(Math.exp(-e.deltaY * 0.0016), sx, sy);
   }
-  function leave() { engaged = false; if (hover || pointed) { hover = pointed = null; schedule(); } }
-  function key(e) { if (e.key === 'Escape' && pinned) { pinned = null; schedule(); } }
+  function leave() { engaged = false; if (hover || pointed || pointedMark) { hover = pointed = pointedMark = null; schedule(); } }
+  function key(e) { if (e.key === 'Escape' && (pinned || pinnedMark)) { pinned = pinnedMark = null; schedule(); } }
   function home() { moved = false; fit(); redraw(); }
 
   canvas.style.width = '100%'; canvas.style.height = '100%'; canvas.style.display = 'block'; canvas.style.touchAction = 'none'; canvas.style.cursor = 'grab';
@@ -891,12 +937,22 @@ export function createMap(canvas, onSelect, describe) {
       const lodgers = actors.some(a => a.home === 'hall');
       if (look && look.lodgers !== lodgers) { look.lodgers = lodgers; stale = true; }
       motion.update(actors, performance.now(), motionMs, extras?.liveTick);
+      // extras.events are the latest chronicle entries that have a place, newest first. Those that
+      // happened on the same spot share one note.
+      marks = [];
+      for (const e of extras?.events || []) {
+        if (!e.place) continue;
+        const key = Math.round(e.place.x) + ',' + Math.round(e.place.y);
+        let m = marks.find(k => k.key === key);
+        if (!m) marks.push(m = { key, x: e.place.x, y: e.place.y, id: e.place.id, age: clock - e.minute, events: [] });
+        if (m.events.length < 3) m.events.push(e);
+      }
       // The card follows the map's own clicks. Choosing someone elsewhere on the page puts it away.
       if (pinned && pinned !== id) pinned = null;
       cardStale = true;
       selectedId = id; schedule();
     },
-    zoom, home, redraw,
+    zoom, home, redraw, focus,
     destroy() {
       observer.disconnect(); cancelAnimationFrame(frame);
       card?.remove(); document.removeEventListener('keydown', key);

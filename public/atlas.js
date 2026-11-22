@@ -7,8 +7,8 @@ import { residentCard } from '/card.js';
 
 const $ = id => document.getElementById(id);
 const el = (tag, cls, value) => { const node = document.createElement(tag); if (cls) node.className = cls; if (value !== undefined) node.textContent = value; return node; };
-const map = createMap($('map'), id => { selected = id; show(); }, (actor, others) => residentCard(actor, {
-  index: village.actors.findIndex(a => a.id === actor.id), names: locationsOf(village.map, village.actors), minute: village.world.minute, others }));
+const map = createMap($('map'), id => { selected = id; show(); }, { resident: (actor, others) => residentCard(actor, {
+  index: village.actors.findIndex(a => a.id === actor.id), names: locationsOf(village.map, village.actors), minute: village.world.minute, others }) });
 let village, selected, walk = null, mode = 'plan', revision = -1, log = [], running = 0;
 
 function time(minute) {
