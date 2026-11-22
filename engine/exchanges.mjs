@@ -68,8 +68,14 @@ export function socialContext(actor, minute) {
       } }) };
   });
   const last = actor.observations?.lastWork;
+  const past = (actor.requestMemories || []).slice(-3).reverse().map(r => ({
+    requester: r.asker, helper: r.helper, terms: r.terms, due: villageTime(r.due), status: r.status,
+    ...(r.status === 'unconfirmed' && { account: 'The deadline passed without word of the outcome.' }),
+    ...(r.confirmation && { witnessedBy: r.helper, witnessed: villageTime(r.confirmation.observedAt),
+      toldBy: r.confirmation.toldBy, heard: villageTime(r.confirmation.heardAt) })
+  }));
   return { ...(last && { lastWork: { account: last.text, witnessed: villageTime(last.minute) } }),
-    ...(heard.length && { heard }), ...(requests.length && { helpRequests: requests }) };
+    ...(heard.length && { heard }), ...(requests.length && { helpRequests: requests }), ...(past.length && { pastRequests: past }) };
 }
 
 const near = (a, b) => Math.hypot(a.position.x - b.position.x, a.position.y - b.position.y) <= 3;
@@ -100,6 +106,11 @@ export function conversationChoices(actor, state, menu) {
         ' witnessed by ' + fact.observer, { fact }, fact.id);
       if (!nearby) break;
     }
+    // After another shift replaces lastWork, helpers can still report their own credited work.
+    const records = [...requests, ...(actor.requestMemories || []).slice().reverse()];
+    const receipt = records.find(r => r.askerId === other.id && r.proof && !r.reportedToAsker);
+    if (receipt) offer('share', 'Tell ' + other.name + ' I completed the promised work to ' + receipt.terms,
+      { fact: receipt.proof }, receipt.proof.id);
     for (const { fact, item, spec } of shortages) {
       if ((!nearby && other.trade !== spec.job) || (spec.job === 'mill' && other.trade !== 'mill')) continue;
       if (requests.some(r => r.askerId === actor.id && r.item === item && requestIsOpen(r)) ||
@@ -154,7 +165,17 @@ function learn(actor, minute, why) {
 
 function receive(actor, speaker, fact, minute) {
   if (fact.observerId === actor.id) return;
-  if (fact.kept && actor.helpBook?.[fact.requestId]) actor.helpBook[fact.requestId].status = 'kept';
+  if (fact.kept && fact.topic === 'work') {
+    const active = actor.helpBook?.[fact.requestId];
+    const r = active || actor.requestMemories?.find(r => r.id === fact.requestId);
+    if (r && actor.id === r.askerId && fact.observerId === r.helperId && fact.minute <= r.due &&
+        ['accepted', 'released', 'unconfirmed'].includes(r.status)) {
+      r.status = 'kept';
+      r.confirmation = { observedAt: fact.minute, heardAt: minute, toldBy: speaker.name };
+      if (!active) storeRequestMemory(actor, r);
+      learn(actor, minute, 'learned that ' + r.helper + ' had completed the promised work');
+    }
+  }
   noticeForRequests(actor, fact, minute, speaker.name, speaker.action.basis?.trace);
   const prior = actor.reports?.[fact.topic];
   if (prior && prior.fact.minute >= fact.minute) return;
@@ -170,6 +191,13 @@ function saveRequest(actor, request) {
     ...(requestIsOpen(request) && prior?.update && { update: prior.update }),
     ...(requestIsOpen(request) && prior?.consideredFact && { consideredFact: prior.consideredFact }),
     ...(requestIsOpen(request) && prior?.reviewedFact && { reviewedFact: prior.reviewedFact }) };
+}
+
+function storeRequestMemory(actor, r) {
+  const { id, askerId, asker, helperId, helper, terms, due, status, confirmation, proof, reportedToAsker } = r;
+  const memory = { id, askerId, asker, helperId, helper, terms, due, status,
+    ...(confirmation && { confirmation }), ...(proof && { proof, reportedToAsker: Boolean(reportedToAsker) }) };
+  actor.requestMemories = [...(actor.requestMemories || []).filter(previous => previous.id !== id), memory].slice(-12);
 }
 
 function markSpoken(actor, recipient, bucket, key, id) {
@@ -230,6 +258,10 @@ export function finishConversation(actor, state, emit) {
     markSpoken(actor, other, 'told', fact.topic, fact.id);
   }
   if (verb === 'share') {
+    if (fact.kept && fact.observerId === actor.id) {
+      const receipt = actor.helpBook?.[fact.requestId] || actor.requestMemories?.find(r => r.id === fact.requestId);
+      if (receipt?.askerId === other.id) receipt.reportedToAsker = true;
+    }
     text = actor.name + ' told ' + other.name + ' what ' + fact.observer + ' witnessed on ' +
       villageTime(fact.minute) + '. ' + fact.text;
   } else if (verb === 'ask') {
@@ -256,6 +288,7 @@ export function finishConversation(actor, state, emit) {
     if (!requestIsOpen(agreement)) delete world.helpRequests[agreement.id];
   }
   recordExchange(actor, other, minute, text, { verb, delivered: true, traceId, ...(fact && { fact }),
+    ...(verb === 'share' && fact.kept && { requestId: fact.requestId }),
     ...(agreement && { requestId: agreement.id, terms: { ...agreement } }) }, emit);
 }
 
@@ -283,6 +316,7 @@ export function settleHelp(actor, world, delta, emit) {
   r.status = 'kept';
   actor.observations.lastWork.kept = true;
   saveRequest(actor, r);
+  actor.helpBook[r.id].proof = actor.observations.lastWork;
   delete world.helpRequests[r.id];
   const text = actor.name + ' completed the promised shift for ' + r.asker + '.';
   remember(actor, world.minute, text, [actor.id], 'work');
@@ -299,6 +333,13 @@ export function expireHelp({ world, actors }, emit) {
     delete world.helpRequests[r.id];
   }
   for (const a of actors) for (const r of Object.values(a.helpBook || {})) {
-    if (world.minute > r.due) delete a.helpBook[r.id];
+    if (world.minute <= r.due) continue;
+    if (requestIsOpen(r)) {
+      if (r.status === 'asked') r.status = 'unanswered';
+      else r.status = a.id === r.helperId ? 'broken' : 'unconfirmed';
+      learn(a, world.minute, 'reached the deadline for the request to ' + r.terms);
+    }
+    storeRequestMemory(a, r);
+    delete a.helpBook[r.id];
   }
 }
