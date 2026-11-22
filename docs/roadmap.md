@@ -25,6 +25,8 @@
 | 8. A wider world | Not begun | 0 | 0 | 1 |
 | All stages | | 34 | 10 | 14 |
 
+**Reading the live village.** `readout.mjs` reads every "Done when" measure the database can answer, stage by stage, and marks it met, not met, no data or needing a viewer. On the server: `docker exec dalecrest-app node readout.mjs`, for the last 168 real hours by default. It does not replace `tools/pilot-report.mjs`, which breaks Stage 0 down further.
+
 Stage 3a was added on 22 November 2026 and built the same day. It is numbered to sit after the stage it builds on without renumbering the stages that follow.
 
 The merge passed all 59 tests on 21 November, including eight tests with disposable PostgreSQL databases. With the director the suite has 78 tests. Nine of them need a PostgreSQL database and were not run for that change. The other 69 passed.
@@ -506,7 +508,7 @@ The central test: **can someone follow Mabel, return the next day, and tell whet
 7. [ ] **Time kept moving.** Through the pilot, including a deliberate provider outage, the clock was never more than one tick late and no resident followed a stale instruction. *Awaiting pilot: both rules have unit tests. The claim is about a live week.*
 8. [ ] **A viewer can read it.** Four of five first-time viewers, on a mix of phones and desktops, can say who wanted what and what happened within 90 seconds. On a second visit a day later they can find the ending after it has left the latest 100 entries. *Awaiting pilot: the archive is available for the trial with first-time viewers.*
 9. [ ] **It can happen unprompted.** With the one chosen pressure in place and no scripting, a morning with flour and no wood arises in seeded runs, and Mabel learns of it by going to look. *Has test cover: "a first winter under local rules brings a morning with flour and no firewood, unscripted", in `seasons.test.mjs`.*
-10. [ ] **It was affordable.** Spending stayed inside both caps and every measurement in the list above was captured. *Awaiting pilot: `tools/pilot-report.mjs` is ready to report it.*
+10. [ ] **It was affordable.** Spending stayed inside both caps and every measurement in the list above was captured. *Awaiting pilot: `tools/pilot-report.mjs` and `readout.mjs` are ready to report it.*
 
 ## Decisions that remain open
 

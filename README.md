@@ -62,6 +62,8 @@ node --env-file=.env tools/winter-village.mjs
 
 `node --env-file=.env tools/pilot-report.mjs` reports how activities began, how long residents waited and what was spent, for whichever village `DATABASE_URL` names.
 
+`node --env-file=.env readout.mjs [hours]` reads each roadmap stage's "Done when" measures from the same records, over the last week of real time unless told otherwise, and marks each met, not met, or not yet measurable. Add `--json` for the figures alone. On the server it runs inside the app container: `docker exec dalecrest-app node readout.mjs`.
+
 ## Explore the project
 
 - [Roadmap](docs/roadmap.md) is the canonical plan. It reviews the village as it runs today and sets out the stages ahead, beginning with the Mabel–Oswin promise pilot.
