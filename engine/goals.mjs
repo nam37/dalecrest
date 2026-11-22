@@ -157,7 +157,9 @@ export function dueReview(actor, minute, why) {
 export function watchGoals(actor, minute) {
   const latest = actor.memories?.at(-1);
   if (latest && latest.minute === minute && latest.importance >= 8 && latest.kind !== 'goal') dueReview(actor, minute, 'learned something consequential');
-  if (minute - (actor.lastReview ?? 0) >= REVIEW_EVERY && minute % DAY === 420) dueReview(actor, minute, 'needs direction');
+  // A resident whose goals are still the ones they were founded with has never had a review.
+  const unreviewed = actor.goalBook && !actor.goalBook.some(g => g.source === 'review') && !(actor.goalHistory || []).length;
+  if ((unreviewed || minute - (actor.lastReview ?? 0) >= REVIEW_EVERY) && minute % DAY === 420) dueReview(actor, minute, 'needs direction');
 }
 
 // What a goal review is given: who the resident is, their goals and how the settled ones ended, what
