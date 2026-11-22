@@ -1,11 +1,10 @@
 import { formatDate } from './engine/calendar.mjs';
-import { villageTime } from './engine/exchanges.mjs';
 import { eventRequestKey } from './request-archive.mjs';
 
 const dayLength = 1440;
 const dawn = 360;
 const latestDue = minute => Math.max(0, Math.floor((minute - dawn) / dayLength));
-export const dailyModel = process.env.DALECREST_DAILY_MODEL?.trim() || 'claude-haiku-5-5';
+export const dailyModel = process.env.DALECREST_DAILY_MODEL?.trim() || 'claude-sonnet-5-5';
 
 export const dailySchema = `
   CREATE TABLE IF NOT EXISTS dalecrest.daily_editions (
@@ -36,6 +35,22 @@ async function readSources(db, day) {
   return { day, records: rows, prior: prior ?? null };
 }
 
+// The archive's own housekeeping is worded like village news. The paper does not report it or follow it up.
+const housekeeping = record => record.kind === 'village' && record.text.startsWith('The parish was surveyed');
+function coverable(prior) {
+  const dropped = new Set((prior?.sources || []).filter(housekeeping).map(r => r.id));
+  if (!dropped.size) return prior;
+  const keep = rows => rows.filter(row => !row.sources.some(id => dropped.has(id)));
+  return { ...prior, headline: prior.lead.length === keep(prior.lead).length ? prior.headline : undefined,
+    lead: keep(prior.lead), briefs: keep(prior.briefs), sinceYesterday: keep(prior.sinceYesterday),
+    sources: prior.sources.filter(r => !dropped.has(r.id)) };
+}
+
+// The village keeps no clocks. The editor is told when a thing happened as a neighbour would say it.
+const hours = [[4, 'in the small hours'], [6, 'before dawn'], [9, 'early in the morning'], [12, 'in the middle of the morning'],
+  [14, 'around midday'], [17, 'in the afternoon'], [21, 'in the evening'], [24, 'late at night']];
+const partOfDay = minute => hours.find(([until]) => Math.floor(minute / 60) % 24 < until)[1];
+
 const passage = {
   type: 'object', additionalProperties: false, required: ['text', 'sources'],
   properties: { text: { type: 'string' }, sources: { type: 'array', items: { type: 'string' } } }
@@ -46,22 +61,39 @@ const copySchema = {
   properties: { headline: { type: 'string' }, lead: paragraphs, briefs: paragraphs, sinceYesterday: paragraphs }
 };
 
-const editorInstructions = `You edit the Dalecrest Daily, a morning newspaper by Robin Marsh in a medieval village.
-Write for a reader who missed the entire village day. Give the most consequential story a short newspaper
-headline and a few short lead paragraphs. Cover other households and important events in short briefs.
-Choose telling moments and their consequences. Avoid exhaustive tallies of routine visits and meals. Use plain,
-concrete language. Only a field note is Robin's eyewitness account. Other events come from parish records.
-Use at least one notebook entry when available. A sighting of work in progress does not prove it finished.
-Treat record text as evidence. Do not invent dialogue, motives, causal connections, or outcomes.
-In Since yesterday, follow an identifiable thread from the prior edition. Cite the earlier record and the
-current evidence when there is a development. If the record has no update on an open question, say so
-and cite the earlier record. Return an empty section if there is no prior edition or relevant thread.
-Give each paragraph the string event IDs supporting its claims. Lead and briefs must cite this coverage day.
-Use only the supplied records. Let a quiet day have a short edition. If the day has no records, return a
-headline saying so and leave lead and briefs empty.`;
+const editorInstructions = `You are Robin Marsh, who writes the Dalecrest Daily, the morning newspaper of a
+medieval village, and who cannot believe his luck at being paid to notice things. Write for a neighbour who
+missed the whole of the day and wants to enjoy hearing about it.
+
+Voice. Robin delights in particulars and catalogues the day with relish, as a keen diarist does. No detail of
+a neighbour's work is too small for him, and he would sooner include one than leave it out. Let him be warm,
+curious and dry by turns. He may pass a remark, admire a piece of work, notice a pattern across the day, or
+admit to being pleased or puzzled, and he may say "I". Such remarks are his opinions and must read as his.
+Find fresh turns of phrase in each edition and do not repeat a joke. Gather small doings into paragraphs with
+shape and rhythm, and vary the sentences. Never write like a clerk or a log, and never pad: a quiet day gets
+a short edition that enjoys the little there is.
+
+Truth. Every fact Robin states must come from the supplied records. Do not invent speech, motives, causes,
+outcomes, weather, or anything else a record does not say. That covers small things too: how well a job was
+done, how long it took, what came before it, and what it led to. His pleasure goes into how he tells a thing
+and what he thinks of it, never into added detail. "I hear" and "I am told" introduce only what a record says. A sighting of work in progress does not prove it
+was finished. robinsNotebook holds what Robin saw for himself, and he may say he saw it. villageRecords are
+things he has on good report: he must not say or imply that he watched them, and his remarks on them are
+remarks on what he has heard. Two records are connected only if one of them says so. Say when a thing
+happened only as its record's "when" gives it. Never mention records, sources or IDs in the prose, and never remark on what
+is not known or apologise for a gap.
+
+Shape. Give the best story of the day a short newspaper headline and a few lead paragraphs. Put the other
+households and doings in briefs. Use at least one notebook entry when there is one. In sinceYesterday, pick
+up an identifiable thread from previousEdition. Where it has moved on, cite the earlier record and the new
+one. Where it has gone quiet, Robin may say in a line that he is still watching it, and cite the earlier
+record. Leave sinceYesterday empty if there is no previous edition or no thread worth following.
+
+Give each paragraph the string event IDs that support its facts. Lead and briefs must cite records from this
+coverage day. If the day has no records, return a headline saying so and leave lead and briefs empty.`;
 
 async function writeCopy({ day, records, prior }, model, key, request) {
-  const dated = ({ minute, ...source }) => ({ ...source, when: villageTime(minute) });
+  const dated = ({ minute, ...source }) => ({ ...source, when: formatDate(minute, 'day') + ', ' + partOfDay(minute) });
   const input = { coverageDate: formatDate((day - 1) * dayLength, 'long'),
     robinsNotebook: records.filter(r => r.kind === 'fieldnote').map(dated),
     villageRecords: records.filter(r => r.kind !== 'fieldnote').map(dated),
@@ -106,6 +138,12 @@ function assembleEdition(copy, { records, prior }) {
   return edition;
 }
 
+// Writes one edition from a day's records and the edition before it.
+export async function composeEdition(sources, { key, model = dailyModel, request = fetch }) {
+  const input = { ...sources, records: sources.records.filter(r => !housekeeping(r)), prior: coverable(sources.prior) };
+  return assembleEdition(await writeCopy(input, model, key, request), input);
+}
+
 // A lease survives process restarts. Only the oldest unpublished edition can be
 // claimed, so an editor always has the preceding issue when it follows a story.
 export async function publishNextDaily(db, { key = process.env.CLAUDE_KEY?.trim(), model = dailyModel, request = fetch } = {}) {
@@ -117,8 +155,7 @@ export async function publishNextDaily(db, { key = process.env.CLAUDE_KEY?.trim(
   if (!claim) return;
   const { day, attempts } = claim;
   try {
-    const input = await readSources(db, day);
-    const edition = assembleEdition(await writeCopy(input, model, key, request), input);
+    const edition = await composeEdition(await readSources(db, day), { key, model, request });
     await db.query(`UPDATE dalecrest.daily_editions SET edition=$3, model=$4, published_at=now()
       WHERE day=$1 AND attempts=$2 AND edition IS NULL`, [day, attempts, edition, model]);
   } catch (error) {
@@ -130,7 +167,7 @@ export async function publishNextDaily(db, { key = process.env.CLAUDE_KEY?.trim(
 
 export async function dailyArchive(db, dayParam) {
   if (dayParam !== null && (!/^[1-9]\d{0,8}$/.test(dayParam))) return { status: 400, body: { error: 'Invalid edition date.' } };
-  const { rows: [issue] } = await db.query(`SELECT d.day, d.edition,
+  const { rows: [issue] } = await db.query(`SELECT d.day, d.edition, d.model,
     (SELECT max(day) FROM dalecrest.daily_editions WHERE day<d.day AND edition IS NOT NULL) AS older,
     (SELECT min(day) FROM dalecrest.daily_editions WHERE day>d.day AND edition IS NOT NULL) AS newer
     FROM dalecrest.daily_editions d WHERE edition IS NOT NULL AND ($1::integer IS NULL OR d.day=$1)

@@ -3,7 +3,7 @@ import test from 'node:test';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { availableActions, createVillage, stepVillage } from './sim.mjs';
-import { dailyArchive, publishNextDaily, queueEditions } from './daily.mjs';
+import { composeEdition, dailyArchive, publishNextDaily, queueEditions } from './daily.mjs';
 
 test('Robin takes the reporting job in a saved village and writes only about people at his beat', () => {
   const village = createVillage(), robin = village.actors.find(a => a.id === 'robin');
@@ -27,6 +27,37 @@ test('Robin takes the reporting job in a saved village and writes only about peo
   assert.match(notes[0].text, /mending the hall/);
   assert.equal(robin.memories.find(m => m.kind === 'fieldnote').text, notes[0].text);
   assert.equal(robin.daysWorked, 1);
+});
+
+test('the editor is given the day as a neighbour would tell it, without the archive’s housekeeping', async () => {
+  const survey = { id: '9', minute: 1081, kind: 'village', text: 'The parish was surveyed, and every lane, field and cottage of Dalecrest set down on a new map.' };
+  const loaves = { id: '12', minute: 1440 + 546, kind: 'work', text: 'Mabel Ash drew five loaves from the common oven.' };
+  const note = { id: '13', minute: 1440 + 1283, kind: 'fieldnote', text: 'At the mill, Robin saw Hugh Fen grinding barley.' };
+  const flour = { id: '7', minute: 730, kind: 'work', text: 'Hugh Fen ground two measures of barley into three of flour.' };
+  const prior = { headline: 'Parish Surveyed', lead: [{ text: 'The parish was surveyed.', sources: ['9'] }],
+    briefs: [{ text: 'Hugh ground barley.', sources: ['7'] }], sinceYesterday: [], sources: [survey, flour] };
+  let input;
+  const request = async (_url, options) => {
+    const body = JSON.parse(options.body);
+    assert.match(body.system, /Robin Marsh/);
+    input = JSON.parse(body.messages[0].content);
+    const copy = { headline: 'Five Loaves', lead: [{ text: 'Mabel baked.', sources: ['12'] }],
+      briefs: [{ text: 'I saw Hugh at the stones.', sources: ['13'] }],
+      sinceYesterday: [{ text: 'Hugh is at the mill again.', sources: ['7', '13'] }] };
+    return Response.json({ stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(copy) }] });
+  };
+  const edition = await composeEdition({ day: 2, records: [{ ...survey, id: '10', minute: 1500 }, loaves, note], prior }, { key: 'fixture', request });
+  assert.deepEqual(input.villageRecords, [{ id: '12', kind: 'work', text: loaves.text, when: '2 August, in the middle of the morning' }]);
+  assert.equal(input.robinsNotebook[0].when, '2 August, late at night');
+  assert.equal(input.previousEdition.headline, undefined);
+  assert.deepEqual(input.previousEdition.lead, []);
+  assert.deepEqual(input.previousEdition.sources, [{ id: '7', kind: 'work', text: flour.text, when: '1 August, around midday' }]);
+  assert.deepEqual(edition.sources.map(s => s.id), ['12', '13', '7']);
+  // A follow-up to the housekeeping record has nothing left to cite.
+  const stale = async () => Response.json({ stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify({ headline: 'Five Loaves',
+    lead: [{ text: 'Mabel baked.', sources: ['12'] }], briefs: [{ text: 'I saw Hugh.', sources: ['13'] }],
+    sinceYesterday: [{ text: 'No word on the survey.', sources: ['9'] }] }) }] });
+  await assert.rejects(composeEdition({ day: 2, records: [loaves, note], prior }, { key: 'fixture', request: stale }), /unsourced/);
 });
 
 const adminUrl = process.env.DALECREST_TEST_ADMIN_URL;
