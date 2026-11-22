@@ -299,6 +299,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
       <li><a href="#stage-2"><span class="n">2</span> Goals and memory <i class="pip built"></i></a></li>
       <li><a href="#stage-3"><span class="n">3</span> A village with stakes <i class="pip built"></i></a></li>
       <li><a href="#stage-3a"><span class="n">3a</span> The common store <i class="pip built"></i></a></li>
+      <li><a href="#stage-3b"><span class="n">3b</span> A menu worth choosing from <i class="pip"></i></a></li>
       <li><a href="#stage-4"><span class="n">4</span> Voices and the moot <i class="pip"></i></a></li>
       <li><a href="#stage-5"><span class="n">5</span> Worth watching <i class="pip hand"></i></a></li>
       <li><a href="#stage-6"><span class="n">6</span> Worth following <i class="pip"></i></a></li>
@@ -344,6 +345,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
     <li class="built"><a href="#stage-2"><span class="stone">2</span><b>Goals, memory</b><small>Built · reading</small></a></li>
     <li class="built"><a href="#stage-3"><span class="stone">3</span><b>Stakes</b><small>Built · measuring</small></a></li>
     <li class="built"><a href="#stage-3a"><span class="stone">3a</span><b>Common store</b><small>Built · measuring</small></a></li>
+    <li><a href="#stage-3b"><span class="stone">3b</span><b>The menu</b><small>Proposed</small></a></li>
     <li><a href="#stage-4"><span class="stone">4</span><b>Voices</b><small>Groundwork</small></a></li>
     <li class="hand"><a href="#stage-5"><span class="stone">5</span><b>Watching</b><small>In hand</small></a></li>
     <li><a href="#stage-6"><span class="stone">6</span><b>Following</b><small>Groundwork</small></a></li>
@@ -746,6 +748,42 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
     <p class="donewhen"><b>Done when</b> across a week in the live village residents draw between 1 and 1.5 loaves a day each; nobody has eaten at a hunger under 30; a household can still run short while the storehouse does not; a viewer can tell from the storehouse what the village is short of; and fresh choices per resident per day, as Stage 0 counts them, are known before and after.</p>
   </article>
 
+  <!-- ============ Stage 3b ============ -->
+  <article class="stage" id="stage-3b">
+    <header>
+      <span class="numeral">3b</span>
+      <h3>A menu worth choosing from</h3>
+      <span class="meta">Size M · Engine rules · Needs nothing new</span>
+      <span class="stamp">Proposed</span>
+    </header>
+    <div class="meter"><span class="bar"><i class="d"></i><i class="p"></i></span><span class="count"></span></div>
+    <p>A resident's menu holds everything the engine can carry out for them at that moment. With eleven residents, that means a visit to almost every neighbour and a “tell” for every pairing of a neighbour and a piece of news. Those crowd out everything else, so residents spend their days visiting and passing on news. This stage shapes the menu. It still offers only what the engine can carry out, and the model still chooses. But the menu is sized and composed so that the village's work, its own pursuits and its company all have a place on it. It is engine work. It adds no new kind of model call and no new kind of activity.</p>
+    <p><b>Why this stage.</b> The figures below were measured on 22 November 2026 from the live village, over 682 applied action requests in the 24 real hours to 12:20 EST. They cover Saturday 5 and Sunday 6 August 1312. Sunday is a day of rest, when nobody works at a trade.</p>
+    <div class="scroll"><table>
+      <thead><tr><th>What</th><th>Value</th><th>Source</th></tr></thead>
+      <tbody>
+        <tr><td>Options on a menu</td><td>19.5 on average, and up to 36</td><td>The menus in <code>dalecrest.decision_traces</code> request bodies</td></tr>
+        <tr><td>Options about people</td><td>7.1 offers to tell someone news and 6.4 visits a menu, together 70% of it</td><td>The same menus</td></tr>
+        <tr><td>What was chosen</td><td>Visits 42%, telling news 38%, work 7%, meals 7%, rest 5%. Leisure on the green was on every menu and was chosen none of 682 times.</td><td>The same requests</td></tr>
+        <tr><td>A working day</td><td>By day on Saturday 5 August, menus held 13.6 options about people and 1.3 for work, and 90% of choices went to people. By day on the Sunday they held 16.7 and 2.9, and 74% went to people.</td><td>The same requests, by village day</td></tr>
+        <tr><td>Hunting and fishing</td><td>On 53% of menus. Chosen 6 times.</td><td>The same requests</td></tr>
+        <tr><td>What a request costs</td><td>949 tokens. The menu is 63% of the request.</td><td><code>token_charge</code>, and the request bodies' length</td></tr>
+        <tr><td>Fresh choices</td><td>33.1 per resident per village day. 91% were needed because no standing instruction applied, and 60% of back-to-back fresh choices repeated the identical option.</td><td><code>readout.mjs</code> and <code>tools/standing-coverage.sql</code></td></tr>
+      </tbody>
+    </table></div>
+    <p>Two causes in those figures are already fixed. Saturday held a loop of missed conversations, fixed in <code>3076912</code>, and since <code>fe60da0</code> a standing instruction covers another stretch of the same visit. The figures are taken again before this stage is built. The menu's make-up does not depend on either fix: it grows with every resident and every piece of news.</p>
+    <ul class="checks">
+      <li data-s="todo"><div class="what"><strong>Company by place.</strong> Company is offered where people are, not person by person: “Join Hugh and Alice on the green” or “Sit with Agnes at her cottage”. The green's leisure and a visit to someone there become one option, which says who is there. A visit to one person stays for those a resident has reason to seek out.</div></li>
+      <li data-s="todo"><div class="what"><strong>People who matter now.</strong> Visits to particular people go to at most four neighbours a menu: anyone an open request, a promise, a goal or a courtship names, then the closest by warmth, then the neighbour longest unseen. Everyone else can still be met through company by place.</div></li>
+      <li data-s="todo"><div class="what"><strong>News worth telling.</strong> A menu offers at most two pieces of news, the freshest the resident holds. Each is offered to the neighbours it bears on, such as the baker for the oven or the keeper for the storehouse, and to anyone within speaking distance. A resident is not offered news to tell someone they have already told.</div></li>
+      <li data-s="todo"><div class="what"><strong>Work that can start.</strong> On a working day a resident's own trade is on the menu whenever it can start. When it cannot, the request says why: the trade's hours, nothing to work with as far as the resident knows, or a count still to be made. The first step is to find why Saturday's menus held 1.3 options for work.</div></li>
+      <li data-s="todo"><div class="what"><strong>A size, and a record of what was left off.</strong> A menu holds at most 12 options. It never leaves off anything a request for help, a promise or the moot needs, a meal once one is due, or sleep at night. Each request records how many options of each kind were left off, so the shaping can be read and measured like everything else.</div></li>
+      <li data-s="todo"><div class="what"><strong>Words that vary.</strong> An activity's label and description can vary by trade, season, weather and hour over the same mechanics, as in “Mending nets by the fire” or “Whittling on the bench”. The wording is written in code. A model may draft it, but it is reviewed and committed. Nothing is invented at run time, and no new activity comes from a model.</div></li>
+    </ul>
+    <p>The engine never picks the activity. It chooses which feasible options to show, by rules that can be read, and records what it left off. Open decisions 16 to 18 belong to this stage.</p>
+    <p class="donewhen"><b>Done when</b> across a working week in the live village, menus average 12 options or fewer and the menu is under half of each request; on working days no one kind of activity takes more than half of the choices; each resident with a trade works at it on most working days; the residents who prefer hunting or fishing go out; nothing a request, a promise, the moot, a due meal or the night needed was ever left off; and fresh choices per resident per village day, and tokens per request, are known before and after.</p>
+  </article>
+
   <!-- ============ Stage 4 ============ -->
   <article class="stage" id="stage-4">
     <header>
@@ -849,6 +887,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
     <li>Stage 2 needs the observations and commitments the pilot introduces.</li>
     <li>Stage 3 is engine work and can begin once Stage 0 can count real tradeoffs. Its presentation counterpart, Stage 5, can run beside it.</li>
     <li>Stage 3a needs Stage 3's households and working day. Its floor under meals needs nothing and can go first. The allowance is a natural first bylaw for Stage 4's wider agenda.</li>
+    <li>Stage 3b needs nothing beyond the stages already built, and is measured with <code>readout.mjs</code> and <code>tools/standing-coverage.sql</code>. It should come before Stage 4, whose positions and ballots add more options to the menu.</li>
     <li>Stage 4 needs Stage 2's goals and observations.</li>
     <li>Stage 6 needs the records from Stages 1 and 2 and reads best after Stage 5's daily account.</li>
     <li>Stage 7 needs Stage 4's ballots and positions, which are what make a visitor's petition something residents can answer.</li>
@@ -963,6 +1002,9 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
     <li><strong>Whether households keep a larder and a woodpile.</strong> Stage 3a keeps them as the place a day's allowance is carried to. A stricter commune would have everyone eat at a common table in the hall, and would undo part of Stage 3's households. <span class="st" style="display:block">Decided, 22 November 2026: households keep both, and the allowance is carried to the larder.</span></li>
     <li><strong>Whether the oven's flour and firewood move to the storehouse.</strong> The promise pilot rests on Mabel counting them at the oven, and acceptance tests 4 and 9 name that count. Stage 3a leaves both where they are, and leaves household firewood at the woodpile. <span class="st" style="display:block">Decided, 22 November 2026: they stay at the oven.</span></li>
     <li><strong>Who keeps the storehouse, and who sets the allowance.</strong> The keeper can be a second duty for a founding resident or the trade of the next arrival. The allowance can be an engine parameter or a bylaw the moot votes, which needs Stage 4. <span class="st" style="display:block">Decided, 22 November 2026: a new resident arrives to keep the storehouse as a trade, and the allowance is an engine parameter from the start. The moot may take it over in Stage 4.</span></li>
+    <li><strong>Whether the engine may leave a feasible option off the menu.</strong> Stage 3b has it show at most 12, by rules that can be read, and record what it left off. The alternative is to show everything and accept the cost and the crowding. Either way the model chooses, but leaving an option off shapes what it can choose.</li>
+    <li><strong>How many people a menu offers, and who.</strong> Stage 3b proposes four: those a request, promise, goal or courtship names, then the closest by warmth, then the neighbour longest unseen. Fewer means more of the village's other life on the menu. More means fewer friendships go unvisited.</li>
+    <li><strong>Whether company is offered by person or by place.</strong> Offering “the green, where Hugh and Alice are” folds many visits into one option and gives the green a reason to be chosen. A visit to one person says more about whom a resident seeks out, and warmth and trust are kept between pairs.</li>
   </ol>
 </section>
 

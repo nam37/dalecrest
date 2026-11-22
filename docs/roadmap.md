@@ -18,16 +18,17 @@
 | 2. Goals and memory | Built, live reviews to be read | 6 | 0 | 0 |
 | 3. A village with stakes | Built, awaiting the live measure | 7 | 0 | 0 |
 | 3a. The common store | Built, awaiting the live measure | 6 | 1 | 0 |
+| 3b. A menu worth choosing from | Proposed | 0 | 0 | 6 |
 | 4. Voices: competing interests and the moot | Groundwork only | 0 | 1 | 4 |
 | 5. Worth watching | In hand | 4 | 2 | 2 |
 | 6. Worth following | Groundwork only | 0 | 1 | 3 |
 | 7. Taking part | Groundwork only | 0 | 1 | 4 |
 | 8. A wider world | Not begun | 0 | 0 | 1 |
-| All stages | | 34 | 10 | 14 |
+| All stages | | 34 | 10 | 20 |
 
 **Reading the live village.** `readout.mjs` reads every "Done when" measure the database can answer, stage by stage, and marks it met, not met, no data or needing a viewer. On the server: `docker exec dalecrest-app node readout.mjs`, for the last 168 real hours by default. It does not replace `tools/pilot-report.mjs`, which breaks Stage 0 down further.
 
-Stage 3a was added on 22 November 2026 and built the same day. It is numbered to sit after the stage it builds on without renumbering the stages that follow.
+Stage 3a was added on 22 November 2026 and built the same day. It is numbered to sit after the stage it builds on without renumbering the stages that follow. Stage 3b was added the same day as a proposal, from the first live readout.
 
 The merge passed all 59 tests on 21 November, including eight tests with disposable PostgreSQL databases. With the director the suite has 78 tests. Nine of them need a PostgreSQL database and were not run for that change. The other 69 passed.
 
@@ -335,6 +336,44 @@ Open decisions 12 to 15 belong to this stage. All four were settled on 22 Novemb
 
 Done when: across a week in the live village residents draw between 1 and 1.5 loaves a day each; nobody has eaten at a hunger under 30; a household can still run short while the storehouse does not; a viewer can tell from the storehouse what the village is short of; and fresh choices per resident per day, as Stage 0 counts them, are known before and after.
 
+### Stage 3b. A menu worth choosing from (M, engine rules)
+
+A resident's menu holds everything the engine can carry out for them at that moment. With eleven residents, that means a visit to almost every neighbour and a "tell" for every pairing of a neighbour and a piece of news. Those crowd out everything else, so residents spend their days visiting and passing on news. This stage shapes the menu. It still offers only what the engine can carry out, and the model still chooses. But the menu is sized and composed so that the village's work, its own pursuits and its company all have a place on it. It is engine work. It adds no new kind of model call and no new kind of activity.
+
+**Why this stage.** The figures below were measured on 22 November 2026 from the live village, over 682 applied action requests in the 24 real hours to 12:20 EST. They cover Saturday 5 and Sunday 6 August 1312. Sunday is a day of rest, when nobody works at a trade.
+
+| What | Value | Source |
+| --- | --- | --- |
+| Options on a menu | 19.5 on average, and up to 36 | The menus in `dalecrest.decision_traces` request bodies |
+| Options about people | 7.1 offers to tell someone news and 6.4 visits a menu, together 70% of it | The same menus |
+| What was chosen | Visits 42%, telling news 38%, work 7%, meals 7%, rest 5%. Leisure on the green was on every menu and was chosen none of 682 times. | The same requests |
+| A working day | By day on Saturday 5 August, menus held 13.6 options about people and 1.3 for work, and 90% of choices went to people. By day on the Sunday they held 16.7 and 2.9, and 74% went to people. | The same requests, by village day |
+| Hunting and fishing | On 53% of menus. Chosen 6 times. | The same requests |
+| What a request costs | 949 tokens. The menu is 63% of the request. | `token_charge`, and the request bodies' length |
+| Fresh choices | 33.1 per resident per village day. 91% were needed because no standing instruction applied, and 60% of back-to-back fresh choices repeated the identical option. | `readout.mjs` and `tools/standing-coverage.sql` |
+
+Two causes in those figures are already fixed. Saturday held a loop of missed conversations, fixed in `3076912`, and since `fe60da0` a standing instruction covers another stretch of the same visit. The figures are taken again before this stage is built. The menu's make-up does not depend on either fix: it grows with every resident and every piece of news.
+
+**Marked off · 22 November 2026.**
+
+- [ ] **Company by place.** Not begun.
+- [ ] **People who matter now.** Not begun.
+- [ ] **News worth telling.** Not begun.
+- [ ] **Work that can start.** Not begun.
+- [ ] **A size, and a record of what was left off.** Not begun.
+- [ ] **Words that vary.** Not begun.
+
+- **Company by place.** Company is offered where people are, not person by person: "Join Hugh and Alice on the green" or "Sit with Agnes at her cottage". The green's leisure and a visit to someone there become one option, which says who is there. A visit to one person stays for those a resident has reason to seek out.
+- **People who matter now.** Visits to particular people go to at most four neighbours a menu: anyone an open request, a promise, a goal or a courtship names, then the closest by warmth, then the neighbour longest unseen. Everyone else can still be met through company by place.
+- **News worth telling.** A menu offers at most two pieces of news, the freshest the resident holds. Each is offered to the neighbours it bears on, such as the baker for the oven or the keeper for the storehouse, and to anyone within speaking distance. A resident is not offered news to tell someone they have already told.
+- **Work that can start.** On a working day a resident's own trade is on the menu whenever it can start. When it cannot, the request says why: the trade's hours, nothing to work with as far as the resident knows, or a count still to be made. The first step is to find why Saturday's menus held 1.3 options for work.
+- **A size, and a record of what was left off.** A menu holds at most 12 options. It never leaves off anything a request for help, a promise or the moot needs, a meal once one is due, or sleep at night. Each request records how many options of each kind were left off, so the shaping can be read and measured like everything else.
+- **Words that vary.** An activity's label and description can vary by trade, season, weather and hour over the same mechanics, as in "Mending nets by the fire" or "Whittling on the bench". The wording is written in code. A model may draft it, but it is reviewed and committed. Nothing is invented at run time, and no new activity comes from a model.
+
+The engine never picks the activity. It chooses which feasible options to show, by rules that can be read, and records what it left off. Open decisions 16 to 18 belong to this stage.
+
+Done when: across a working week in the live village, menus average 12 options or fewer and the menu is under half of each request; on working days no one kind of activity takes more than half of the choices; each resident with a trade works at it on most working days; the residents who prefer hunting or fishing go out; nothing a request, a promise, the moot, a due meal or the night needed was ever left off; and fresh choices per resident per village day, and tokens per request, are known before and after.
+
 ### Stage 4. Voices: competing interests and the moot (L)
 
 Apply the pilot's mechanism to a second problem, and let the village decide things by people taking positions.
@@ -431,6 +470,7 @@ More than one village with a road between them. This multiplies everything above
 - Stage 2 needs the observations and commitments the pilot introduces.
 - Stage 3 is engine work and can begin once Stage 0 can count real tradeoffs. Its presentation counterpart, Stage 5, can run beside it.
 - Stage 3a needs Stage 3's households and working day. Its floor under meals needs nothing and can go first. The allowance is a natural first bylaw for Stage 4's wider agenda.
+- Stage 3b needs nothing beyond the stages already built, and is measured with `readout.mjs` and `tools/standing-coverage.sql`. It should come before Stage 4, whose positions and ballots add more options to the menu.
 - Stage 4 needs Stage 2's goals and observations.
 - Stage 6 needs the records from Stages 1 and 2 and reads best after Stage 5's daily account.
 - Stage 7 needs Stage 4's ballots and positions, which are what make a visitor's petition something residents can answer.
@@ -527,6 +567,9 @@ The central test: **can someone follow Mabel, return the next day, and tell whet
 13. **Whether households keep a larder and a woodpile.** Stage 3a keeps them as the place a day's allowance is carried to. A stricter commune would have everyone eat at a common table in the hall, and would undo part of Stage 3's households. *Decided, 22 November 2026: households keep both, and the allowance is carried to the larder.*
 14. **Whether the oven's flour and firewood move to the storehouse.** The promise pilot rests on Mabel counting them at the oven, and acceptance tests 4 and 9 name that count. Stage 3a leaves both where they are, and leaves household firewood at the woodpile. *Decided, 22 November 2026: they stay at the oven.*
 15. **Who keeps the storehouse, and who sets the allowance.** The keeper can be a second duty for a founding resident or the trade of the next arrival. The allowance can be an engine parameter or a bylaw the moot votes, which needs Stage 4. *Decided, 22 November 2026: a new resident arrives to keep the storehouse as a trade, and the allowance is an engine parameter from the start. The moot may take it over in Stage 4.*
+16. **Whether the engine may leave a feasible option off the menu.** Stage 3b has it show at most 12, by rules that can be read, and record what it left off. The alternative is to show everything and accept the cost and the crowding. Either way the model chooses, but leaving an option off shapes what it can choose.
+17. **How many people a menu offers, and who.** Stage 3b proposes four: those a request, promise, goal or courtship names, then the closest by warmth, then the neighbour longest unseen. Fewer means more of the village's other life on the menu. More means fewer friendships go unvisited.
+18. **Whether company is offered by person or by place.** Offering "the green, where Hugh and Alice are" folds many visits into one option and gives the green a reason to be chosen. A visit to one person says more about whom a resident seeks out, and warmth and trust are kept between pairs.
 
 ## Future considerations
 
