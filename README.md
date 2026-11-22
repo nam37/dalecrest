@@ -28,6 +28,8 @@ Set `CLAUDE_KEY` in the server environment to enable the editor. It uses Claude 
 
 The village map is generated from a seed and then belongs to the village. Residents raise concerns in conversation, settle them at a moot in the hall, and build what was agreed: cottages for newcomers, fields, a granary, wells, a bakehouse, an alehouse, and new lanes when the old ones fill up. The Village page shows the map, the works in progress and the proposals under discussion. Choose **Walk** above the map to follow the selected resident through the village in 3D.
 
+Open the village with no resident chosen and it is **Watching**: the view goes to whoever is in the middle of something, moves to a place when news arrives there, and says underneath what you are looking at and the recorded reason for it. Click a resident or move the map to take over, and press **Watch** to hand it back. **Show where** beside a chronicle entry turns the map or the walking view to the spot where it happened.
+
 Open the Sandbox at `/atlas.html` on a running server to found a village from any seed in the browser and advance it by days. Set `VILLAGE_SEED` before the first start to choose the seed of a new database.
 
 Open the **Help request archive** from the chronicle, or **Request history** from a resident's panel. Each delivered request has a permanent link with its terms, deadline and recorded events. Follow it in your browser to see what changed on your next visit. [Live request archive](https://dalecrest.trinsicstudios.com/requests.html)

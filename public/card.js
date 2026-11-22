@@ -62,6 +62,14 @@ const hour = minute => { const h = Math.floor(minute / 60) % 24; return (h % 12 
 const when = (minute, now) => formatDate(minute, dateOf(minute).year !== dateOf(now).year ? 'full' : 'day') + ' at ' + hour(minute);
 const chip = (kind, text) => el('span', 'basis basis-' + kind, text);
 
+// One line of why, from the same records the card reads, for a caption that has room for no more.
+export function whyLine(actor, minute) {
+  const a = actor.action || {};
+  if (a.kind === 'waiting') return whyText(a.why) || a.reason || '';
+  if (a.basis?.kind === 'standing') return 'Routine, following the choice made ' + when(a.basis.since, minute) + '.';
+  return (a.basis?.kind === 'fresh' ? 'A fresh choice. ' : '') + choiceExplanation(a);
+}
+
 // others are the residents under the same roof, when this one is indoors.
 export function residentCard(actor, { index = 0, names = {}, minute = 0, others = [] } = {}) {
   const card = document.createDocumentFragment(), a = actor.action || {};

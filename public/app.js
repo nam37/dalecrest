@@ -1,7 +1,8 @@
 import { createMap } from './map.js';
 import { dateOf, formatDate } from '/engine/calendar.mjs';
 import { light, skyOver } from '/ambient.js';
-import { residentCard, eventCard, kinds, portrait as likeness, whyText, choiceExplanation, doing as doingAt } from '/card.js';
+import { residentCard, eventCard, kinds, portrait as likeness, whyText, whyLine, choiceExplanation, doing as doingAt } from '/card.js';
+import { createDirector } from '/director.js';
 
 const $ = id => document.getElementById(id);
 const el = (tag, cls, value) => {
@@ -17,9 +18,16 @@ let state, latest, frozen=false, selected='agnes', tab='life', route='village', 
 let ground=null, viewMode='plan', walk=null, loadingWalk=false;
 // The chronicle entry the walking view is holding on, if any.
 let held=null;
+// A visitor who arrives with no one in mind is shown around: the director picks who or what to watch
+// until they choose for themselves. Turning it off is remembered in this browser.
+const director = createDirector();
+const recall = key => { try { return localStorage.getItem(key); } catch { return null; } };
+const keep = (key, value) => { try { localStorage.setItem(key, value); } catch { /* private window */ } };
+let watching = !location.hash.includes('/') && recall('dalecrest.watch') !== 'off', scene = null;
 const map = createMap($('map'), choose, {
   resident: (actor, others) => residentCard(actor, { index: state.actors.findIndex(a => a.id === actor.id), names: state.locations, minute: state.world.minute, others }),
   event: (events, spot) => eventCard(events, { names: state.locations, minute: state.world.minute, place: spot.id }),
+  steered: () => watch(false),
 });
 const capacity = { grain:44, flour:34, bread:32, wood:32, cloth:12, repair:14, water:28 };
 
@@ -30,6 +38,7 @@ function displayLatest() {
     map.setMap(ground, state.locations);
     walk?.setMap(ground);
   }
+  direct();
   render();
 }
 async function show(mode) {
@@ -46,6 +55,7 @@ async function show(mode) {
       const { createWalk } = await import('/view3d.js');
       walk = createWalk($('walk'), choose, note => locate(note.events[0]));
       if (ground) walk.setMap(ground);
+      if (scene) stage();
     } catch { caption({ line: 'This browser could not open the walking view.' }); return; }
     finally { loadingWalk = false; }
   }
@@ -67,6 +77,50 @@ function caption(c) {
   }
 }
 function release() { held = null; walk?.hold(null); }
+
+// Asks the director what to show, and turns both views to it when the scene changes.
+function direct() {
+  if (!watching || !state || frozen || route !== 'village' || document.hidden) return;
+  const next = director.pick(state, performance.now()), cut = next.key !== scene?.key;
+  scene = next;
+  if (cut) { stage(); render(); }
+}
+function stage() {
+  held = null;
+  if (scene.actorId && state.actors.some(a => a.id === scene.actorId)) selected = scene.actorId;
+  if (scene.kind === 'resident') { map.watch({ id: scene.actorId }); walk?.hold(null); }
+  else if (scene.kind === 'event') { map.watch(scene.event.place); walk?.hold(scene.event); }
+  else {
+    const green = state.map.places.find(p => p.id === 'green') || state.map.places[0];
+    map.watch({ whole: true }); walk?.hold({ place: { x: green.x, y: green.y, id: green.id } }, { dist: 32, pitch: 0.62 });
+  }
+}
+function watch(on, remember = false) {
+  if (on === watching) return;
+  watching = on; scene = null; director.reset();
+  if (remember) keep('dalecrest.watch', on ? 'on' : 'off');
+  if (on) {
+    // A watch belongs to no one resident, so the address goes back to the village itself.
+    if (route === 'village' && location.hash !== '#village') history.replaceState(null, '', '#village');
+    direct();
+  } else { map.watch(null); if (!held) walk?.hold(null); }
+  render();
+}
+// What the caption says about the scene being watched.
+function narration() {
+  const { world, actors, locations } = state;
+  if (scene.kind === 'resident') {
+    const actor = actors.find(a => a.id === scene.actorId);
+    return actor ? { kicker: scene.kicker, line: actor.name + ' · ' + doing(actor), why: whyLine(actor, world.minute) } : null;
+  }
+  if (scene.kind === 'event') {
+    const at = locations[scene.event.place.id]?.name, ago = world.minute - scene.event.minute;
+    return { kicker: (at ? 'At ' + at : 'Out of doors') + ' · ' + (ago < 2 ? 'just now' : ago + ' minutes ago'), line: scene.event.text };
+  }
+  const night = light(world.minute).night, all = scene.indoors >= scene.residents;
+  return { kicker: night ? 'The village by night' : 'The village', line: all ? 'Everyone is indoors.' + (night ? ' The lit windows are the hearths still burning.' : '')
+    : scene.indoors + ' of ' + scene.residents + ' residents are indoors.' };
+}
 function chip(kind, text, title) {
   const node = el('span', 'basis basis-' + kind, text);
   if (title) node.title = title;
@@ -98,6 +152,7 @@ function block(label, ...children) {
 }
 function choose(id) {
   if (!state?.actors.some(a=>a.id===id)) return;
+  watch(false);
   release();
   selected=id;
   const address='#village/'+id;
@@ -226,6 +281,7 @@ const shown = (events, filter) => events.filter(filters[filter] || (e => e.type 
 // Turns the village to the spot where a chronicle entry happened, in whichever view is open.
 function locate(event) {
   if (route !== 'village') { history.pushState(null, '', '#village/' + selected); navigate(); }
+  watch(false);
   if (viewMode === 'walk' && walk) { held = event; walk.hold(event); render(); }
   else map.focus(event);
   document.querySelector('.map-area').scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
@@ -293,6 +349,8 @@ function render() {
   $('planner-status').textContent=planner.configured?'Village decisions · '+planner.state:'Village decisions · local rules';
   if(route==='village'){
     const actor=actors.find(a=>a.id===selected)||actors[0]; selected=actor.id;
+    $('watch').setAttribute('aria-pressed',String(watching)); $('watch').textContent=watching?'Watching':'Watch';
+    document.querySelector('.map-key').hidden=viewMode!=='plan'||watching;
     const motionMs = frozen ? 0 : Math.max(1, state.tickDueAt - performance.now());
     if (state.tickMs > 0 && state.tickMinutes > 0) {
       extras.liveTick = { map: ground, minute: world.minute, minutes: state.tickMinutes, ms: state.tickMs, endsAt: state.tickDueAt };
@@ -300,12 +358,13 @@ function render() {
     map.update(actors,selected,state.locations,motionMs,world.minute,extras);
     if(walk&&viewMode==='walk'){
       walk.update(actors,selected,world.minute,motionMs,extras);
-      if(held){
+      if(watching&&scene) caption(narration());
+      else if(held){
         const at=state.locations[held.place.id]?.name;
         caption({kicker:(at?'At '+at:'Out of doors')+' · '+(formatDate(held.minute)===formatDate(world.minute)?'':date(held.minute)+', ')+time(held.minute),
           line:held.text, back:'Back to '+actor.name.split(' ')[0]});
       } else caption({kicker:'Following',line:actor.name+' · '+doing(actor)});
-    } else if(!loadingWalk) caption(null);
+    } else if(!loadingWalk) caption(watching&&scene?narration():null);
     renderProfile(actor);renderAffairs();
     $('map-count').textContent=actors.length+' residents';
     const notable=shown(events,'highlights');
@@ -326,7 +385,8 @@ function navigate(){
   // #village/agnes opens the village following Agnes.
   const [key,who]=location.hash.slice(1).split('/');
   route=Object.hasOwn(names,key)?key:'village';
-  if(who) selected=who;
+  // An address that names a resident is a wish to follow them, so a watch gives way to it.
+  if(who) { selected=who; if(watching) { watching=false; scene=null; director.reset(); map.watch(null); walk?.hold(null); } }
   for(const view of document.querySelectorAll('.view'))view.hidden=view.id!==route;
   for(const link of document.querySelectorAll('nav a')){
     if(link.hash==='#'+route)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');
@@ -366,6 +426,8 @@ $('zoom-out').addEventListener('click',()=>map.zoom(1/1.4));
 $('zoom-home').addEventListener('click',()=>map.home());
 $('pick-resident').addEventListener('change',e=>choose(e.target.value));
 $('caption-back').addEventListener('click',()=>{release();render();});
+$('watch').addEventListener('click',()=>watch(!watching,true));
+setInterval(direct,1000);
 $('event-type').addEventListener('change',render);
 window.addEventListener('hashchange',navigate);
 navigate();refresh();

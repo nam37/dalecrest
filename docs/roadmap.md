@@ -9,22 +9,22 @@
 
 ## State of the plan
 
-**Marked off · 21 November 2026**, against the request archive (`996c2c1`) and resident cards (`836bec3`). A ticked box means built, tested and merged. It does not mean measured in the live village: each stage's "Done when" is a separate test, and none has been met. An unticked box is labelled under way or not begun.
+**Marked off · 21 November 2026**, against the request archive (`996c2c1`) and resident cards (`836bec3`). Stages 3 and 5 were counted again later that day, after hunting and fishing (`b6dc917`), chronicle notes in the walking view (`563e95d`) and the director. A ticked box means built, tested and merged. It does not mean measured in the live village: each stage's "Done when" is a separate test, and none has been met. An unticked box is labelled under way or not begun.
 
 | Stage | State | Done | Under way | Not begun |
 | --- | --- | ---: | ---: | ---: |
 | 0. Liveness and meaningful choices | Built, awaiting the pilot week | 5 | 2 | 0 |
 | 1. The promise pilot | In hand | 6 | 2 | 0 |
 | 2. Goals and memory | Not begun | 0 | 0 | 6 |
-| 3. A village with stakes | Begun | 0 | 3 | 3 |
+| 3. A village with stakes | Begun | 1 | 4 | 2 |
 | 4. Voices: competing interests and the moot | Groundwork only | 0 | 1 | 4 |
-| 5. Worth watching | Begun | 2 | 2 | 4 |
+| 5. Worth watching | In hand | 4 | 2 | 2 |
 | 6. Worth following | Groundwork only | 0 | 1 | 3 |
 | 7. Taking part | Groundwork only | 0 | 1 | 4 |
 | 8. A wider world | Not begun | 0 | 0 | 1 |
-| All stages | | 13 | 12 | 25 |
+| All stages | | 16 | 13 | 22 |
 
-The merge passed all 59 tests on 21 November, including eight tests with disposable PostgreSQL databases.
+The merge passed all 59 tests on 21 November, including eight tests with disposable PostgreSQL databases. With the director the suite has 78 tests. Nine of them need a PostgreSQL database and were not run for that change. The other 69 passed.
 
 ## The roles this plan keeps
 
@@ -85,11 +85,11 @@ What is already right and should be kept: the simulation is deterministic and re
 
 The map and the walking view are sound and draw the same data. What is missing is legibility and life.
 
-- [ ] Nothing marks that something is happening. A request, a moot and a building site look like an empty lane. *Under way: a resident who is deciding carries a question mark on the map and rests a hand on the chin in the walking view, and a site shows as stakes, then a frame. Requests and moots are still unmarked.*
+- [ ] Nothing marks that something is happening. A request, a moot and a building site look like an empty lane. *Under way: a resident who is deciding carries a question mark on the map and rests a hand on the chin in the walking view, and a site shows as stakes, then a frame. A note marks where each recent chronicle entry happened, in both views, and the director takes a watcher there. A request or a moot in progress still has no mark of its own.*
 - [ ] Every trade is the same arm movement, and a resting resident stands outside their door. *Under way: a resident at home is indoors, with a lit window and smoke standing in for them. The walking view has jointed figures with a tool and a movement for each trade. The map's figures do not.*
-- [ ] A selected resident is not in the URL, a fresh page always starts with Agnes, and only the latest 100 chronicle entries can be reached. *Under way: the selected resident is in the address, so a link or a refresh keeps them. A bare address still opens on Agnes, and the chronicle still stops at 100.*
+- [ ] A selected resident is not in the URL, a fresh page always starts with Agnes, and only the latest 100 chronicle entries can be reached. *Under way: the selected resident is in the address, so a link or a refresh keeps them. A bare address now opens on the director’s watch. The chronicle still stops at 100.*
 - [ ] There is no season, weather, sound or change with the hour on the map. *Under way: season, weather, night and the hour show in both views. There is no sound.*
-- [ ] The walking view can only follow. It rebuilds the whole scene whenever the map changes. *Under way: a visitor can look around, move closer and click a resident to follow. The village is still rebuilt on every map revision.*
+- [ ] The walking view can only follow. It rebuilds the whole scene whenever the map changes. *Under way: a visitor can look around, move closer and click a resident to follow, and the view can hold on a place from the chronicle. The village is still rebuilt on every map revision.*
 - [ ] The page fetches every resident's whole record every 2.5 seconds. *Not begun: only the map is fetched on demand.*
 
 ## Principles
@@ -315,7 +315,7 @@ Presentation. The pilot delivers the first of it: links, the promise thread and 
 **Marked off · 21 November 2026.**
 
 - [x] **Show events where they happen.** Done. A note marks the spot on the map, and a staff with a pennant and a note marks it in the walking view. A chronicle entry turns either view to its place and gives its time. Seeing the village as it stood at that minute waits for Stage 6’s archive, and entries for a resident’s own decisions carry no place.
-- [ ] **A director.** Not begun.
+- [x] **A director.** Done. A bare address opens on the watch. It follows whoever is in the middle of something, goes to a place when news arrives there, and shows the whole parish when everyone is indoors. A caption says what is in view and gives the recorded reason. Choosing a resident or moving the map ends it, and Watch brings it back. Scenes are ranked by fixed rules in `public/director.js`, tested in `director.test.mjs`. Visitors’ marks from Stage 7 do not inform it yet, and it has not been tried on first-time viewers.
 - [x] **Show the basis.** Done. The resident panel and the map card show the recorded reason for an activity or a wait. A deciding resident carries a question mark on the map and a hand on the chin in the walking view.
 - [x] **Dalecrest Daily.** Robin reports from around the village. Each morning’s edition includes his notes, village records and follow-ups.
 - [ ] **Seasons, weather and the hour.** Under way. Seasons, weather, night and going indoors are in both views. Tools and trade movements arrived in commit `c3353a5`, in the walking view only.
@@ -484,7 +484,7 @@ Questions the stages above do not answer. This section was added on 21 November 
 2. **Proving a model change is safe.** Every exchange is stored with the exact request that was sent. Replaying stored requests against a candidate model or a reworded request would show how choices shift before the village feels it. Stages 1 and 2 both change what the request contains, and design decision 6 expects providers to change. *Before the first change of model, or Stage 2's larger request.*
 3. **Records that only grow.** Events, the activity log and decision traces gain rows with every tick, and each resident's record grows with what they hold. Stage 6 wants an archive of every day. What is kept whole, what is summarised and what may be dropped needs deciding while the tables are still small. *Before Stage 6, or the first slow query.*
 4. **Many viewers at once.** Each open page asks for the whole village every 2.5 seconds and the server builds the answer afresh each time. Stage 5's streaming improves freshness. It does not by itself settle what a hundred watchers cost. One snapshot built per tick and shared by everyone may be enough. *Before Stage 5's first public test.*
-5. **A village that can be read without the map.** Acceptance test 8 puts first-time viewers on phones. Both views are pictures: a visitor using a screen reader, or a small screen in the walking view, gets little of what is happening. A plain account of the current scene would serve them and would also feed Stage 5's director. *Before acceptance test 8 is run.*
+5. **A village that can be read without the map.** Acceptance test 8 puts first-time viewers on phones. Both views are pictures: a visitor using a screen reader, or a small screen in the walking view, gets little of what is happening. A plain account of the current scene would serve them and would also feed Stage 5's director. *Before acceptance test 8 is run.* *Note, 21 November 2026: the director's caption is a first plain account. It is text, it is announced to a screen reader, and it covers the one scene in view, not the village.*
 6. **Model-written prose in public.** Stage 2 publishes a resident's own sentence, Stage 4 an account of what was said, and Stage 5 a daily account. Each is text nobody reviewed, shown under the village's name. The plan labels these as accounts. It does not yet say how they are screened, how a wrong one is withdrawn, or how they keep a period voice. *Before Stage 2's first published sentence.*
 7. **History beyond the parish.** Dalecrest was founded on 1 August 1312 and keeps the real Julian calendar. The Great Famine of 1315 to 1317 lies under three village years ahead, about a year and a half of real time at the present pace. Whether the outside world reaches the village at all is undecided, and a 48-day year would cut the calendar loose from history altogether. *With open decisions 8 and 10.*
 8. **Knowing when the village is in trouble.** The caps bound what can be spent and the activity log records every wait. What tells an operator that the provider has been down for an hour, or that half the village has stood waiting since noon? The pilot's deliberate outage is the natural rehearsal, and open decision 2 depends on how long such waits really last. *Before the pilot week.*

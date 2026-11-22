@@ -419,6 +419,8 @@ export function createMap(canvas, onSelect, cards) {
   }
   const pointers = new Map();
   let drag = null, engaged = false;
+  // What the sheet is keeping in view for a watcher: a resident, a spot, or the whole village.
+  let watching = null;
 
   const least = () => Math.max(w / (map?.w || 160), h / (map?.h || 120));
   function clampView() {
@@ -430,18 +432,45 @@ export function createMap(canvas, onSelect, cards) {
   }
   // Frames everything people have built, with a margin of open country.
   let whole = 0;
-  function fit() {
-    if (!map || !w) return;
+  function framed() {
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     for (const p of map.places) {
       const r = p.kind === 'wood' ? p.r * 0.7 : p.w ? Math.max(p.w, p.d) / 2 : 2;
       x0 = Math.min(x0, p.x - r); y0 = Math.min(y0, p.y - r); x1 = Math.max(x1, p.x + r); y1 = Math.max(y1, p.y + r);
     }
-    view.x = (x0 + x1) / 2; view.y = (y0 + y1) / 2;
-    view.scale = Math.min(w / (x1 - x0 + 14), h / (y1 - y0 + 12));
+    return [(x0 + x1) / 2, (y0 + y1) / 2, Math.min(w / (x1 - x0 + 14), h / (y1 - y0 + 12))];
+  }
+  function fit() {
+    if (!map || !w) return;
+    [view.x, view.y, view.scale] = framed();
     clampView();
     whole = view.scale;
   }
+  // Eases the sheet towards what is being watched. Once a resident is in the middle the sheet rests,
+  // and it moves again only when they come near its edge, so a walk is followed in a few unhurried pans.
+  function follow(time) {
+    if (!map || !w) return;
+    let gx, gy, gs;
+    if (watching.whole) [gx, gy, gs] = framed();
+    else {
+      const p = watching.id ? motion.at(watching.id, time) : watching;
+      if (!p) return;
+      gx = p.x; gy = p.y; gs = Math.min(34, Math.max(least(), (whole || view.scale) * (watching.id ? 2 : 2.2)));
+      const [sx, sy] = toScreen(gx, gy);
+      if (watching.settled && Math.abs(sx - w / 2) < w * 0.22 && Math.abs(sy - h / 2) < h * 0.22) return;
+    }
+    const dt = Math.min(0.1, Math.max(0.016, (time - (watching.at ?? time)) / 1000)), k = reduced.matches ? 1 : 1 - Math.exp(-dt * 2.6);
+    const was = [view.x, view.y, view.scale];
+    watching.at = time;
+    view.x += (gx - view.x) * k; view.y += (gy - view.y) * k; view.scale *= Math.pow(gs / view.scale, k);
+    clampView();
+    // The edge of the parish can keep the subject off centre. Then this is as far as the sheet goes.
+    const still = Math.abs(view.x - was[0]) < 0.004 && Math.abs(view.y - was[1]) < 0.004 && Math.abs(view.scale / was[2] - 1) < 0.0006;
+    watching.settled = still;
+    if (!still) { moved = true; stale = true; }
+  }
+  // The reader has taken the sheet in hand, so a watch lets go of it.
+  function steered() { if (watching) { watching = null; cards?.steered?.(); } }
   const toScreen = (x, y) => [(x - view.x) * view.scale + w / 2, (y - view.y) * view.scale + h / 2];
   const toWorld = (sx, sy) => [(sx - w / 2) / view.scale + view.x, (sy - h / 2) / view.scale + view.y];
 
@@ -662,9 +691,10 @@ export function createMap(canvas, onSelect, cards) {
   function paint(time) {
     frame = 0;
     if (!map || !w || canvas.offsetParent === null) { if (card) { card.hidden = true; shown = null; } return; }
-    // The scene moves gently, so about twenty frames a second is plenty.
-    if (!stale && time - lastPaint < 46 && !reduced.matches) { schedule(); return; }
+    // The scene moves gently, so about twenty frames a second is plenty, except while the sheet itself is gliding.
+    if (!stale && time - lastPaint < 46 && !reduced.matches && (!watching || watching.settled)) { schedule(); return; }
     lastPaint = time;
+    if (watching) follow(time);
     if (stale) {
       stale = false;
       const p = paper.getContext('2d');
@@ -799,7 +829,7 @@ export function createMap(canvas, onSelect, cards) {
     if (!event?.place) return;
     if (!w || !map) { awaiting = event; return; }
     const { x, y, id } = event.place;
-    pinned = pointed = pointedMark = null;
+    pinned = pointed = pointedMark = null; watching = null;
     pinnedMark = { key: Math.round(x) + ',' + Math.round(y), x, y, id, age: clock - event.minute, events: [event] };
     view.x = x; view.y = y; view.scale = Math.min(34, Math.max(view.scale, (whole || view.scale) * 2.2));
     moved = true; cardStale = true; clampView(); redraw();
@@ -828,6 +858,7 @@ export function createMap(canvas, onSelect, cards) {
     return best;
   }
   function zoom(factor, sx = w / 2, sy = h / 2) {
+    steered();
     const [wx, wy] = toWorld(sx, sy);
     view.scale = Math.min(34, Math.max(least(), view.scale * factor));
     view.x = wx - (sx - w / 2) / view.scale; view.y = wy - (sy - h / 2) / view.scale;
@@ -844,13 +875,14 @@ export function createMap(canvas, onSelect, cards) {
     const [sx, sy] = local(e);
     if (pointers.has(e.pointerId)) pointers.set(e.pointerId, [sx, sy]);
     if (drag && pointers.size === 2 && drag.pinch) {
+      steered();
       view.scale = drag.scale * pinchSpan() / drag.pinch;
       drag.far = moved = true; clampView(); redraw(); return;
     }
     if (drag && pointers.size === 1) {
       const dx = sx - drag.from[0], dy = sy - drag.from[1];
       if (!drag.far && Math.hypot(dx, dy) < 5) return;
-      drag.far = moved = true;
+      if (!drag.far) { steered(); drag.x = view.x; drag.y = view.y; drag.from = [sx, sy]; drag.far = moved = true; return; }
       view.x = drag.x - dx / view.scale; view.y = drag.y - dy / view.scale;
       clampView(); canvas.style.cursor = 'grabbing'; redraw(); return;
     }
@@ -899,7 +931,7 @@ export function createMap(canvas, onSelect, cards) {
   }
   function leave() { engaged = false; if (hover || pointed || pointedMark) { hover = pointed = pointedMark = null; schedule(); } }
   function key(e) { if (e.key === 'Escape' && (pinned || pinnedMark)) { pinned = pinnedMark = null; schedule(); } }
-  function home() { moved = false; fit(); redraw(); }
+  function home() { steered(); moved = false; fit(); redraw(); }
 
   canvas.style.width = '100%'; canvas.style.height = '100%'; canvas.style.display = 'block'; canvas.style.touchAction = 'none'; canvas.style.cursor = 'grab';
   canvas.addEventListener('pointerdown', down);
@@ -953,6 +985,9 @@ export function createMap(canvas, onSelect, cards) {
       selectedId = id; schedule();
     },
     zoom, home, redraw, focus,
+    // Keeps a resident ({ id }), a spot ({ x, y }) or the whole village ({ whole: true }) in view until
+    // told otherwise with watch(null), or until the reader moves the sheet, which calls cards.steered.
+    watch(target) { watching = target ? { ...target } : null; schedule(); },
     destroy() {
       observer.disconnect(); cancelAnimationFrame(frame);
       card?.remove(); document.removeEventListener('keydown', key);
