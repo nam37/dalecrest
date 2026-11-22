@@ -22,7 +22,7 @@ Local rules work as soon as the village starts. To enable Luna, set `PLANNER_PRO
 
 The village map is generated from a seed and then belongs to the village. Residents raise concerns in conversation, settle them at a moot in the hall, and build what was agreed: cottages for newcomers, fields, a granary, wells, a bakehouse, an alehouse, and new lanes when the old ones fill up. The Village page shows the map, the works in progress and the proposals under discussion. Choose **Walk** above the map to follow the selected resident through the village in 3D.
 
-Open `/atlas.html` on a running server to found a village from any seed in the browser and advance it by days. Set `VILLAGE_SEED` before the first start to choose the seed of a new database.
+Open the Sandbox at `/atlas.html` on a running server to found a village from any seed in the browser and advance it by days. Set `VILLAGE_SEED` before the first start to choose the seed of a new database.
 
 Open the **Help request archive** from the chronicle, or **Request history** from a resident's panel. Each delivered request has a permanent link with its terms, deadline and recorded events. Follow it in your browser to see what changed on your next visit. [Live request archive](https://dalecrest.trinsicstudios.com/requests.html)
 

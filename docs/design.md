@@ -77,9 +77,9 @@ The plan view in `public/map.js` draws the map in ink on parchment, in the manne
 
 three.js is an npm dependency served from `/vendor/`, so the page loads nothing from another host. The typefaces (IM Fell English and Alegreya, from the `@fontsource` packages) are served the same way.
 
-Both views follow the village clock. The map takes a night wash with lit windows, and the walking view has a sky, sun, moon and stars. A hearth with someone at it smokes in both. A resident at home is indoors and not drawn: their window and chimney stand in for them. `public/ambient.js` holds the rules the two views share. The engine modules are served to the browser unchanged. `/atlas.html` uses them to found a village from any seed in the page and run it forward by days, which is the quickest way to judge the look of a grown village without waiting for one or touching a database.
+Both views follow the village clock. The map takes a night wash with lit windows, and the walking view has a sky, sun, moon and stars. A hearth with someone at it smokes in both. A resident at home is indoors and not drawn: their window and chimney stand in for them. `public/ambient.js` holds the rules the two views share. The engine modules are served to the browser unchanged. The Sandbox at `/atlas.html` uses them to found a village from any seed in the page and run it forward by days, which is the quickest way to judge the look of a grown village without waiting for one or touching a database.
 
-In the live observatory, Map and Walk follow the same selected resident and published clock. A waiting resident shows their finished activity and the village time they entered the decision queue. Movement follows recorded positions and the time until the next tick. Pausing holds both the displayed village and its map revision. The Atlas uses browser-local rules and spends no model tokens.
+In the live observatory, Map and Walk follow the same selected resident and published clock. A waiting resident shows their finished activity and the village time they entered the decision queue. Movement follows recorded positions and the time until the next tick. Pausing holds both the displayed village and its map revision. The Sandbox uses browser-local rules and spends no model tokens.
 
 ### 10. The village keeps a calendar
 

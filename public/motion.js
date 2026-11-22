@@ -1,6 +1,6 @@
 import { route, walkingSegment } from '../engine/roads.mjs';
 
-// Live views draw the walk up to the next tick. The manually stepped Atlas interpolates
+// Live views draw the walk up to the next tick. The manually stepped Sandbox interpolates
 // between its last two snapshots using the waypoints passed along the way.
 export function createMotion(span = 3100) {
   const tracks = new Map();

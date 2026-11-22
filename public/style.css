@@ -228,7 +228,7 @@ footer { display: flex; justify-content: space-between; gap: 14px; flex-wrap: wr
 .request-new, .follow-notice { color: var(--pine); margin-inline-start: .6rem; font-size: .9rem; }
 #all-events { padding: 10px 22px 14px; }
 
-/* Atlas */
+/* Sandbox */
 .atlas-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 18px; border-bottom: 1px solid var(--rule); color: var(--muted); font-style: italic; }
 .atlas-form input { width: 7.2em; }
 .atlas-form select { max-width: 11em; }

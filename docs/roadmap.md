@@ -40,7 +40,7 @@ The providers behind the two model roles can change without changing who is resp
 
 ## Measurements before Stage 0
 
-Each figure is marked with where it came from. "Local rules" means the scoring in `choose` in `sim.mjs`, which runs in tests, the Atlas and the preview. It is a stand-in for measurement, not the production decider. The mix of activities the Decisions API chooses in production has not been measured.
+Each figure is marked with where it came from. "Local rules" means the scoring in `choose` in `sim.mjs`, which runs in tests, the Sandbox and the preview. It is a stand-in for measurement, not the production decider. The mix of activities the Decisions API chooses in production has not been measured.
 
 | What | Value | Source |
 | --- | --- | --- |
@@ -283,7 +283,7 @@ Give residents more to weigh. This stage is engine work and adds no model calls 
 - **Outside events.** A peddler, a tax collector, a storm, a stray herd.
 - **A chronicle that selects.** Each event carries a salience. Routine goes to a resident's own log. Measure food in days, not as a fraction of a bin, so that building a granary no longer reads as a shortage.
 
-Local rules can exercise these mechanics cheaply in the Atlas and in tests. They are a harness for the engine. What residents do about a hard winter is still chosen by the models.
+Local rules can exercise these mechanics cheaply in the Sandbox and in tests. They are a harness for the engine. What residents do about a hard winter is still chosen by the models.
 
 Done when: in harness runs no sentence is more than 10% of the chronicle and a hard winter arrives that the stores can fail to cover; and in the live village the number of real tradeoffs per resident per day, as Stage 0 counts them, has risen without the clock or the budget giving way.
 
@@ -359,13 +359,13 @@ Let visitors introduce circumstances. Residents keep the final say over their ow
 - [ ] **A petition, in a separate village.** Not begun.
 - [ ] **The peddler's cart.** Not begun.
 - [ ] **Letters.** Not begun.
-- [ ] **Your own village.** Under way. The Atlas already founds a village from `?seed=` in its address. Hosted villages are not begun.
+- [ ] **Your own village.** Under way. The Sandbox already founds a village from `?seed=` in its address. Hosted villages are not begun.
 
 1. **React.** Visitors mark events. This informs the director and changes nothing in the village.
 2. **A petition, in a separate village.** A persistent pilot village with its own database and model allowance. A viewer posts a petition for a second well. One open petition per subject. Its origin is recorded, residents who encounter it may ignore, contest or support it, and the petitioner is shown what became of it.
 3. **The peddler's cart.** Visitors choose what the peddler brings from a short list.
 4. **Letters.** A short, screened, rate-limited letter to a resident, which enters the village only as an observation from far away. Visitor text is data to a model, never instruction.
-5. **Your own village.** A shareable link to an Atlas village first. Hosted villages later.
+5. **Your own village.** A shareable link to a Sandbox village first. Hosted villages later.
 
 Done when: a repeat submission creates one petition; a petition can lapse unheard or lose a vote; every resident response links to a real choice; and the original village carried on independently throughout.
 
