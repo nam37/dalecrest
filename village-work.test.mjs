@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { availableActions, createVillage, startChosen, stepVillage } from './sim.mjs';
 import { actionBody } from './decisions.mjs';
 import { weatherAt } from './engine/seasons.mjs';
+import { ripeningOn } from './engine/stores.mjs';
 import { place, route } from './engine/roads.mjs';
 import { isWater } from './engine/terrain.mjs';
 
@@ -36,12 +37,15 @@ test('weeding and watering change the saved strip and its next barley growth', (
   resumed.world.fields[site] = 0;
   resumed.world.minute = 1799;
   tick(resumed);
-  assert.equal(resumed.world.fields[site], 3);
+  // A weeded, watered strip ripens half again as fast as the season and the year would give it.
+  const grown = ripeningOn(1800, resumed.map.seed, weatherAt(1800, resumed.map.seed)) * 1.5;
+  assert.ok(grown > 3);
+  assert.equal(resumed.world.fields[site], grown);
   resumed.world.minute = 2160;
   const reaping = choose(resumed, resumed.actors[0], 'work:harvest:');
   assert.equal(reaping.target, site);
   assert.ok(tick(resumed, 110).some(event => event.actorIds.includes(agnes.id) && /brought three measures of barley/.test(event.text)));
-  assert.equal(resumed.world.fields[site], 0);
+  assert.equal(resumed.world.fields[site], grown - 3);
 
   const rainy = createVillage();
   let rain = 540;

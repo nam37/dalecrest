@@ -1,6 +1,6 @@
 import http from 'node:http';
 import { readFile, readdir } from 'node:fs/promises';
-import { initialize, advance, snapshot, currentMap, pool } from './db.mjs';
+import { initialize, advance, snapshot, currentMap, pool, recentEvents } from './db.mjs';
 import { planOnce, plannerStatus, plannerPollMs } from './planner.mjs';
 import { locationsOf } from './sim.mjs';
 import { affairs } from './engine/civic.mjs';
@@ -38,6 +38,10 @@ const server = http.createServer(async (req, res) => {
       const includeMap = knownRevision !== null && knownRevision !== String(map.revision);
       res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ...state, map: includeMap ? map : undefined,
         locations: locationsOf(map, state.actors), affairs: affairs({ ...state, map }), planner: plannerStatus }));
+    } else if (path === '/api/events') {
+      const kind = url.searchParams.get('type');
+      if (kind && !/^[a-z]{1,20}$/.test(kind)) { res.writeHead(400).end(); return; }
+      res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(await recentEvents(kind)));
     } else if (path === '/api/requests' || path.startsWith('/api/requests/')) {
       const { status, body } = await requestArchive(pool, url);
       res.writeHead(status, { 'Content-Type': 'application/json' }).end(JSON.stringify(body));

@@ -93,7 +93,7 @@ test('a village stored before the map existed is moved onto one', () => {
   stepVillage(village, { minutes: 600 });
   for (const a of actors) assert.equal(place(map, a.home).kind, 'cottage');
   assert.equal(actors[4].workplace, actors[4].home);
-  assert.equal(village.world.capacity.grain, 44);
+  assert.equal(village.world.capacity.grain, 160);
 });
 
 test('a village that has begun to grow resumes from JSON exactly', () => {

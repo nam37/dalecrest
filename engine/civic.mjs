@@ -4,6 +4,8 @@ import { dist, clamp } from './geom.mjs';
 import { place, placesOf, addNode, addEdge, walkLength, clearWalk, touch } from './roads.mjs';
 import { FIELD_NAMES, addPlace, pickLot, extendLane, fieldSite } from './sites.mjs';
 import { prepareCottage } from './village-work.mjs';
+import { GRANARY, foodDays, keepStores, mouths, ripen, storeDays } from './stores.mjs';
+import { weatherAt } from './seasons.mjs';
 
 // Shifts of labour and bundles of wood each kind of work needs.
 export const WORKS = {
@@ -48,8 +50,9 @@ export function concerns(actor, { world, actors, map }) {
   // Farmers ask for land before the village outgrows it; everyone asks once the stores run short.
   if (world.strain.grain >= 2) add('field', (farms ? 68 : 40) + world.strain.grain * 4, 'that the strips cannot feed ' + pop + ' mouths');
   else if (fieldsFeed(map) < pop + 1) add('field', farms ? 60 : 28, 'that the strips are stretched to feed ' + pop + ' and could not feed one more');
-  if (world.capacity.grain < pop * 4 && world.supplies.grain >= world.capacity.grain * 0.7) {
-    add('granary', farms ? 62 : 30, 'that the grain bins are too small to see ' + pop + ' people through a lean week');
+  // Whatever is in store when the fields stop growing has to last until the next harvest.
+  if (storeDays(world, pop) < 150 && world.supplies.grain >= world.capacity.grain * 0.5) {
+    add('granary', farms ? 62 : 30, 'that the barn and granaries cannot see ' + pop + ' people through a winter');
   }
   if (world.strain.water >= 2 || world.capacity.water < pop * 2) add('well', actor.trade === 'draw' ? 66 : 32, 'that one well cannot water ' + pop + ' residents');
   if (world.strain.bread >= 2 || world.capacity.bread < pop * 2) add('oven', actor.trade === 'bake' ? 64 : 32, 'that the oven cannot keep ' + pop + ' people in bread');
@@ -279,12 +282,12 @@ function complete(project, state, emit) {
       remember(owner, world.minute, owner.name + ' moved into a cottage of their own' + whereabouts(map, site) + '.', [owner.id], 'work');
     } else tell('A cottage' + whereabouts(map, site) + ' is finished and stands empty.');
   } else if (project.kind === 'field') {
-    world.fields[site.id] = 3;
+    world.fields[site.id] = 0;
     world.strain.grain = 0;
     if (site.felled) world.supplies.wood = Math.min(world.capacity.wood, world.supplies.wood + Math.min(4, site.felled));
     tell(site.name + ' is cleared and ploughed. Dalecrest now works ' + placesOf(map, 'field').length + ' fields.');
   } else if (project.kind === 'granary') {
-    world.capacity.grain += 36; world.capacity.flour += 20;
+    world.capacity.grain += GRANARY.grain; world.capacity.flour += GRANARY.flour;
     tell('The granary' + whereabouts(map, site) + ' is finished. The village can now store ' + world.capacity.grain + ' measures of barley.');
   } else if (project.kind === 'well') {
     world.capacity.water += 16;
@@ -320,12 +323,10 @@ export function labour(actor, state, emit) {
 // Daily reckoning, taken at dawn before the households draw on the stores.
 export function dawn(state) {
   const { world, actors, map } = state, pop = actors.length;
-  for (const field of placesOf(map, 'field')) {
-    if (field.id !== world.barleyStrip?.site) world.fields[field.id] = Math.min(6, (world.fields[field.id] ?? 3) + 2);
-  }
+  ripen(world, placesOf(map, 'field'), world.minute, world.barleyStrip?.site, map.seed, weatherAt(world.minute, map.seed));
+  keepStores(world);
   const strain = (key, short) => { world.strain[key] = short ? Math.min(6, world.strain[key] + 1) : Math.max(0, world.strain[key] - 0.5); };
-  const food = world.supplies.grain * 1.5 * 2.5 + world.supplies.flour * 2.5 + world.supplies.bread;
-  strain('grain', food < pop * 2.4);
+  strain('grain', foodDays(world, mouths(state)) < 2);
   strain('bread', world.supplies.bread < pop * 0.5 && world.supplies.flour >= 4);
   strain('water', world.supplies.water < pop);
   for (const key of Object.keys(world.wear)) if (--world.wear[key] <= 0) delete world.wear[key];

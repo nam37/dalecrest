@@ -1,6 +1,7 @@
 import { place } from './roads.mjs';
 import { nextOutdoorStart, SPELL, weatherAt } from './seasons.mjs';
 import { addFishingBank, forageJobs, LINE_WEAR_LIMIT, offerForaging, provisions } from './foraging.mjs';
+import { FIELD_HOLDS, growing, ripeningOn } from './stores.mjs';
 
 export const bedJob = 'repairBed';
 
@@ -36,13 +37,14 @@ export function normalizeVillageWork({ world, actors, map }) {
   }
 }
 
-export function tickBarley(world, sky) {
+export function tickBarley(world, sky, seed) {
   const strip = world.barleyStrip;
   if (!strip || world.minute % SPELL !== 0) return;
   if (world.minute % 1440 === 360) {
-    const growth = 1 + Number(strip.weeds < 2) + Number(strip.moisture >= 2);
-    world.fields[strip.site] = Math.min(6, (world.fields[strip.site] ?? 3) + growth);
-    strip.weeds = Math.min(3, strip.weeds + 1);
+    // A tended strip ripens up to half again as fast as an untended one, and nothing grows in winter.
+    const care = (1 + Number(strip.weeds < 2) + Number(strip.moisture >= 2)) / 2;
+    world.fields[strip.site] = Math.min(FIELD_HOLDS, (world.fields[strip.site] ?? 0) + ripeningOn(world.minute, seed, sky) * care);
+    if (growing(world.minute)) strip.weeds = Math.min(3, strip.weeds + 1);
   }
   if (sky.rain) strip.moisture = Math.min(4, strip.moisture + 1);
   else if ((world.minute % 1440 === 720 || world.minute % 1440 === 900) && sky.temp > 4) {
@@ -63,7 +65,7 @@ export function repairBedSpec(actor) {
 export function ownWorkChoices(actor, { world, map }, offer, weary) {
   const strip = world.barleyStrip;
   const daylight = nextOutdoorStart(world.minute) === world.minute, sky = weatherAt(world.minute, map.seed);
-  if (strip?.keeper === actor.id && daylight) {
+  if (strip?.keeper === actor.id && daylight && growing(world.minute)) {
     if (strip.weeds >= 2) offer('weed', strip.site, 54 - weary, 'Weeds are crowding my barley.');
     if (strip.moisture <= 1 && !sky.rain && !sky.snow) {
       offer('waterBarley', strip.site, 56 - weary, 'My barley strip is dry. Watering it takes two buckets from the common reserve.');

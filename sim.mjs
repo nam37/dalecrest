@@ -12,6 +12,8 @@ import { bedConversationChoices, conversationChoices, finishConversation, missed
 import { weatherAt, dayTemp, nextOutdoorStart, chill, fuelPerHearth } from './engine/seasons.mjs';
 import { bedJob, finishVillageWork, normalizeVillageWork, ownWorkChoices, repairBedSpec, tickBarley, villageJobs, villageWorkObstacle } from './engine/village-work.mjs';
 import { advanceForageShift, finishForageShift, outingResult } from './engine/foraging.mjs';
+import { BARN, foodDays, mouths, normalizeStores } from './engine/stores.mjs';
+import { judge } from './engine/chronicle.mjs';
 
 export const FOCUSES = ['work', 'social', 'rest', 'food'];
 export const DEFAULT_SEED = 26111;
@@ -38,7 +40,7 @@ const jobs = {
   mend: { at: 'hall', label: 'Mending the hall', duration: 84, makes: { repair: 2 }, result: 'repaired another section of the hall' },
   draw: { at: 'well', label: 'Drawing water', duration: 39, makes: { water: 4 }, result: 'filled four buckets at the well' },
 };
-const CAPACITY = { grain: 44, flour: 34, bread: 32, wood: 32, cloth: 12, repair: 14, water: 28 };
+const CAPACITY = { grain: BARN.grain, flour: BARN.flour, bread: 32, wood: 32, cloth: 12, repair: 14, water: 28 };
 const clamp = (n, lo = 0, hi = 100) => Math.min(hi, Math.max(lo, n));
 function random(world) {
   world.seed = (Math.imul(world.seed, 1664525) + 1013904223) >>> 0;
@@ -85,7 +87,9 @@ function decisionAfter(verb, label = '') {
 
 // Fills in anything a stored village predates. Safe to repeat.
 function normalize({ world, actors, map }) {
-  world.capacity ??= { ...CAPACITY };
+  // A village founded with today's stores has its barn already.
+  if (!world.capacity) { world.capacity = { ...CAPACITY }; world.barn = true; }
+  normalizeStores(world);
   world.fields ??= {};
   for (const field of placesOf(map, 'field')) world.fields[field.id] ??= 6;
   world.strain ??= { grain: 0, bread: 0, water: 0 };
@@ -112,7 +116,7 @@ function normalize({ world, actors, map }) {
 
 export function createVillage(seed = DEFAULT_SEED) {
   const map = generateMap(seed);
-  const world = { minute: 420, seed: (62491 + Math.imul(seed - DEFAULT_SEED, 7919)) >>> 0, supplies: { grain: 12, flour: 7, bread: 12, wood: 11, cloth: 4, repair: 5, water: 12 } };
+  const world = { minute: 420, barn: true, seed: (62491 + Math.imul(seed - DEFAULT_SEED, 7919)) >>> 0, supplies: { grain: 12, flour: 7, bread: 12, wood: 11, cloth: 4, repair: 5, water: 12 } };
   const actors = households.map(([id, name, role, site, backstory, traits, goal, trade, friend], i) => {
     const home = 'cottage-' + (i + 1), workplace = site === 'cottages' ? home : site, at = place(map, workplace).at;
     return {
@@ -433,6 +437,15 @@ function endShiftEarly(actor, minute, emit, status, reason) {
   recordWork(actor, minute, emit, actor.name + ' could not finish the ' + task + ' shift because ' + reason + '.', status, {}, reason);
 }
 
+// What neighbours worry over when they meet. Food and water are judged by how many days they would last,
+// so a new granary with room to spare no longer reads as a shortage. Other stores are judged by the bin.
+function shortTalk({ world, actors }) {
+  const m = mouths({ world, actors });
+  if (foodDays(world, m) < 4) return 'grain';
+  if (world.supplies.water < actors.length * 1.5) return 'water';
+  return ['cloth', 'repair'].find(k => world.supplies[k] < world.capacity[k] / 4);
+}
+
 const count = (n, word) => n + ' ' + word + (n === 1 ? '' : 's');
 const listed = names => names.length > 3 ? names.slice(0, 2).join(', ') + ' and ' + (names.length - 2) + ' others'
   : names.length < 2 ? names.join('') : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
@@ -570,7 +583,7 @@ function stepMinute(state, events, externalActions, records, pilot) {
     }
     if (spoiled) emit('village', 'Some fresh fish, game or cooked food spoiled in the hall’s stores overnight.', [], undefined, 'hall');
   }
-  tickBarley(world, sky);
+  tickBarley(world, sky, map.seed);
   if (minute % 1440 === 540 && wantsNewcomer(state) && random(world) < 0.7) {
     events.push(arrival(state));
   }
@@ -586,7 +599,8 @@ function stepMinute(state, events, externalActions, records, pilot) {
     const cottage = world.cottages?.[action.target];
     const poorRest = (bite && !warm && n.cold > 50) || cottage?.brokenBed || (bite && minute >= cottage?.floorDue);
     const recovery = poorRest ? -0.15 : minute >= cottage?.sweepDue ? -0.21 : -0.24;
-    n.hunger = clamp(n.hunger + 0.042);
+    // Cold air sharpens the appetite.
+    n.hunger = clamp(n.hunger + 0.042 + 0.012 * bite);
     // Nobody sleeps well in a house without a fire.
     n.fatigue = clamp(n.fatigue + (resting ? recovery : action.kind === 'work' ? 0.074 : 0.043));
     n.cold = clamp(n.cold + (!bite ? -0.25 : warm ? -0.4 : bite * (indoors(action) ? 0.07 : sky.rain || sky.snow ? 0.15 : 0.11)));
@@ -651,7 +665,7 @@ function stepMinute(state, events, externalActions, records, pilot) {
     let text = speaker + ' exchanged news ' + where + '.';
     let bond = 3, type = 'social', raised;
     const details = {};
-    const shortage = Object.keys(CAPACITY).find(k => k !== 'flour' && k !== 'wood' && world.supplies[k] < world.capacity[k] / 4);
+    const shortage = shortTalk(state);
     if (here?.kind === 'oven' && world.supplies.bread > 0 && Math.max(actor.needs.hunger, other.needs.hunger) > 40) {
       world.supplies.bread--;
       for (const a of [actor, other]) {
@@ -666,7 +680,7 @@ function stepMinute(state, events, externalActions, records, pilot) {
       bond = raised.agreed ? 4 : 2;
       type = 'civic';
     } else if (shortage) {
-      text = speaker + ' discussed the dwindling ' + shortage + ' reserve ' + where + '.';
+      text = speaker + ' discussed the dwindling ' + (shortage === 'grain' ? 'food stores' : shortage + ' reserve') + ' ' + where + '.';
       details.shortage = shortage;
     } else if (actor.action.kind === 'work' || other.action.kind === 'work') {
       const worker = actor.action.kind === 'work' ? actor : other;
@@ -704,5 +718,6 @@ export function stepVillage(state, { minutes = 5, externalActions = false, recor
   const events = [];
   for (let i = 0; i < minutes; i++) stepMinute(state, events, externalActions, records, pilot);
   state.world.mapRevision = state.map.revision;
+  judge(state.world, events);
   return events;
 }

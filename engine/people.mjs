@@ -3,6 +3,8 @@
 import { placesOf } from './roads.mjs';
 import { dist } from './geom.mjs';
 import { isLodger, fieldsFeed } from './civic.mjs';
+import { dateOf } from './calendar.mjs';
+import { daysToHarvest, foodDays, mouths } from './stores.mjs';
 
 export const POPULATION_LIMIT = 36;
 const FIRST = ['Wat', 'Joan', 'Piers', 'Cecily', 'Giles', 'Maud', 'Simon', 'Isolde', 'Ralph', 'Margery', 'Adam', 'Emma',
@@ -44,8 +46,13 @@ export function wantsNewcomer(state) {
   // Word of a small village with spare bread travels fast; a larger one fills more slowly.
   if (pop >= POPULATION_LIMIT || world.minute - world.lastArrival < 1440 * (2 + 0.75 * Math.max(0, pop - 8)) - 60) return false;
   if (actors.filter(a => isLodger(a, map)).length > 1) return false;
-  // Travellers stay where there is bread on the table and land enough to feed one more.
-  return world.supplies.bread >= pop * 0.75 && world.supplies.grain + world.supplies.flour >= pop * 0.8 && fieldsFeed(map) >= pop + 1;
+  // Nobody takes to the roads between November and February.
+  const month = dateOf(world.minute).month;
+  if (month >= 11 || month <= 2) return false;
+  // Travellers stay where there is bread on the table, food in store to see one more to the next harvest
+  // with a margin, and land enough to feed them.
+  return world.supplies.bread >= pop * 0.75 && foodDays(world, mouths(state) + 1) >= daysToHarvest(world.minute) + 20
+    && fieldsFeed(map) >= pop + 1;
 }
 
 export function newcomer(state, random) {

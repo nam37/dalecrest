@@ -6,6 +6,7 @@ import { reserveAction, startChosenAction } from './action-turns.mjs';
 import { createVillage, stepVillage, adoptVillage, welcomeResidents, FOCUSES, DEFAULT_SEED } from './sim.mjs';
 import { POPULATION_LIMIT } from './engine/people.mjs';
 import { DECISIONS_MODEL, DECISIONS_URL, interpretDecision } from './decisions.mjs';
+import { salienceOf, PUBLIC } from './engine/chronicle.mjs';
 import { initializeTraces, advanceWithTraces, writeSteps, writeActivities, residentState } from './decision-trace.mjs';
 
 if (!process.env.DATABASE_URL) throw new Error('Set DATABASE_URL in .env to a PostgreSQL database before starting Dalecrest.');
@@ -54,9 +55,10 @@ export async function currentMap() {
 
 async function recordEvents(db, events) {
   if (!events.length) return [];
-  const result = await db.query(`INSERT INTO dalecrest.events(minute, kind, actor_ids, description, outcome, place)
-    SELECT e.minute, e.type, e."actorIds", e.text, e.outcome, e.place FROM jsonb_to_recordset($1::jsonb)
-    AS e(minute bigint, type text, "actorIds" text[], text text, outcome jsonb, place jsonb) RETURNING id, minute, actor_ids`, [JSON.stringify(events)]);
+  const rated = events.map(e => ({ ...e, salience: e.salience ?? salienceOf(e) }));
+  const result = await db.query(`INSERT INTO dalecrest.events(minute, kind, actor_ids, description, outcome, place, salience)
+    SELECT e.minute, e.type, e."actorIds", e.text, e.outcome, e.place, e.salience FROM jsonb_to_recordset($1::jsonb)
+    AS e(minute bigint, type text, "actorIds" text[], text text, outcome jsonb, place jsonb, salience smallint) RETURNING id, minute, actor_ids`, [JSON.stringify(rated)]);
   return result.rows;
 }
 
@@ -79,6 +81,7 @@ export async function initialize() {
       );
       ALTER TABLE dalecrest.events ADD COLUMN IF NOT EXISTS outcome jsonb;
       ALTER TABLE dalecrest.events ADD COLUMN IF NOT EXISTS place jsonb;
+      ALTER TABLE dalecrest.events ADD COLUMN IF NOT EXISTS salience smallint;
       ${requestIndexes}
       ${dailySchema}
       CREATE TABLE IF NOT EXISTS dalecrest.map (
@@ -89,6 +92,25 @@ export async function initialize() {
       );
     `);
     await initializeTraces(db);
+    // Entries recorded before the chronicle selected are rated once, by the same rules in outline.
+    await db.query(`UPDATE dalecrest.events SET salience = CASE
+        WHEN kind = 'meal' THEN 0
+        WHEN kind IN ('plan','work','fieldnote','observation') THEN CASE WHEN outcome ? 'commitmentId' THEN 5 ELSE 1 END
+        WHEN kind = 'social' THEN CASE
+          WHEN outcome->>'verb' IN ('ask','accept','decline','release') THEN 6
+          WHEN outcome->>'verb' IN ('kept','broken') THEN 7
+          WHEN outcome->>'verb' = 'unanswered' THEN 5
+          WHEN outcome->>'verb' IN ('retain','defer') THEN 2
+          WHEN outcome->>'verb' IS NOT NULL THEN 3
+          WHEN description LIKE '% lent % a hand %' THEN 2
+          WHEN description LIKE '% discussed the dwindling %' THEN 4
+          WHEN description LIKE '% divided a warm loaf%' THEN 3
+          ELSE 1 END
+        WHEN kind = 'village' THEN CASE WHEN outcome ? 'hearths' THEN 6 ELSE 2 END
+        WHEN kind = 'civic' THEN CASE WHEN description LIKE 'Word goes round%' THEN 5 ELSE 7 END
+        WHEN kind = 'build' THEN 7 WHEN kind = 'arrival' THEN 8 ELSE 4 END
+      WHERE salience IS NULL`);
+    await db.query(`CREATE INDEX IF NOT EXISTS events_public ON dalecrest.events (id DESC) WHERE salience >= ${PUBLIC}`);
     await db.query(`ALTER TABLE dalecrest.world ADD COLUMN IF NOT EXISTS ticks bigint NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS late_ms_max integer NOT NULL DEFAULT 0`);
     // The clock stops with the server. Time it was down is not counted as the clock running late.
@@ -206,8 +228,8 @@ export async function snapshot({ withMap = false } = {}) {
         (SELECT m.state FROM dalecrest.map m WHERE m.id=w.id AND m.revision IS DISTINCT FROM $1::bigint) AS map,` : ''}
       (SELECT jsonb_agg(state ORDER BY ordinal) FROM dalecrest.actors) AS actors,
       COALESCE((SELECT jsonb_agg(to_jsonb(recent) ORDER BY recent.id DESC) FROM
-        (SELECT id, minute, kind AS type, actor_ids AS "actorIds", description AS text, place, ${eventRequestKey} AS "requestId"
-         FROM dalecrest.events ORDER BY id DESC LIMIT 100) recent),'[]'::jsonb) AS events
+        (SELECT id, minute, kind AS type, actor_ids AS "actorIds", description AS text, place, salience, ${eventRequestKey} AS "requestId"
+         FROM dalecrest.events WHERE salience >= ${PUBLIC} ORDER BY id DESC LIMIT 100) recent),'[]'::jsonb) AS events
     FROM dalecrest.world w WHERE w.id=1`, withMap ? [cached?.revision ?? null] : []);
   const state = result.rows[0];
   if (withMap) {
@@ -218,6 +240,13 @@ export async function snapshot({ withMap = false } = {}) {
     observerMap = state.map;
   }
   return state;
+}
+
+// The latest 100 entries of one kind, or of every kind, routine included, for the full chronicle.
+export async function recentEvents(kind) {
+  const { rows } = await pool.query(`SELECT id, minute, kind AS type, actor_ids AS "actorIds", description AS text, place, salience,
+      ${eventRequestKey} AS "requestId" FROM dalecrest.events WHERE ($1::text IS NULL OR kind = $1) ORDER BY id DESC LIMIT 100`, [kind || null]);
+  return rows;
 }
 
 async function persistPlan(db, minute, actorId, basedOn, focus, reason, model, method) {

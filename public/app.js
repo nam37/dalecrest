@@ -274,10 +274,20 @@ function renderAffairs() {
   if(!rows.length) rows.push(el('p','empty','Nothing is being built or argued over today.'));
   $('affairs').replaceChildren(...rows);
 }
-// Meals, shifts and the model's activity choices are the routine of the day. Highlights leave them out.
-const routine = new Set(['plan','meal','work']);
-const filters = { highlights: e => !routine.has(e.type), '': () => true };
-const shown = (events, filter) => events.filter(filters[filter] || (e => e.type === filter));
+// Every entry carries a salience. The snapshot holds the notable ones; meals, shifts and other routine stay in
+// the residents' own memories and are fetched only when the full chronicle asks for them.
+const notableEntry = e => (e.salience ?? 3) >= 3;
+const shown = (events, filter) => filter === 'highlights' ? events.filter(notableEntry) : events.filter(e => !filter || e.type === filter);
+let fuller = { filter: null, events: [], at: 0, loading: false };
+async function fullChronicle(filter) {
+  if (fuller.loading || (fuller.filter === filter && performance.now() - fuller.at < 5000)) return;
+  fuller.loading = true;
+  try {
+    const res = await fetch('/api/events' + (filter ? '?type=' + encodeURIComponent(filter) : ''), { signal: AbortSignal.timeout(9000) });
+    if (res.ok) { fuller = { filter, events: await res.json(), at: performance.now(), loading: false }; render(); }
+  } catch { /* The list keeps what it showed last. */ }
+  fuller.loading = false;
+}
 // Turns the village to the spot where a chronicle entry happened, in whichever view is open.
 function locate(event) {
   if (route !== 'village') { history.pushState(null, '', '#village/' + selected); navigate(); }
@@ -332,7 +342,7 @@ function render() {
   if(!state)return;
   const {world,actors,events,planner}=state;
   $('title').textContent=names[route];
-  $('summary').textContent={village:actors.length+' residents living and working in a medieval parish.',residents:'The people, trades, and households of Dalecrest.',chronicle:'What has happened lately, from the latest 100 entries in the village records.'}[route];
+  $('summary').textContent={village:actors.length+' residents living and working in a medieval parish.',residents:'The people, trades, and households of Dalecrest.',chronicle:'What has happened lately: the latest 100 notable entries in the village records. Choose a kind to see routine as well.'}[route];
   // The clock gives the date in full, with its weekday where there is room.
   $('day').textContent=formatDate(world.minute, matchMedia('(max-width: 690px)').matches ? 'full' : 'long');
   $('time').textContent=time(world.minute);
@@ -379,7 +389,11 @@ function render() {
     const without=extras.coldHearths.length;
     if(without) $('supplies').append(el('p','affair-note','No firewood reached '+without+(without===1?' hearth':' hearths')+' this morning.'));
   }else if(route==='residents')roster();
-  else journal($('all-events'),shown(events,$('event-type').value),true);
+  else {
+    const filter=$('event-type').value;
+    if(filter==='highlights') journal($('all-events'),shown(events,'highlights'),true);
+    else { fullChronicle(filter); if(fuller.filter===filter) journal($('all-events'),fuller.events,true); }
+  }
 }
 function navigate(){
   // #village/agnes opens the village following Agnes.
