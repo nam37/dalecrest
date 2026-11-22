@@ -3,6 +3,7 @@
 // See Stage 0 of docs/roadmap.md. Everything here is pure and uses only the village's own state.
 import { place, route, walkingSpeed } from './roads.mjs';
 import { nextOutdoorStart } from './seasons.mjs';
+import { villageJobs } from './village-work.mjs';
 
 // Pilot parameters, in village minutes unless noted. These are starting values to be tuned.
 export const PILOT = {
@@ -21,7 +22,7 @@ const goalsKey = actor => JSON.stringify(actor.goals || []);
 
 // The routine a chosen action answers, or null for something that is always a choice.
 export function routineOf(action, minute) {
-  if (!action || action.commitmentId || ['review', 'conversation', 'inspect', 'social', 'meeting', 'arrive', 'waiting', 'idle'].includes(action.kind)) return null;
+  if (!action || action.commitmentId || Object.hasOwn(villageJobs, action.job) || ['review', 'conversation', 'inspect', 'social', 'meeting', 'arrive', 'waiting', 'idle'].includes(action.kind)) return null;
   if (action.kind === 'rest' && isNight(minute)) return 'sleep';
   if (action.kind === 'food') return 'meal';
   return 'again:' + matchOf(action);

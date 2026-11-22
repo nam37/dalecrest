@@ -318,7 +318,9 @@ export function labour(actor, state, emit) {
 // Daily reckoning, taken at dawn before the households draw on the stores.
 export function dawn(state) {
   const { world, actors, map } = state, pop = actors.length;
-  for (const field of placesOf(map, 'field')) world.fields[field.id] = Math.min(6, (world.fields[field.id] ?? 3) + 2);
+  for (const field of placesOf(map, 'field')) {
+    if (field.id !== world.barleyStrip?.site) world.fields[field.id] = Math.min(6, (world.fields[field.id] ?? 3) + 2);
+  }
   const strain = (key, short) => { world.strain[key] = short ? Math.min(6, world.strain[key] + 1) : Math.max(0, world.strain[key] - 0.5); };
   const food = world.supplies.grain * 1.5 * 2.5 + world.supplies.flour * 2.5 + world.supplies.bread;
   strain('grain', food < pop * 2.4);

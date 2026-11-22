@@ -8,8 +8,9 @@ import { newcomer, wantsNewcomer } from './engine/people.mjs';
 import * as standing from './engine/standing.mjs';
 import { atOven, inspectOven } from './engine/observations.mjs';
 import { appointReporter, reportingGoal, offerReporting, takeFieldNotes } from './engine/reporting.mjs';
-import { conversationChoices, finishConversation, missedConversation, recordPrivateReview, requestReviewMenu, knownStores, noteWork, settleHelp, expireHelp } from './engine/exchanges.mjs';
+import { bedConversationChoices, conversationChoices, finishConversation, missedConversation, recordPrivateReview, requestReviewMenu, knownStores, noteWork, settleHelp, expireHelp } from './engine/exchanges.mjs';
 import { weatherAt, dayTemp, nextOutdoorStart, chill, fuelPerHearth } from './engine/seasons.mjs';
+import { bedJob, finishVillageWork, normalizeVillageWork, ownWorkChoices, repairBedSpec, tickBarley, villageJobs, villageWorkObstacle } from './engine/village-work.mjs';
 
 export const FOCUSES = ['work', 'social', 'rest', 'food'];
 export const DEFAULT_SEED = 26111;
@@ -27,6 +28,7 @@ const households = [
 ];
 // Each job is done at the nearest finished place of its kind; 'home' is the resident's own house.
 const jobs = {
+  ...villageJobs,
   harvest: { at: 'field', label: 'Gathering barley', duration: 80, makes: { grain: 3 }, result: 'brought three measures of barley in from the fields' },
   mill: { at: 'mill', label: 'Grinding barley', duration: 69, takes: { grain: 2 }, makes: { flour: 3 }, result: 'ground two measures of barley into three of flour' },
   bake: { at: 'oven', label: 'Baking bread', duration: 58, takes: { flour: 2, wood: 1 }, makes: { bread: 5 }, result: 'drew five loaves from the oven' },
@@ -104,6 +106,7 @@ function normalize({ world, actors, map }) {
     if (actor.action.kind === 'waiting') actor.action.reason = decisionAfter('Will decide', actor.action.previous?.label);
     if (!actor.action.reason) actor.action.reason = 'Continuing an activity chosen earlier in the day.';
   }
+  normalizeVillageWork({ world, actors, map });
 }
 
 export function createVillage(seed = DEFAULT_SEED) {
@@ -243,6 +246,21 @@ function choose(actor, state, menu) {
       : 'The last known reserve of ' + material + ' was ' + perceived.supplies[material] + ' units.';
     offer('work', spec.label, job.site, spec.duration, job.score + duty - weary, reason, { job: job.key });
   }
+  ownWorkChoices(actor, state, (job, target, score, reason, extra = {}) => {
+    const spec = job === bedJob ? repairBedSpec(actor) : jobs[job];
+    if (menu ? stockObstacle(perceived, spec, true) : stockObstacle(world, spec)) return;
+    const { label = spec.label, ...details } = extra;
+    offer('work', label, target, spec.duration, score, reason, { job, ...details });
+  }, weary);
+  if (!menu) {
+    const conversations = new Map();
+    bedConversationChoices(actor, state, conversations);
+    for (const action of conversations.values()) {
+      const { kind, label, target, remaining, verb, ...extra } = action;
+      const score = verb === 'ask' ? 46 + (action.onSpot ? 12 : 0) : verb === 'accept' ? 72 : 40;
+      offer(kind, label, target, remaining, score - weary, 'There is a broken bed that needs attention.', { verb, ...extra });
+    }
+  }
   const build = civic.buildChoice(actor, { ...state, world: perceived });
   if (build) offer('work', build.label, build.project.id, 70, build.score + duty - weary, build.reason, { job: 'build' });
   if (civic.mootOpen(world)) {
@@ -284,7 +302,7 @@ function choose(actor, state, menu) {
   if (menu) return;
   choices.sort((a, b) => b.score - a.score);
   const { score, ...chosen } = choices[0];
-  chosen.phase = 'travelling';
+  chosen.phase = chosen.onSpot ? 'working' : 'travelling';
   actor.action = chosen;
 }
 
@@ -322,6 +340,7 @@ function travel(actor, state, emit) {
 export function availableActions(actor, state) {
   const menu = new Map();
   choose(actor, state, menu);
+  bedConversationChoices(actor, state, menu);
   conversationChoices(actor, state, menu);
   const reachable = new Map();
   for (const [id, action] of menu) {
@@ -386,7 +405,7 @@ export function startChosen(actor, state, id, trace, pilot = standing.PILOT) {
   return { action: actor.action, waited: minute - since, why, routine: kept ? standing.routineOf(action, minute) : null };
 }
 
-const tracksShift = action => action.kind === 'work' && (action.job === 'bake' || action.job === 'cut');
+const tracksShift = action => action.kind === 'work' && (action.job === 'bake' || action.job === 'cut' || Object.hasOwn(villageJobs, action.job));
 
 function recordWork(actor, minute, emit, text, status, stockDelta, reason) {
   const { action } = actor;
@@ -403,7 +422,7 @@ function recordWork(actor, minute, emit, text, status, stockDelta, reason) {
 
 function endShiftEarly(actor, minute, emit, status, reason) {
   if (!tracksShift(actor.action) && !actor.action.commitmentId) return;
-  const task = { bake: 'baking', cut: 'woodcutting' }[actor.action.job] || jobs[actor.action.job].label.toLowerCase();
+  const task = { bake: 'baking', cut: 'woodcutting' }[actor.action.job] || jobs[actor.action.job].task || jobs[actor.action.job].label.toLowerCase();
   recordWork(actor, minute, emit, actor.name + ' could not finish the ' + task + ' shift because ' + reason + '.', status, {}, reason);
 }
 
@@ -413,7 +432,7 @@ const listed = names => names.length > 3 ? names.slice(0, 2).join(', ') + ' and 
 
 // Under a roof: at home, at a meeting or the alehouse, or at an indoor trade.
 const indoors = action => action.phase === 'working' && (action.kind === 'rest' || action.kind === 'meeting'
-  || (action.kind === 'leisure' && action.target !== 'green') || (action.kind === 'work' && ['bake', 'weave', 'mill'].includes(action.job)));
+  || (action.kind === 'leisure' && action.target !== 'green') || (action.kind === 'work' && (villageJobs[action.job]?.indoors || ['bake', 'weave', 'mill'].includes(action.job))));
 // Indoors with a fire going. A house that got no firewood this morning has none. The oven warms
 // whoever is baking, and the hall and alehouse keep a fire while the common store has wood.
 function byAFire(actor, world) {
@@ -454,11 +473,12 @@ const snowedWood = [null,
   { makes: { wood: 1 }, result: 'dug one bundle of dry wood out from under the snow' },
   { makes: { wood: 2 }, result: 'stacked two bundles of wood, the rest too wet with snow to burn' }];
 
-function finishShift(actor, world, emit, sky) {
+function finishShift(actor, state, emit, sky) {
+  const { world } = state;
   const { job: key, target } = actor.action;
   const minute = world.minute, dry = key !== 'cut' ? 3 : sky.lying > 0.5 ? 1 : sky.snow || sky.lying > 0.1 ? 2 : 3;
-  const job = dry < 3 ? { ...jobs[key], ...snowedWood[dry] } : jobs[key];
-  const obstacle = stockObstacle(world, job);
+  const job = key === bedJob ? repairBedSpec(actor) : dry < 3 ? { ...jobs[key], ...snowedWood[dry] } : jobs[key];
+  const obstacle = villageWorkObstacle(actor, world, sky) || stockObstacle(world, job);
   if (obstacle) {
     endShiftEarly(actor, minute, emit, 'blocked', obstacle);
     return;
@@ -473,7 +493,7 @@ function finishShift(actor, world, emit, sky) {
   for (const [item, change] of Object.entries(stockDelta)) world.supplies[item] += change;
   actor.lastJob = minute;
   if (actor.lastWorkDay !== Math.floor(minute / 1440)) { actor.daysWorked++; actor.lastWorkDay = Math.floor(minute / 1440); }
-  const text = actor.name + ' ' + job.result + '.';
+  const text = actor.name + ' ' + (finishVillageWork(actor, state) || job.result) + '.';
   recordWork(actor, minute, emit, text, 'completed', stockDelta);
   noteWork(actor, world, text, stockDelta);
   if (actor.action.commitmentId) settleHelp(actor, world, stockDelta, emit);
@@ -531,6 +551,7 @@ function stepMinute(state, events, externalActions, records, pilot) {
       }
     }
   }
+  tickBarley(world, sky);
   if (minute % 1440 === 540 && wantsNewcomer(state) && random(world) < 0.7) {
     events.push(arrival(state));
   }
@@ -543,9 +564,10 @@ function stepMinute(state, events, externalActions, records, pilot) {
     const action = actor.action;
     const resting = action.kind === 'rest' && action.phase === 'working';
     const warm = bite > 0 && byAFire(actor, world);
+    const poorRest = (bite && !warm && n.cold > 50) || world.cottages?.[action.target]?.brokenBed;
     n.hunger = clamp(n.hunger + 0.042);
     // Nobody sleeps well in a house without a fire.
-    n.fatigue = clamp(n.fatigue + (resting ? (bite && !warm && n.cold > 50 ? -0.15 : -0.24) : action.kind === 'work' ? 0.074 : 0.043));
+    n.fatigue = clamp(n.fatigue + (resting ? (poorRest ? -0.15 : -0.24) : action.kind === 'work' ? 0.074 : 0.043));
     n.cold = clamp(n.cold + (!bite ? -0.25 : warm ? -0.4 : bite * (indoors(action) ? 0.07 : sky.rain || sky.snow ? 0.15 : 0.11)));
     n.loneliness = clamp(n.loneliness + (resting ? 0.006 : 0.043));
     if (action.remaining <= 0) {
@@ -579,7 +601,7 @@ function stepMinute(state, events, externalActions, records, pilot) {
     } else if (action.kind === 'work' && action.job === 'build') {
       civic.labour(actor, state, emit);
     } else if (action.kind === 'work') {
-      finishShift(actor, world, emit, sky);
+      finishShift(actor, state, emit, sky);
     } else if (action.kind === 'food' && world.supplies.bread >= 1) {
       world.supplies.bread--;
       n.hunger = clamp(n.hunger - 53);

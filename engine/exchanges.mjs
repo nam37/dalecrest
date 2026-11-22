@@ -1,6 +1,7 @@
 import { remember } from './civic.mjs';
 import { formatDate } from './calendar.mjs';
 import { currentUpdate, noticeForRequests, ovenFact, requestIsOpen } from './request-review.mjs';
+import { bedJob, bedRepairRequest } from './village-work.mjs';
 
 const supplies = {
   wood: { job: 'cut', terms: 'stack three bundles of firewood', low: 3, units: 3 },
@@ -81,6 +82,31 @@ export function socialContext(actor, minute) {
 const near = (a, b) => Math.hypot(a.position.x - b.position.x, a.position.y - b.position.y) <= 3;
 const awake = a => a.action.kind !== 'rest' && a.action.kind !== 'arrive';
 
+export function bedConversationChoices(actor, { actors, world }, menu) {
+  const request = bedRepairRequest(actor, world);
+  if (world.cottages?.[actor.home]?.brokenBed && !request && actor.id !== 'thomas' && !actor.askedAbout?.thomas?.bed) {
+    const thomas = actors.find(other => other.id === 'thomas');
+    if (thomas && awake(thomas)) {
+      const target = thomas.action.target;
+      menu.set(['ask', thomas.id, 'bed', actor.home, target].join(':'), {
+        kind: 'conversation', verb: 'ask', label: 'Ask ' + thomas.name + ' to repair my bed', target,
+        friendId: thomas.id, onSpot: near(actor, thomas), remaining: 2, repairSite: actor.home
+      });
+    }
+  }
+  for (const r of Object.values(actor.helpBook || {})) {
+    if (r.job !== bedJob || r.helperId !== actor.id || r.status !== 'asked' || r.due < world.minute) continue;
+    const asker = actors.find(other => other.id === r.askerId);
+    if (!asker || !awake(asker)) continue;
+    for (const verb of ['accept', 'decline']) {
+      menu.set([verb, asker.id, r.id, asker.action.target].join(':'), {
+        kind: 'conversation', verb, label: verb === 'accept' ? 'Promise ' + asker.name + ' to repair the bed' : 'Tell ' + asker.name + ' I cannot repair the bed',
+        target: asker.action.target, friendId: asker.id, onSpot: near(actor, asker), remaining: 2, requestId: r.id
+      });
+    }
+  }
+}
+
 // Visiting a more distant neighbour is possible. Delivery is checked in person at the destination.
 export function conversationChoices(actor, state, menu) {
   const { actors, world, map } = state;
@@ -119,7 +145,7 @@ export function conversationChoices(actor, state, menu) {
       offer('ask', 'Ask ' + other.name + ' (' + other.role + ') to ' + spec.terms +
         (fact.topic === 'oven' ? ' for the oven' : ' for the village'), { item, fact }, item + '-' + fact.id);
     }
-    for (const r of requests.filter(r => r.helperId === actor.id && r.askerId === other.id && r.status === 'asked')) {
+    for (const r of requests.filter(r => !r.site && r.helperId === actor.id && r.askerId === other.id && r.status === 'asked')) {
       for (const verb of ['accept', 'decline']) {
         offer(verb, (verb === 'accept' ? 'Promise ' : 'Tell ') + other.name +
           (verb === 'accept' ? ' to ' : ' I decline to ') + r.terms,
@@ -139,7 +165,7 @@ export function conversationChoices(actor, state, menu) {
       offer('release', 'Tell ' + other.name + ' I no longer need help to ' + r.terms, review, key);
     }
   }
-  for (const r of requests.filter(r => r.helperId === actor.id && r.status === 'accepted')) {
+  for (const r of requests.filter(r => !r.site && r.helperId === actor.id && r.status === 'accepted')) {
     const shift = [...menu.values()].find(a => a.job === r.job && !a.commitmentId);
     if (shift) menu.set('help:' + r.id + ':' + shift.target, { ...shift, commitmentId: r.id,
       label: shift.label + ' for ' + r.asker + ' as promised' });
@@ -224,7 +250,7 @@ export function missedConversation(actor, minute, emit, cause) {
 }
 
 export function finishConversation(actor, state, emit) {
-  const { world } = state, minute = world.minute, { verb, fact, item, requestId, friendId, basis } = actor.action;
+  const { world } = state, minute = world.minute, { verb, fact, item, requestId, friendId, basis, repairSite } = actor.action;
   const other = state.actors.find(a => a.id === friendId);
   const traceId = basis?.trace ?? null;
   const request = world.helpRequests?.[requestId];
@@ -264,6 +290,17 @@ export function finishConversation(actor, state, emit) {
     }
     text = actor.name + ' told ' + other.name + ' what ' + fact.observer + ' witnessed on ' +
       villageTime(fact.minute) + '. ' + fact.text;
+  } else if (verb === 'ask' && repairSite) {
+    if (repairSite !== actor.home || !world.cottages?.[repairSite]?.brokenBed || bedRepairRequest(actor, world)) {
+      return missedConversation(actor, minute, emit, 'the cottage no longer needed a new request');
+    }
+    const id = [actor.id, other.id, 'bed', minute].join('-');
+    agreement = { id, askerId: actor.id, asker: actor.name, helperId: other.id, helper: other.name,
+      item: 'bed', job: bedJob, site: repairSite, terms: 'repair the bed', since: minute, due: minute + 1440, status: 'asked' };
+    world.helpRequests ??= {};
+    world.helpRequests[id] = agreement;
+    markSpoken(actor, other, 'askedAbout', 'bed', id);
+    text = actor.name + ' asked ' + other.name + ' to repair the broken bed by ' + villageTime(agreement.due) + '.';
   } else if (verb === 'ask') {
     const id = [actor.id, other.id, item, minute].join('-');
     agreement = { id, askerId: actor.id, asker: actor.name, helperId: other.id, helper: other.name,
@@ -312,7 +349,9 @@ export function recordPrivateReview(actor, minute, emit) {
 
 export function settleHelp(actor, world, delta, emit) {
   const r = world.helpRequests?.[actor.action.commitmentId];
-  if (!r || r.helperId !== actor.id || r.status !== 'accepted' || world.minute > r.due || !(delta[r.item] >= r.quantity)) return;
+  if (!r || r.helperId !== actor.id || r.status !== 'accepted' || world.minute > r.due) return;
+  const completed = r.job === bedJob ? actor.action.target === r.site && world.cottages[r.site]?.brokenBed === false : delta[r.item] >= r.quantity;
+  if (!completed) return;
   r.status = 'kept';
   actor.observations.lastWork.kept = true;
   saveRequest(actor, r);
