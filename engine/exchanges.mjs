@@ -57,6 +57,7 @@ export function socialContext(actor, minute) {
   const requests = Object.values(actor.helpBook || {}).filter(r => minute <= r.due).map(r => {
     const news = currentUpdate(actor, r);
     return { requester: r.asker, helper: r.helper, terms: r.terms, status: r.status, due: villageTime(r.due),
+      ...(r.helperId === actor.id && r.status === 'accepted' && { minutesLeftToFinish: r.due - minute }),
       relationship: actor.relationships[r.askerId === actor.id ? r.helperId : r.askerId] ?? 0,
       ...(news && { reasonToReconsider: {
         item: r.item, ...(r.basedOn && { originalCount: r.basedOn.count, originalReading: villageTime(r.basedOn.minute) }),

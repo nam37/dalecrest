@@ -125,6 +125,36 @@ test('a reply that arrives after the resident has moved on is not applied', () =
   assert.equal(actor.action.kind, 'rest');
 });
 
+test('a promise reserves time for the route and named shift before repeating a routine', () => {
+  const v = createVillage(), helper = v.actors.find(a => a.id === 'oswin');
+  v.world.minute = 720;
+  const r = { id: 'winter-wood', askerId: 'mabel', asker: 'Mabel Ash', helperId: helper.id, helper: helper.name,
+    item: 'wood', job: 'cut', terms: 'stack three bundles of firewood', quantity: 3, status: 'accepted', due: 2300 };
+  helper.helpBook = { [r.id]: r };
+  const menu = availableActions(helper, v);
+  const sleep = [...menu.values()].find(a => a.kind === 'rest');
+  keep(helper, v, sleep, '11');
+  const verdict = () => consider(helper, v, menu, sleep, { ...PILOT, lookahead: 0 });
+  assert.equal(verdict().follow.action.kind, 'rest');
+  const promised = [...menu.values()].find(a => a.commitmentId === r.id);
+  assert.ok(promised);
+  r.due = v.world.minute + sleep.remaining + promised.remaining;
+  assert.match(verdict().fresh, /promise to Mabel Ash/);
+  helper.action = { ...sleep, remaining: 1, phase: 'working' };
+  stepVillage(v, { minutes: 1, externalActions: true });
+  assert.match(helper.action.why, /promise to Mabel Ash/);
+  assert.equal(helper.action.kind, 'waiting');
+  const body = JSON.parse(actionBody(helper, v.world, availableActions(helper, v), locationsOf(v.map, v.actors)));
+  assert.equal(body.input[0].content[0].data.helpRequests[0].minutesLeftToFinish, r.due - v.world.minute);
+  assert.ok(body.questions[0].choices.some(c => c.value.startsWith('rest:')));
+  assert.ok(body.questions[0].choices.some(c => c.value.startsWith('help:')));
+  r.status = 'asked';
+  assert.equal(verdict().follow.action.kind, 'rest');
+  r.status = 'accepted';
+  r.helperId = 'mabel';
+  assert.equal(verdict().follow.action.kind, 'rest');
+});
+
 test('a moot reaches quorum and the village builds on the model-driven path', () => {
   const village = createVillage();
   village.world.proposals.push({ key: 'field', kind: 'field', by: 'agnes', since: village.world.minute, supporters: ['agnes', 'robin', 'hugh', 'mabel'], heard: [] });
