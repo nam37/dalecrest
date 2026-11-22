@@ -1,5 +1,7 @@
 import pg from 'pg';
 import { eventRequestKey, requestIndexes } from './request-archive.mjs';
+import { dailySchema, queueEditions } from './daily.mjs';
+import { appointReporter } from './engine/reporting.mjs';
 import { reserveAction, startChosenAction } from './action-turns.mjs';
 import { createVillage, stepVillage, adoptVillage, welcomeResidents, FOCUSES, DEFAULT_SEED } from './sim.mjs';
 import { POPULATION_LIMIT } from './engine/people.mjs';
@@ -78,6 +80,7 @@ export async function initialize() {
       ALTER TABLE dalecrest.events ADD COLUMN IF NOT EXISTS outcome jsonb;
       ALTER TABLE dalecrest.events ADD COLUMN IF NOT EXISTS place jsonb;
       ${requestIndexes}
+      ${dailySchema}
       CREATE TABLE IF NOT EXISTS dalecrest.map (
         id integer PRIMARY KEY CHECK (id = 1), revision bigint NOT NULL, state jsonb NOT NULL
       );
@@ -93,6 +96,12 @@ export async function initialize() {
     const seed = Number(process.env.VILLAGE_SEED) || DEFAULT_SEED;
     const stored = await db.query('SELECT state FROM dalecrest.world WHERE id=1 FOR UPDATE');
     if (stored.rowCount) {
+      await queueEditions(db, null, stored.rows[0].state.minute);
+      const robin = (await db.query("SELECT state FROM dalecrest.actors WHERE id='robin' AND state->>'trade'='harvest'")).rows[0]?.state;
+      if (robin) {
+        appointReporter(robin);
+        await db.query("UPDATE dalecrest.actors SET state=$1 WHERE id='robin'", [robin]);
+      }
       // A village founded before the map existed keeps its residents and gains the ground under them.
       if ((await db.query('SELECT id FROM dalecrest.map WHERE id=1')).rowCount) return;
       const world = stored.rows[0].state;
@@ -170,6 +179,7 @@ async function tick(db) {
       WHERE status='applied' AND ended_minute IS NULL`)).rows;
   const direct = process.env.PLANNER_PROVIDER === 'openai';
   const { minutes, seconds } = clockPace(direct);
+  const beforeMinute = world.minute;
   const records = [];
   const village = { world, actors, map };
   const arrivals = welcomeResidents(village, minimumResidents);
@@ -181,6 +191,7 @@ async function tick(db) {
   await saveActors(db, actors);
   if (map.revision !== before) await saveMap(db, map);
   const chronicle = await recordEvents(db, [...arrivals, ...events]);
+  await queueEditions(db, beforeMinute, world.minute);
   await writeSteps(db, steps, chronicle, traces, world.minute);
   await writeActivities(db, records);
 }

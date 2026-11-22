@@ -5,6 +5,7 @@ import { planOnce, plannerStatus, plannerPollMs } from './planner.mjs';
 import { locationsOf } from './sim.mjs';
 import { affairs } from './engine/civic.mjs';
 import { requestArchive } from './request-archive.mjs';
+import { dailyArchive, publishNextDaily } from './daily.mjs';
 
 const host = process.env.HOST || '127.0.0.1';
 const port = Number(process.env.PORT || 4173);
@@ -40,6 +41,9 @@ const server = http.createServer(async (req, res) => {
     } else if (path === '/api/requests' || path.startsWith('/api/requests/')) {
       const { status, body } = await requestArchive(pool, url);
       res.writeHead(status, { 'Content-Type': 'application/json' }).end(JSON.stringify(body));
+    } else if (path === '/api/daily') {
+      const { status, body } = await dailyArchive(pool, url.searchParams.get('day'));
+      res.writeHead(status, { 'Content-Type': 'application/json' }).end(JSON.stringify(body));
     } else if (path === '/api/map') {
       res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(await currentMap()));
     } else if (files.has(path)) {
@@ -59,12 +63,17 @@ const clock = setInterval(async () => {
   finally { advancing = false; }
 }, 1000);
 const planner = setInterval(planOnce, plannerPollMs);
+const editDaily = () => publishNextDaily(pool).catch(error => {
+  console.error('Dalecrest Daily publication delayed.', error.message);
+});
+const press = setInterval(editDaily, 5000);
 server.listen(port, host, () => {
   console.log('Dalecrest is listening at http://' + host + ':' + port);
   planOnce();
+  editDaily();
 });
 function shutdown() {
-  clearInterval(clock); clearInterval(planner);
+  clearInterval(clock); clearInterval(planner); clearInterval(press);
   server.close(() => pool.end());
 }
 process.on('SIGINT', shutdown);

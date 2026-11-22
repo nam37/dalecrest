@@ -48,6 +48,13 @@ test('the live clock persists arrivals and skips a resident who has used their h
     await db.pool.query("UPDATE dalecrest.decision_traces SET requested_at=now()-interval '61 minutes' WHERE actor_id='agnes'");
     const second = await db.claimAction(480000);
     assert.equal(JSON.parse(second.body).input[0].content[0].data.name, 'Agnes Reed');
+    await db.pool.query(`UPDATE dalecrest.actors SET state=jsonb_set(state,'{action,kind}','"idle"') WHERE id <> 'robin'`);
+    await db.pool.query(`INSERT INTO dalecrest.decision_traces(actor_id,observed_minute,model,endpoint,request_body,status,token_charge)
+      VALUES ('robin',$1,'fixture','fixture','{}','applied',48000)`, [state.world.minute]);
+    const reporter = await db.claimAction(480000);
+    assert.equal(JSON.parse(reporter.body).input[0].content[0].data.name, 'Robin Marsh');
+    await db.pool.query("UPDATE dalecrest.decision_traces SET status='unavailable',requested_at=now()-interval '2 minutes',token_charge=12000 WHERE id=$1", [reporter.id]);
+    assert.deepEqual(await db.claimAction(480000), { budgetLimited: true });
   } finally {
     if (db) await db.pool.end();
     if (created) await admin.query('DROP DATABASE ' + name);

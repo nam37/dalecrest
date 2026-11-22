@@ -15,6 +15,7 @@ export const DECISIONS_URL = 'https://api.openai.com/v1/decisions';
 // names maps a place ID to what residents call it, so a model never reads "cottage-3".
 export function actionDescription(action, names = {}) {
   if (action.kind === 'review') return action.label + '.';
+  if (action.kind === 'report') return action.label + ' and taking eyewitness notes (' + action.remaining + ' village minutes).';
   if (action.onSpot) return action.label + ' here (' + action.remaining + ' village minutes).';
   return action.label + ' at ' + (names[action.target]?.name || action.target) + ' (' + action.remaining + ' village minutes).';
 }

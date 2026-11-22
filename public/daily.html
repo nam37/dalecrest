@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en"><head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#293d33"><title>Dalecrest Daily</title>
+  <link rel="icon" href="/crest.svg"><link rel="stylesheet" href="/style.css">
+</head><body>
+  <header class="masthead"><div class="mast-inner">
+    <a href="/" class="wordmark"><img src="/crest.svg" width="36" height="40" alt="">Dalecrest</a>
+    <nav aria-label="Observatory"><a href="/#village">Village</a><a href="/#residents">Residents</a><a href="/#chronicle">Chronicle</a><a href="/daily.html" aria-current="page">Dalecrest Daily</a><a href="/atlas.html">Sandbox</a></nav>
+  </div></header>
+  <main class="newspaper">
+    <header class="paper-name"><h1>Dalecrest Daily</h1>
+      <div class="paper-dateline"><span>Morning edition</span><a id="edition-date" hidden></a><span>By <a href="/#village/robin">Robin Marsh</a></span></div>
+    </header>
+    <p id="press-status" role="status">Reading the village press…</p>
+    <article id="edition" hidden>
+      <div class="paper-columns">
+        <section class="paper-lead"><p id="coverage"></p><h2 id="headline"></h2><div id="lead"></div></section>
+        <aside class="paper-side"><section id="briefs-section"><h2>Village briefs</h2><div id="briefs"></div></section>
+          <section><h2>Since yesterday</h2><div id="since-yesterday"></div></section></aside>
+      </div>
+      <details class="paper-records" id="records"><summary>Reporting notes and village records</summary><ol id="sources"></ol></details>
+    </article>
+    <div id="edition-links" class="edition-links" aria-label="Edition archive"></div>
+    <noscript>Enable JavaScript to read the newspaper.</noscript>
+  </main>
+  <script type="module" src="/daily.js"></script>
+</body></html>

@@ -48,7 +48,8 @@ export async function reserveAction(db, village, hourlyBudget) {
     const body = actionBody(actor, village.world, menu, names, weather);
     // Reserve before sending. The provider's reported total replaces this estimate when available.
     const estimate = Math.ceil(Buffer.byteLength(body) / 3) + 80;
-    if ((usage.by_actor[actor.id] || 0) + estimate > residentHourlyBudget || usage.spent + estimate > hourlyBudget ||
+    const allowance = actor.id === 'robin' ? 60000 : residentHourlyBudget;
+    if ((usage.by_actor[actor.id] || 0) + estimate > allowance || usage.spent + estimate > hourlyBudget ||
         usage.debt + estimate > Math.max(estimate, hourlyBudget / 4)) {
       limited = true;
       continue;

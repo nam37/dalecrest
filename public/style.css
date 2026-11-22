@@ -65,6 +65,33 @@ nav a[aria-current=page] { color: var(--rust); border-bottom-color: var(--rust);
 @keyframes breathe { 50% { box-shadow: 0 0 0 6px #6f7d5200; } }
 
 /* Page title, used away from the village plate */
+.newspaper { max-width: 1060px; padding-block: clamp(30px, 5vw, 72px) 60px; }
+.paper-name { text-align: center; border-top: 2px solid var(--ink); }
+.paper-name h1 { margin: .16em 0 .12em; font: 400 clamp(3rem, 8vw, 6.1rem)/1.05 var(--display); letter-spacing: -.045em; }
+.paper-dateline, .edition-links { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 16px; }
+.paper-dateline { padding: 8px 0; border-block: 1px solid var(--ink); border-bottom: 4px double var(--ink); }
+.paper-dateline a { text-underline-offset: .18em; }
+.newspaper #press-status { margin: 24px 0; font-style: italic; }
+.paper-columns { display: grid; grid-template-columns: minmax(0, 1.8fr) minmax(0, 1fr); gap: clamp(18px, 4vw, 50px); margin: 28px 0; }
+.paper-lead #coverage { font-family: var(--caps); color: var(--rust); letter-spacing: .04em; }
+.paper-lead h2 { font-size: clamp(2.3rem, 4.5vw, 3.9rem); line-height: 1.02; margin: 10px 0 18px; }
+.paper-lead #lead p { font-size: 1.19rem; line-height: 1.5; margin: 0 0 .9em; }
+.paper-side { padding-left: clamp(15px, 3vw, 32px); border-left: 1px solid var(--rule); }
+.paper-side h2 { font-size: 1.6rem; border-bottom: 1px solid var(--rule); padding-bottom: 5px; margin-bottom: 10px; }
+.paper-side p { line-height: 1.45; margin-bottom: 12px; }
+.paper-side section + section { margin-top: 25px; }
+.paper-citation { vertical-align: super; font: .7em var(--body); color: var(--rust); padding-left: .18em; text-decoration: none; }
+.paper-citation:hover { text-decoration: underline; }
+.paper-records { border-block: 1px solid var(--rule); padding: 12px 0; }
+.paper-records summary { cursor: pointer; font-family: var(--caps); }
+.paper-records li { padding: 5px 0; }
+.paper-records li:target { background: var(--leaf); }
+.edition-links { margin-top: 22px; font-family: var(--display); }
+@media (max-width: 690px) {
+  .paper-columns { grid-template-columns: 1fr; }
+  .paper-side { border: 0; padding: 0; }
+  .paper-dateline { justify-content: center; }
+}
 .page-title { margin: 26px 0 20px; display: flex; align-items: end; justify-content: space-between; gap: 20px; }
 h1 { font-size: clamp(2.2rem, 3.6vw, 3.5rem); line-height: 1.02; }
 .page-title p { margin-top: 6px; color: var(--muted); font-style: italic; }
@@ -256,7 +283,7 @@ footer { display: flex; justify-content: space-between; gap: 14px; flex-wrap: wr
   .mast-inner { flex-wrap: wrap; gap: 0; min-height: 0; padding-top: 10px; }
   .wordmark { font-size: 1.6rem; }
   .connection { margin-left: auto; order: 1; }
-  nav { order: 2; width: 100%; gap: 15px; }
+  nav { order: 2; width: 100%; flex-wrap: wrap; gap: 0 15px; }
   nav a { padding-block: 10px 6px; font-size: .95rem; letter-spacing: .07em; }
   .page-title { margin: 20px 0 14px; align-items: start; }
   .plate-clock { left: 10px; top: 10px; padding: 6px 10px 5px 8px; }

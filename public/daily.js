@@ -1,0 +1,91 @@
+import { formatDate } from '/engine/calendar.mjs';
+
+const $ = id => document.getElementById(id);
+const day = new URLSearchParams(location.search).get('day');
+const address = day => '/daily.html?day=' + day;
+const link = (label, href) => Object.assign(document.createElement('a'), { textContent: label, href });
+let displayedDay;
+
+function showRecord() {
+  if (!/^#record-\d+$/.test(location.hash)) return;
+  const target = $(location.hash.slice(1));
+  if (target) {
+    $('records').open = true;
+    target.scrollIntoView({ block: 'nearest' });
+  }
+}
+
+function showIssue({ day, edition, older, newer }) {
+  $('edition-links').replaceChildren();
+  if (older) $('edition-links').append(link('← Previous edition', address(older)));
+  if (newer) $('edition-links').append(link('Next edition →', address(newer)));
+  if (displayedDay === day) return;
+  displayedDay = day;
+  const issueDate = formatDate(day * 1440, 'long');
+  document.title = 'Dalecrest Daily · ' + issueDate;
+  Object.assign($('edition-date'), { textContent: issueDate, href: address(day), hidden: false });
+  $('coverage').textContent = 'From ' + formatDate((day - 1) * 1440, 'long');
+  $('headline').textContent = edition.headline;
+  const numbers = new Map(edition.sources.map((source, index) => [source.id, index + 1]));
+  function paragraphs(id, items) {
+    $(id).replaceChildren(...items.map(item => {
+      const p = document.createElement('p');
+      p.append(item.text);
+      for (const source of item.sources) {
+        const n = numbers.get(source);
+        const citation = link('[' + n + ']', address(day) + '#record-' + source);
+        citation.className = 'paper-citation';
+        citation.setAttribute('aria-label', 'Read source ' + n);
+        citation.addEventListener('click', () => { $('records').open = true; });
+        p.append(citation);
+      }
+      return p;
+    }));
+  }
+  paragraphs('lead', edition.lead);
+  paragraphs('briefs', edition.briefs);
+  $('briefs-section').hidden = !edition.briefs.length;
+  paragraphs('since-yesterday', edition.sinceYesterday);
+  if (!edition.sinceYesterday.length) $('since-yesterday').textContent = older
+    ? 'No follow-up was filed for this edition.' : 'The first edition. Follow-ups begin with the next issue.';
+  $('sources').replaceChildren(...edition.sources.map(source => {
+    const li = document.createElement('li');
+    li.id = 'record-' + source.id;
+    const stamp = document.createElement('strong');
+    const clock = [Math.floor(source.minute / 60) % 24, source.minute % 60].map(n => String(n).padStart(2, '0')).join(':');
+    stamp.textContent = (source.kind === 'fieldnote' ? 'Robin’s notebook' : 'Village record') + ' · ' + formatDate(source.minute, 'short') + ', ' + clock;
+    li.append(stamp, ' ' + source.text);
+    if (source.requestId) li.append(' ', link('Request history', '/requests.html?request=' + encodeURIComponent(source.requestId)));
+    return li;
+  }));
+  $('records').hidden = !edition.sources.length;
+  $('edition').hidden = false;
+  showRecord();
+}
+
+async function refresh() {
+  try {
+    const response = await fetch('/api/daily' + (day === null ? '' : '?day=' + encodeURIComponent(day)));
+    if (response.status === 400 || response.status === 404) {
+      $('press-status').textContent = 'This edition is unavailable.';
+      $('edition-links').replaceChildren(link('Read the latest edition', '/daily.html'));
+      return;
+    }
+    if (!response.ok) throw new Error();
+    const { issue, pending, editorConfigured } = await response.json();
+    if (issue) showIssue(issue);
+    const status = $('press-status');
+    status.hidden = Boolean(issue) && (day !== null || !pending);
+    if (!status.hidden) status.textContent = pending
+      ? (editorConfigured ? 'The next edition is at the editor’s desk.' : 'The edition is queued while the village editor is offline.')
+      : 'The first edition goes to press at six on the morning after the founding day.';
+  } catch {
+    $('press-status').hidden = false;
+    $('press-status').textContent = 'The village press is temporarily unavailable.';
+  } finally {
+    if (day === null || !displayedDay) setTimeout(refresh, 15000);
+  }
+}
+
+window.addEventListener('hashchange', showRecord);
+refresh();

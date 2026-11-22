@@ -26,6 +26,7 @@ process.env.VILLAGE_SECONDS_PER_MINUTE ||= '2';
 process.env.PLANNER_PROVIDER = 'openai';
 delete process.env.OPENAI_API_KEY;
 delete process.env.OLLAMA_MODEL;
+delete process.env.CLAUDE_KEY;
 
 await import('../server.mjs');
 const db = await import('../db.mjs');

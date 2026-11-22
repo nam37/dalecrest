@@ -21,4 +21,5 @@ process.env.PORT ||= '4174';
 // A preview runs on local decision rules and never spends model calls.
 delete process.env.PLANNER_PROVIDER;
 delete process.env.OLLAMA_MODEL;
+delete process.env.CLAUDE_KEY;
 await import('../server.mjs');

@@ -31,7 +31,7 @@ export function portrait(i) {
   return canvas;
 }
 
-export const kinds = { village: 'Village', work: 'Work', meal: 'Meal', social: 'Encounter', observation: 'Observation', plan: 'Decision', civic: 'Affairs', build: 'Building', arrival: 'Arrival' };
+export const kinds = { village: 'Village', work: 'Work', meal: 'Meal', social: 'Encounter', observation: 'Observation', fieldnote: 'Robin’s notebook', plan: 'Decision', civic: 'Affairs', build: 'Building', arrival: 'Arrival' };
 
 // Why a moment went to the model, in plain words. The engine's own phrases are kept as a fallback.
 const whys = {

@@ -7,6 +7,7 @@ import * as civic from './engine/civic.mjs';
 import { newcomer, wantsNewcomer } from './engine/people.mjs';
 import * as standing from './engine/standing.mjs';
 import { atOven, inspectOven } from './engine/observations.mjs';
+import { appointReporter, reportingGoal, offerReporting, takeFieldNotes } from './engine/reporting.mjs';
 import { conversationChoices, finishConversation, missedConversation, recordPrivateReview, requestReviewMenu, knownStores, noteWork, settleHelp, expireHelp } from './engine/exchanges.mjs';
 import { weatherAt, dayTemp, nextOutdoorStart, chill, fuelPerHearth } from './engine/seasons.mjs';
 
@@ -22,7 +23,7 @@ const households = [
   ['edith', 'Edith Vale', 'Weaver', 'cottages', 'Edith’s loom fills half her cottage. Her blue cloth once bought seed for a neighbor, and she remembers the bargain fondly.', ['meticulous', 'generous'], 'Finish a bolt of cloth for the village store', 'weave', 'oswin'],
   ['thomas', 'Thomas Pike', 'Carpenter', 'hall', 'Thomas grew up sleeping beneath his father’s workbench. Now he mends the doors, shutters and benches he climbed as a boy.', ['meticulous', 'steadfast'], 'Keep the common buildings in good repair', 'mend', 'alice'],
   ['alice', 'Alice Brook', 'Wellkeeper', 'well', 'Alice came to Dalecrest in a dry summer. She has tended the well rope ever since, and knows who needs a second bucket carried home.', ['gregarious', 'generous'], 'Keep the water barrels filled', 'draw', 'edith'],
-  ['robin', 'Robin Marsh', 'Field hand', 'fields', 'Robin was hired for a single harvest and stayed. He still makes time after work to hear the old field songs on the green.', ['gregarious', 'restless'], 'Earn a place among the village households', 'harvest', 'agnes'],
+  ['robin', 'Robin Marsh', 'Village journalist', 'hall', 'Robin was hired for a single harvest and stayed. He still makes time after work to hear the old field songs on the green.', ['gregarious', 'restless'], reportingGoal, 'report', 'agnes'],
 ];
 // Each job is done at the nearest finished place of its kind; 'home' is the resident's own house.
 const jobs = {
@@ -89,6 +90,7 @@ function normalize({ world, actors, map }) {
   world.coldHearths ??= [];
   world.fuelCarry ??= 0;
   for (const actor of actors) {
+    appointReporter(actor);
     actor.needs.cold ??= 0;
     if (!Array.isArray(actor.desires)) actor.desires = inferDesires(actor);
     if (!actor.action.reason) actor.action.reason = 'Continuing an activity chosen earlier in the day.';
@@ -161,7 +163,7 @@ function stockObstacle(world, job, allowUnknown = false) {
 }
 function jobOptions(actor, state, perceived, allFeasible) {
   // When stores run low, anyone can lend a hand in the fields or coppice.
-  const list = [...new Set([actor.trade, 'harvest', 'cut', 'draw'])];
+  const list = [...new Set([actor.trade, 'harvest', 'cut', 'draw'])].filter(key => jobs[key]);
   const options = [];
   // The fields and the coppice are worked by daylight: from first light until half an hour before sunset.
   const light = nextOutdoorStart(perceived.minute) === perceived.minute;
@@ -209,8 +211,9 @@ function choose(actor, state, menu) {
       menu.set(id, { kind, label, target, remaining: duration, ...extra });
       return;
     }
-    score += desireWeight(actor, kind, extra.friendId || extra.job || target);
-    if (actor.plan?.focus === kind) {
+    const focus = kind === 'report' ? 'work' : kind;
+    score += desireWeight(actor, focus, extra.friendId || extra.job || target);
+    if (actor.plan?.focus === focus) {
       score += 15;
       reason = reason.replace(/\.$/, '') + ', in keeping with today’s intention.';
     }
@@ -223,6 +226,7 @@ function choose(actor, state, menu) {
   const jobsHere = jobOptions(actor, state, perceived, Boolean(menu));
   const duty = actor.traits.includes('steadfast') ? 5 : 0;
   const weary = (night ? 48 : 0) + Math.max(0, fatigue - 65);
+  if (actor.trade === 'report' && !night) offerReporting(actor, state, offer, weary);
   for (const job of (menu ? jobsHere : jobsHere.slice(0, 1))) {
     const spec = jobs[job.key];
     const material = Object.keys(spec.makes)[0];
@@ -554,7 +558,9 @@ function stepMinute(state, events, externalActions, records, pilot) {
         }
       }
     }
-    if (--action.remaining > 0) continue;
+    action.remaining--;
+    if (action.kind === 'report') takeFieldNotes(actor, state, emit);
+    if (action.remaining > 0) continue;
     if (action.kind === 'review') {
       recordPrivateReview(actor, minute, emit);
     } else if (action.kind === 'conversation') {
@@ -605,10 +611,10 @@ function stepMinute(state, events, externalActions, records, pilot) {
     } else if (shortage) {
       text = speaker + ' discussed the dwindling ' + shortage + ' reserve ' + where + '.';
       details.shortage = shortage;
-    } else if ((actor.action.kind === 'work' || other.action.kind === 'work') && (actor.action.kind === 'work' ? actor : other).action.job !== 'build') {
+    } else if (actor.action.kind === 'work' || other.action.kind === 'work') {
       const worker = actor.action.kind === 'work' ? actor : other;
       const helper = worker === actor ? other : actor;
-      if (worker.action.remaining > 4) {
+      if (jobs[worker.action.job] && worker.action.remaining > 4) {
         worker.action.remaining -= 4;
         helper.needs.fatigue = clamp(helper.needs.fatigue + 2);
         if (tracksShift(worker.action)) {
