@@ -15,11 +15,11 @@ export const PILOT = {
   newsFor: 1440,   // hearing the same thing again within this long is not news
 };
 
-const isNight = minute => { const t = minute % 1440; return t >= 1260 || t < 340; };
+export const isNight = minute => { const t = minute % 1440; return t >= 1260 || t < 340; };
 // What an action is matched on when the menu is rebuilt: the job, or the place for anything else. A
 // visit is to one person, so it matches only the same friend in the same place.
 const matchOf = action => action.kind + ':' + (action.job || action.target) + (action.meal ? ':' + action.meal : '')
-  + (action.kind === 'social' && action.friendId ? ':' + action.friendId : '');
+  + (action.kind === 'social' && action.friendId ? ':' + action.friendId : '') + (action.company ? ':company' : '');
 const goalsKey = actor => JSON.stringify(actor.goals || []);
 
 // The routine a chosen action answers, or null for something that is always a choice. Staying on with

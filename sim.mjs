@@ -16,7 +16,7 @@ import { advanceForageShift, finishForageShift, outingResult } from './engine/fo
 import { BARN, foodDays, mouths, normalizeStores } from './engine/stores.mjs';
 import { breadDraw, burnHearths } from './engine/households.mjs';
 import { MEAL_FLOOR, STORED, STOREHOUSE, addStorehouse, drawAndEat, drawable, issueAllowance, keepShelves, normalizeAllowance, storehouseOf } from './engine/storehouse.mjs';
-import { FEAST_HOURS, feastOf, feastOn, normalizeBuildings, repairLoss, tradeOpen, waitTurn, waitedTooLong, wear } from './engine/workday.mjs';
+import { FEAST_HOURS, feastOf, feastOn, isOwnTrade, normalizeBuildings, repairLoss, restDay, tradeOpen, waitTurn, waitedTooLong, wear } from './engine/workday.mjs';
 import { dawnVisitors, tickVisitors } from './engine/visitors.mjs';
 import { forgetTold, judge } from './engine/chronicle.mjs';
 import { normalizeMemories } from './engine/memory.mjs';
@@ -195,7 +195,32 @@ function stockObstacle(world, job, allowUnknown = false) {
   }
   return null;
 }
-function jobOptions(actor, state, perceived, allFeasible) {
+function jobCandidate(actor, key, state, perceived, daylight) {
+  const job = jobs[key];
+  if (!tradeOpen(key, perceived.minute)) {
+    return restDay(perceived.minute)
+      ? { status: 'rest_day', note: 'My trade observes the day of rest.' }
+      : { status: 'hours', note: 'This is outside my trade’s working hours.' };
+  }
+  if (!daylight && (job.at === 'field' || job.at === 'wood')) {
+    return { status: 'daylight', note: 'There is too little daylight to start my work outdoors.' };
+  }
+  if (key === 'keep' && perceived.minute - (actor.lastShelfCount?.minute ?? -Infinity) < 360) {
+    return { status: 'recent_count', note: 'I counted the shelves recently. My next round is later.' };
+  }
+  const obstacle = stockObstacle(perceived, job, true);
+  if (obstacle) return { status: 'stocks', note: 'As far as I know, ' + obstacle + ' for my trade.' };
+  const site = workSite(actor, key, state);
+  if (!site) return job.at === 'field'
+    ? { status: 'no_ripe_barley', note: 'There is no strip ready to reap.' }
+    : { status: 'no_site', note: 'There is no place ready for my trade.' };
+  if (key === 'bake' && (!atOven(actor, place(state.map, site)) || actor.observations?.ovenStores?.site !== site)) {
+    return { status: 'oven_check', note: 'I need to be at the oven and check its flour and firewood before I can bake.' };
+  }
+  return { status: 'available', site };
+}
+
+function jobOptions(actor, state, perceived, allFeasible, diagnostics) {
   // When stores run low, anyone can lend a hand in the fields or coppice.
   const list = [...new Set([actor.trade, 'harvest', 'cut', 'draw'])].filter(key => jobs[key]);
   const options = [];
@@ -203,24 +228,16 @@ function jobOptions(actor, state, perceived, allFeasible) {
   const light = nextOutdoorStart(perceived.minute) === perceived.minute;
   for (const key of list) {
     const job = jobs[key];
-    if (!light && (job.at === 'field' || job.at === 'wood')) continue;
-    if (!tradeOpen(key, perceived.minute)) continue;
-    // A storekeeper counts the shelves morning and afternoon, and lends a hand elsewhere between.
-    if (key === 'keep' && perceived.minute - (actor.lastShelfCount?.minute ?? -Infinity) < 360) continue;
-    if (stockObstacle(perceived, job, true)) continue;
+    const candidate = jobCandidate(actor, key, state, perceived, light);
+    if (diagnostics && key === actor.trade) diagnostics.ownTrade = candidate;
+    if (candidate.status !== 'available') continue;
     const material = Object.keys(job.makes)[0];
     const amount = perceived.supplies[material];
     const shortage = amount == null ? 0.5 : 1 - amount / perceived.capacity[material];
     if (!allFeasible && key !== actor.trade && shortage < 0.67) continue;
-    const site = workSite(actor, key, state);
-    if (!site) continue;
-    if (key === 'bake') {
-      const oven = place(state.map, site);
-      if (!atOven(actor, oven) || actor.observations?.ovenStores?.site !== site) continue;
-    }
     const pledged = shortage > 0.5 && actor.memories.some(m => m.shortage === material && perceived.minute - m.minute < 480);
     const score = 22 + 33 * shortage + (actor.trade === key ? 13 : 0) + (pledged ? 12 : 0);
-    options.push({ key, score, site });
+    options.push({ key, score, site: candidate.site });
   }
   return options.sort((a, b) => b.score - a.score);
 }
@@ -234,17 +251,17 @@ function nearest(actor, map, kind) {
   return best;
 }
 
-function choose(actor, state, menu) {
+function choose(actor, state, menu, diagnostics) {
   const { world, actors, map } = state;
   const choices = [];
   const dayTime = world.minute % 1440;
-  const night = dayTime >= 1260 || dayTime < 340;
+  const night = standing.isNight(world.minute);
   const { hunger, fatigue, loneliness } = actor.needs;
   if (!menu && actor.plan && (!FOCUSES.includes(actor.plan.focus) || !Number.isFinite(actor.plan.until) || actor.plan.until <= world.minute)) actor.plan = null;
   if (!place(map, actor.home)) actor.home = 'hall';
   function offer(kind, label, target, duration, score, reason, extra = {}) {
     if (menu) {
-      const id = [kind, extra.job || extra.friendId || extra.meal || (extra.feast && 'feast'), target].filter(Boolean).join(':');
+      const id = [kind, extra.job || extra.friendId || extra.meal || (extra.feast && 'feast') || (extra.company && 'company'), target].filter(Boolean).join(':');
       menu.set(id, { kind, label, target, remaining: duration, ...extra });
       return;
     }
@@ -260,7 +277,7 @@ function choose(actor, state, menu) {
   const known = knownStores(actor);
   const bare = hearth && !hearth.lit && !world.cottages?.[actor.home] && hearth.minute > (known?.minute ?? -1);
   const perceived = { ...world, supplies: { ...world.supplies, flour: known?.flour, wood: bare ? 0 : known?.wood } };
-  const jobsHere = jobOptions(actor, state, perceived, Boolean(menu));
+  const jobsHere = jobOptions(actor, state, perceived, Boolean(menu), diagnostics);
   const duty = actor.traits.includes('steadfast') ? 5 : 0;
   const weary = (night ? 48 : 0) + Math.max(0, fatigue - 65);
   if (actor.trade === 'report' && !night) offerReporting(actor, state, offer, weary);
@@ -341,10 +358,12 @@ function choose(actor, state, menu) {
   if (friend) offer('social', 'Visiting ' + friend.name.split(' ')[0], friend.action.target, 28, loneliness + (actor.traits.includes('gregarious') ? 13 : 0) - (night ? 28 : 0), 'I could use some company and know where to find ' + friend.name + '.', { friendId: friend.id });
   const alehouse = dayTime >= 960 && nearest(actor, map, 'alehouse');
   if (alehouse) offer('leisure', 'Sitting in ' + alehouse.name, alehouse.id, 50, 26 + loneliness * 0.4 + (actor.traits.includes('gregarious') ? 8 : 0) - (night ? 12 : 0), 'The day’s work is done and there will be company at ' + alehouse.name + '.');
+  if (menu && alehouse) offer('leisure', 'Spending time with whoever is at the alehouse', alehouse.id, 50, 0, '', { company: true });
   const feast = feastOn(world.minute);
   if (feast) offer('leisure', 'Keeping ' + feast + ' at the feast on the green', 'green', Math.max(20, FEAST_HOURS[1] - dayTime), 64 + loneliness * 0.3 - weary * 0.5,
     'The village keeps ' + feast + ' with a feast on the green this afternoon.', { feast });
   offer('leisure', 'Walking on the green', 'green', 44, 30 + (actor.traits.includes('restless') ? 6 : 0) - (night ? 17 : 0), 'A walk on the green will ease my fatigue.');
+  if (menu) offer('leisure', 'Spending time on the green', 'green', 44, 0, '', { company: true });
   if (menu) return;
   choices.sort((a, b) => b.score - a.score);
   const { score, ...chosen } = choices[0];
@@ -383,20 +402,31 @@ function travel(actor, state, emit) {
   return true;
 }
 
-export function availableActions(actor, state) {
+export function availableActions(actor, state, diagnostics) {
   const menu = new Map();
-  choose(actor, state, menu);
+  choose(actor, state, menu, diagnostics);
   bedConversationChoices(actor, state, menu);
   conversationChoices(actor, state, menu);
   lifeChoices(actor, state, (id, action) => menu.set(id, action));
-  if (tooIll(actor)) for (const [id, action] of menu) if (action.kind === 'work' || action.kind === 'report') menu.delete(id);
+  const ill = tooIll(actor);
+  if (ill) for (const [id, action] of menu) if (action.kind === 'work' || action.kind === 'report') menu.delete(id);
   const reachable = new Map();
   for (const [id, action] of menu) {
     if (action.onSpot) continue;
     if (!reachable.has(action.target)) reachable.set(action.target, Boolean(route(state.map, [actor.position.x, actor.position.y], action.target)));
     if (!reachable.get(action.target)) menu.delete(id);
   }
-  return requestReviewMenu(actor, menu);
+  const review = requestReviewMenu(actor, menu);
+  if (diagnostics && actor.trade) {
+    if (review !== menu) diagnostics.ownTrade = { status: 'request_review' };
+    else if (ill) diagnostics.ownTrade = { status: 'ill', note: 'I am too ill to work at my trade right now.' };
+    else if ([...menu.values()].some(action => isOwnTrade(actor, action))) diagnostics.ownTrade = { status: 'available' };
+    else if (diagnostics.ownTrade?.status === 'available') diagnostics.ownTrade = { status: 'unreachable', note: 'I cannot get to my worksite.' };
+    else if (actor.trade === 'report') diagnostics.ownTrade = standing.isNight(state.world.minute)
+      ? { status: 'hours', note: 'I take my reporting rounds by day.' }
+      : { status: 'unreachable', note: 'I cannot get to any of my reporting beats.' };
+  }
+  return review;
 }
 
 // A resident with a real choice to make waits for it where they stand. The clock and everyone else carry on.
@@ -799,7 +829,9 @@ function stepMinute(state, events, externalActions, records, pilot) {
     if (actor.action.phase !== 'working' || actor.action.kind === 'rest' || minute - actor.lastChat < 135) continue;
     const other = actors.find(b => b !== actor && b.action.phase === 'working' && b.action.kind !== 'rest'
       && minute - b.lastChat >= 135 && distance(actor.position, b.position) <= 3
-      && ((actor.action.kind === 'social' && actor.action.friendId === b.id) || (actor.needs.loneliness > 46 && b.needs.loneliness > 35)));
+      && ((actor.action.kind === 'social' && actor.action.friendId === b.id)
+        || (actor.action.company && actor.action.target === b.action.target)
+        || (actor.needs.loneliness > 46 && b.needs.loneliness > 35)));
     if (!other) continue;
     const ids = [actor.id, other.id];
     const speaker = actor.name + ' and ' + other.name;

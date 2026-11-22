@@ -37,7 +37,8 @@ export async function initializeTraces(db) {
     CREATE INDEX IF NOT EXISTS activity_log_actor ON dalecrest.activity_log (actor_id,id DESC);
     -- The goal versions and memories each action request was given, by key.
     ALTER TABLE dalecrest.decision_traces ADD COLUMN IF NOT EXISTS goal_keys text[],
-      ADD COLUMN IF NOT EXISTS observation_keys text[];
+      ADD COLUMN IF NOT EXISTS observation_keys text[],
+      ADD COLUMN IF NOT EXISTS menu_audit jsonb;
   `);
 }
 

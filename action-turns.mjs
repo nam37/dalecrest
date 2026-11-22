@@ -4,6 +4,7 @@ import { memoryKey } from './engine/memory.mjs';
 import { availableActions, startChosen, locationsOf } from './sim.mjs';
 import { residentState, writeActivities } from './decision-trace.mjs';
 import { weatherAt } from './engine/seasons.mjs';
+import { shapeActionMenu } from './engine/action-menu.mjs';
 
 const villageHourlyCeiling = 480000;
 export const hourlyActionBudget = Math.min(villageHourlyCeiling, Number(process.env.OPENAI_ACTION_TOKENS_PER_HOUR || villageHourlyCeiling));
@@ -45,9 +46,11 @@ export async function reserveAction(db, village, hourlyBudget) {
   const weather = weatherAt(village.world.minute, village.map.seed).text;
   let limited = false;
   for (const actor of eligible) {
-    const menu = availableActions(actor, village);
+    const diagnostics = {};
+    const feasible = availableActions(actor, village, diagnostics);
+    const { menu, audit, context } = shapeActionMenu(actor, village, feasible, diagnostics.ownTrade);
     if (!menu.size) continue;
-    const body = actionBody(actor, village.world, menu, names, weather);
+    const body = actionBody(actor, village.world, menu, names, weather, context);
     // Reserve before sending. The provider's reported total replaces this estimate when available.
     const estimate = Math.ceil(Buffer.byteLength(body) / 3) + 80;
     const allowance = actor.id === 'robin' ? 60000 : residentHourlyBudget;
@@ -58,9 +61,9 @@ export async function reserveAction(db, village, hourlyBudget) {
     }
     const goals = activeGoals(actor).map(g => goalKey(actor, g)), seen = recalledFor(actor, village.world).map(m => memoryKey(actor, m));
     const result = await db.query(`INSERT INTO dalecrest.decision_traces
-      (actor_id,observed_minute,model,endpoint,request_body,decision_since,token_charge,goal_keys,observation_keys)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
-      [actor.id, village.world.minute, DECISIONS_MODEL, DECISIONS_URL, body, actor.action.since, estimate, goals, seen]);
+      (actor_id,observed_minute,model,endpoint,request_body,decision_since,token_charge,goal_keys,observation_keys,menu_audit)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+      [actor.id, village.world.minute, DECISIONS_MODEL, DECISIONS_URL, body, actor.action.since, estimate, goals, seen, audit]);
     return { id: result.rows[0].id, body };
   }
   if (limited) return { budgetLimited: true };
@@ -72,7 +75,7 @@ export async function startChosenAction(db, trace, choice, village, recordEvents
   if (actor.action.kind !== 'waiting' || actor.action.since !== Number(trace.decision_since)) return { status: 'superseded' };
   const action = availableActions(actor, village).get(choice);
   const offered = JSON.parse(trace.request_body).questions[0].choices.find(option => option.value === choice);
-  if (!action || actionDescription(action, locationsOf(village.map, village.actors)) !== offered.description) return { status: 'unavailable' };
+  if (!offered || !action || actionDescription(action, locationsOf(village.map, village.actors)) !== offered.description) return { status: 'unavailable' };
   const minute = village.world.minute;
   const state = residentState(actor);
   const started = startChosen(actor, village, choice, { id: trace.id, model: trace.model });

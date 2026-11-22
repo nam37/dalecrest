@@ -109,6 +109,10 @@ test('PostgreSQL preserves the trace, resumes a received reply, and links actual
     assert.equal(tickets2.filter(Boolean).length,1);
     const question = JSON.parse(first.body).questions[0];
     assert.equal(question.name,'next_action');
+    const { rows: [{ menu_audit: audit }] } = await db.pool.query('SELECT menu_audit FROM dalecrest.decision_traces WHERE id=$1', [first.id]);
+    assert.equal(audit.feasible, question.choices.length + audit.omitted.length);
+    assert.ok(Object.keys(audit.protected).some(id => id.startsWith('rest:')));
+    assert.ok(audit.omitted.some(row => row.reason === 'visit_limit'));
     const meal = question.choices.find(c => c.value.startsWith('food:')).value;
     const reply = value => ({status:200,requestId:'req-action',redacted:false,body:JSON.stringify({
       answers:[{type:'choice',name:'next_action',choice:value,confidence:0.91}],usage:{total_tokens:275}})});

@@ -47,13 +47,14 @@ export function actionDescription(action, names = {}) {
 
 // weather is what anyone out of doors can see and feel, in a few words. A resident also knows
 // whether their own hearth had firewood this morning.
-export function actionBody(actor, world, menu, names = {}, weather) {
+export function actionBody(actor, world, menu, names = {}, weather, menuContext = {}) {
   const last = actor.action.previous, hearth = actor.observations?.hearth;
   const outing = preferredOuting(actor, menu);
   const observation = {
     name: actor.name, role: actor.role, traits: actor.traits, goals: actor.goalBook ? goalContext(actor, names) : actor.goals,
     desires: actor.desires.map(({ focus, weight, target }) => ({ focus, weight, target })),
     ...(outing && { preferredActivity: outing }),
+    ...menuContext,
     needs: Object.fromEntries(Object.entries(actor.needs).map(([need, value]) => [need, Math.round(value)])),
     lastActivity: last && { kind: last.kind, label: last.label, place: names[last.target]?.name || last.target },
     whyThisIsAChoice: actor.action.why,

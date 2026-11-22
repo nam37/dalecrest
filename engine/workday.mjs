@@ -32,6 +32,9 @@ export function tradeOpen(job, minute) {
   return t >= hours[0] && t <= hours[1];
 }
 
+export const isOwnTrade = (actor, action) => actor.trade === 'report'
+  ? action.kind === 'report' : action.kind === 'work' && action.job === actor.trade;
+
 // The feast on the green runs from one in the afternoon until six.
 export const FEAST_HOURS = [780, 1080];
 export const feastOn = minute => {
