@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Stores the key for the Dalecrest Daily's editor and restarts the application with it.
+set -euo pipefail
+umask 077
+cd /opt/stacks/dalecrest
+# The deployer never replaces this file, so one installed before the paper existed does not hand the key on.
+if ! grep -q 'CLAUDE_KEY' compose.yaml; then
+  echo 'The installed compose.yaml does not pass CLAUDE_KEY to the application.'
+  echo 'Install deploy/compose.yaml from the current release here, then run this again.'
+  exit 1
+fi
+if [[ -t 0 ]]; then
+  read -rsp 'Dalecrest Claude API key: ' api_key
+  printf '\n'
+else
+  IFS= read -r api_key
+fi
+api_key=${api_key%$'\r'}
+[[ "$api_key" =~ ^[[:alnum:]._:-]+$ ]] || { echo 'Invalid key format'; exit 1; }
+exec 9>/opt/git-deploy/dalecrest/deploy.lock
+flock 9
+tmp=$(mktemp .env.XXXXXX)
+trap 'unlink "$tmp" 2>/dev/null || true' EXIT
+grep -vE '^CLAUDE_KEY=' .env > "$tmp" || [[ $? -eq 1 ]]
+printf 'CLAUDE_KEY=%s\n' "$api_key" >> "$tmp"
+unset api_key
+mv "$tmp" .env
+export DALECREST_RELEASE
+DALECREST_RELEASE=$(cat /opt/git-deploy/dalecrest/deployed-sha)
+docker compose up -d --no-deps --wait --wait-timeout 90 app
