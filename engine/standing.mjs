@@ -16,13 +16,16 @@ export const PILOT = {
 };
 
 const isNight = minute => { const t = minute % 1440; return t >= 1260 || t < 340; };
-// What an action is matched on when the menu is rebuilt: the job, or the place for anything else.
-const matchOf = action => action.kind + ':' + (action.job || action.target) + (action.meal ? ':' + action.meal : '');
+// What an action is matched on when the menu is rebuilt: the job, or the place for anything else. A
+// visit is to one person, so it matches only the same friend in the same place.
+const matchOf = action => action.kind + ':' + (action.job || action.target) + (action.meal ? ':' + action.meal : '')
+  + (action.kind === 'social' && action.friendId ? ':' + action.friendId : '');
 const goalsKey = actor => JSON.stringify(actor.goals || []);
 
-// The routine a chosen action answers, or null for something that is always a choice.
+// The routine a chosen action answers, or null for something that is always a choice. Staying on with
+// the same friend is another stretch of the same visit. Choosing whom to visit stays a choice.
 export function routineOf(action, minute) {
-  if (!action || action.commitmentId || Object.hasOwn(villageJobs, action.job) || ['review', 'conversation', 'inspect', 'social', 'meeting', 'arrive', 'waiting', 'idle'].includes(action.kind)) return null;
+  if (!action || action.commitmentId || Object.hasOwn(villageJobs, action.job) || ['review', 'conversation', 'inspect', 'meeting', 'arrive', 'waiting', 'idle'].includes(action.kind)) return null;
   if (action.kind === 'rest' && isNight(minute)) return 'sleep';
   if (action.kind === 'food') return 'meal';
   return 'again:' + matchOf(action);

@@ -78,6 +78,33 @@ test('routine follows a standing instruction and every activity records how it b
   assert.ok(records.filter(r => r.basis === 'waiting').every(r => r.reason));
 });
 
+test('another stretch with the same friend follows the visit chosen, and a visit to anyone else is a choice', () => {
+  const village = createVillage();
+  village.world.minute = 1440 + 600;
+  const [actor, friend, other] = village.actors;
+  for (const a of [friend, other]) a.action = { kind: 'leisure', label: 'Sitting on the green', target: 'green', phase: 'working', remaining: 40 };
+  actor.decidedAt = village.world.minute;
+  const visitTo = who => [...availableActions(actor, village).values()].find(a => a.kind === 'social' && a.friendId === who.id);
+  const visit = visitTo(friend);
+  assert.ok(keep(actor, village, visit, '51'), 'a visit is kept as an instruction');
+
+  const again = consider(actor, village, availableActions(actor, village), visit);
+  assert.equal(again.follow?.action.friendId, friend.id);
+  assert.equal(again.follow.routine.startsWith('again:social:green'), true);
+
+  // The same place, someone else: the instruction does not stretch to cover them.
+  delete actor.instructions[again.follow.routine];
+  keep(actor, village, visit, '52');
+  const menu = availableActions(actor, village);
+  for (const [id, a] of menu) if (a.kind === 'social' && a.friendId === friend.id) menu.delete(id);
+  assert.ok(visitTo(other), 'the other neighbour can still be visited');
+  assert.equal(consider(actor, village, menu, visit).fresh, 'instructed action cannot start');
+
+  // The friend has gone elsewhere, so finding them again is a fresh choice.
+  friend.action = { ...friend.action, target: 'oven' };
+  assert.equal(consider(actor, village, availableActions(actor, village), visit).fresh, 'instructed action cannot start');
+});
+
 test('a stale instruction is dropped with its reason and never followed', () => {
   for (const [spoil, reason] of [[ins => { ins.until = 0; }, 'lapsed'], [(ins, actor) => { actor.goals = ['Something else entirely']; }, 'goals changed']]) {
     const village = createVillage(), actor = village.actors[0], records = [];
