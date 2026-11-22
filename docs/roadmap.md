@@ -18,11 +18,11 @@
 | 2. Goals and memory | Not begun | 0 | 0 | 6 |
 | 3. A village with stakes | Begun | 0 | 3 | 3 |
 | 4. Voices: competing interests and the moot | Groundwork only | 0 | 1 | 4 |
-| 5. Worth watching | Begun | 1 | 2 | 5 |
+| 5. Worth watching | Begun | 2 | 2 | 4 |
 | 6. Worth following | Groundwork only | 0 | 1 | 3 |
 | 7. Taking part | Groundwork only | 0 | 1 | 4 |
 | 8. A wider world | Not begun | 0 | 0 | 1 |
-| All stages | | 12 | 12 | 26 |
+| All stages | | 13 | 12 | 25 |
 
 The merge passed all 59 tests on 21 November, including eight tests with disposable PostgreSQL databases.
 
@@ -316,7 +316,7 @@ Presentation. The pilot delivers the first of it: links, the promise thread and 
 - [ ] **Show events where they happen.** Not begun.
 - [ ] **A director.** Not begun.
 - [x] **Show the basis.** Done. The resident panel and the map card show the recorded reason for an activity or a wait. A deciding resident carries a question mark on the map and a hand on the chin in the walking view.
-- [ ] **Yesterday in Dalecrest.** Not begun.
+- [x] **Dalecrest Daily.** Robin reports from around the village. Each morning’s edition includes his notes, village records and follow-ups.
 - [ ] **Seasons, weather and the hour.** Under way. Seasons, weather, night and going indoors are in both views. Tools and trade movements arrived in commit `c3353a5`, in the walking view only.
 - [ ] **A richer parish.** Under way. Kitchen gardens, shaded relief, canopy woods, light moving on the river and drifting cloud shadow. No fences, woodpiles, animals or sound.
 - [ ] **Time-lapse.** Not begun.
@@ -325,7 +325,7 @@ Presentation. The pilot delivers the first of it: links, the promise thread and 
 - **Show events where they happen**, on the map and in the walking view. A chronicle entry takes you to its place and time.
 - **A director.** A watch mode that follows whoever is in the middle of something and holds on the scene. It is what a first-time visitor sees.
 - **Show the basis.** A resident who is waiting on a decision looks like someone making up their mind. A resident following routine looks like routine.
-- **Yesterday in Dalecrest.** A short account of each village day written by the general-purpose model on its own budget. Every claim in it must cite an event.
+- **Dalecrest Daily.** The general-purpose editor uses Robin’s notebook and the public records to cover the previous village day. Each passage links to supporting events. “Since yesterday” follows earlier stories.
 - **Seasons, weather and the hour** in both views. Tools in hand, a movement for each trade, residents who go indoors.
 - **A richer parish.** Gardens, fences, woodpiles, animals, moving water, sound.
 - **Time-lapse** of the village's growth from stored map revisions.
@@ -388,7 +388,7 @@ More than one village with a road between them. This multiplies everything above
 
 ## Cost and pacing
 
-**Since this was written.** The hosted village now keeps at least ten residents, each with up to 48,000 tokens per rolling real hour under a village ceiling of 480,000 ([design decision 3](design.md)). The figures below are the original eight-resident estimate against 168,000 a real day and have not been reworked. One live reading exists: in the first 30 real minutes after the expansion the planner applied 17 decisions on 12,688 input tokens, about 750 a decision. [First village hour after the expansion](decision-tracing.md#first-village-hour-after-the-expansion)
+**Since this was written.** The hosted village now keeps at least ten residents, with 48,000 decision tokens per resident per rolling real hour and 60,000 for Robin under a village ceiling of 480,000 ([design decision 3](design.md)). The figures below are the original eight-resident estimate against 168,000 a real day and have not been reworked. One live reading exists: in the first 30 real minutes after the expansion the planner applied 17 decisions on 12,688 input tokens, about 750 a decision. [First village hour after the expansion](decision-tracing.md#first-village-hour-after-the-expansion)
 
 **Pre-Stage 0 baseline.**
 
