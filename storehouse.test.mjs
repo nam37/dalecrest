@@ -143,6 +143,9 @@ test('the keeper counts the shelves, and a short count can be passed on and beco
   const count = until(village, e => e.type === 'work' && e.actorIds.includes(keeper.id));
   assert.match(count.text, /counted the shelves at the storehouse: 2 loaves, /);
   assert.equal(keeper.lastLowCount.item, 'bread');
+  const remembered = keeper.memories.filter(m => m.text === count.text);
+  assert.equal(remembered.length, 1, 'the count is remembered once');
+  assert.equal(remembered[0].shortage, 'bread');
   assert.ok(!menuOf(village, keeper).some(k => k.startsWith('ask:mabel:bread-')), 'Mabel is resting');
   // The keeper can tell an awake neighbour, and can ask the baker for bread.
   for (const neighbour of [mabel, resident(village, 'agnes')]) {

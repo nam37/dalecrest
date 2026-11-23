@@ -513,7 +513,9 @@ function recordWork(actor, minute, emit, text, status, stockDelta, reason) {
     traceId: action.basis?.trace ?? action.decisionTraceId ?? null,
     ...(action.commitmentId != null && { commitmentId: action.commitmentId })
   } : undefined;
-  memory(actor, minute, text, [actor.id], 'work');
+  // A storekeeper's count is already remembered, with its shortage, as what was seen.
+  const last = actor.memories.at(-1);
+  if (!(last?.minute === minute && last.text === text)) memory(actor, minute, text, [actor.id], 'work');
   emit('work', text, [actor.id], outcome);
 }
 
