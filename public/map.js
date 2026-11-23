@@ -272,12 +272,15 @@ function paintPaper(c, map, look, scale) {
     c.restore();
   }
   // Shadows first, then buildings, then the trees that overhang them.
-  c.fillStyle = '#26382e4d';
+  // Filled as one shape, so the shadows of neighbouring buildings do not darken where they meet.
+  c.beginPath();
   for (const p of places) {
     if (!p.w || p.kind === 'field' || p.stage !== 2) continue;
     const tall = p.kind === 'hall' || p.kind === 'mill' ? 1.25 : 0.9, foot = rectPoly(p);
-    trace(c, hull([...foot, ...foot.map(([x, y]) => [x + 0.8 * tall, y + 0.95 * tall])]), true); c.fill();
+    hull([...foot, ...foot.map(([x, y]) => [x + 0.8 * tall, y + 0.95 * tall])]).forEach(([x, y], i) => i ? c.lineTo(x, y) : c.moveTo(x, y));
+    c.closePath();
   }
+  c.fillStyle = '#26382e4d'; c.fill();
   for (const p of places) {
     if (p.kind === 'well') {
       if (p.stage < 2) { c.setLineDash([0.25, 0.22]); disc(c, p.x, p.y, 0.6, p.stage ? '#cbbf9c' : null, '#7b6d50', line); c.setLineDash([]); continue; }
@@ -290,14 +293,17 @@ function paintPaper(c, map, look, scale) {
     } else if (p.w && p.kind !== 'field') building(c, p, line, look.lodgers, snowed);
   }
   const leafy = year.leaf > 0.3;
+  // The shade of every tree is gathered into one shape and filled once, so where trees stand close
+  // their shadows run together instead of darkening one another. Each is the crown's own outline
+  // thrown south-east, away from the light, and joined to the foot of the tree.
+  c.beginPath();
   for (const [x, y, r, pine] of look.woods) {
     if (!pine && !leafy) continue;
-    c.fillStyle = '#22352b40'; c.beginPath(); c.ellipse(x + r * 0.62, y + r * 0.74, r * 1.02, r * 0.94, 0.7, 0, TAU); c.fill();
+    for (const [dx, dy, size] of [[0.1, 0.12, 1.04], [0.34, 0.41, 1], [0.58, 0.7, 0.96]]) {
+      c.moveTo(x + r * (dx + size), y + r * dy); c.arc(x + r * dx, y + r * dy, r * size, 0, TAU);
+    }
   }
-  for (const [x, y, r, pine] of look.woods) {
-    if (!pine && !leafy) continue;
-    disc(c, x, y, r * 1.16, snow ? '#5d6f6644' : '#33503d55');
-  }
+  c.fillStyle = snow ? '#4a5f5c3d' : '#22352b4d'; c.fill();
   for (const [x, y, r, pine] of look.woods) {
     const k = hash2(map.seed, x * 10, y * 10);
     if (pine) {
