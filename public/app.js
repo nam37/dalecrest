@@ -5,6 +5,10 @@ import { residentCard, eventCard, kinds, portrait as likeness, whyText, whyLine,
 import { createDirector } from '/director.js';
 import { ageOf } from '/engine/lives.mjs';
 import { conditionWords } from '/engine/goals.mjs';
+import { bindVillageSound } from './village-audio.js';
+import { applyVillageChanges, sameGround } from './village-update.js';
+import { createResidentHeat } from './resident-heat.js';
+import { dayLink, housing, householdLink, mootLink, promiseLink, residentLink } from './record-links.js';
 
 const $ = id => document.getElementById(id);
 const el = (tag, cls, value) => {
@@ -13,10 +17,11 @@ const el = (tag, cls, value) => {
   if (value !== undefined) node.textContent = value;
   return node;
 };
+const link = (text, href, cls) => Object.assign(el('a', cls, text), { href });
 const names = { village: 'Village observatory', residents: 'Village residents', chronicle: 'Village chronicle' };
 const stores = { grain:'Barley', flour:'Flour', bread:'Loaves · storehouse', wood:'Firewood', cloth:'Linen · storehouse', water:'Water', repair:'Building repairs' };
 const hallStores = { game:'Undressed game', meat:'Game meat', hide:'Raw hides', fish:'Fresh fish', cooked:'Cooked meals', preserved:'Salt fish and smoked game · storehouse', leather:'Leather · storehouse' };
-let state, latest, frozen=false, selected='agnes', tab='life', route='village', rosterSignature='';
+let state, latest, frozen=false, selected='agnes', tab='life', route='village', rosterSignature='', directorySignature='';
 let ground=null, viewMode='plan', walk=null, loadingWalk=false;
 // The chronicle entry the walking view is holding on, if any.
 let held=null;
@@ -31,16 +36,18 @@ const map = createMap($('map'), choose, {
   event: (events, spot) => eventCard(events, { names: state.locations, minute: state.world.minute, place: spot.id }),
   steered: () => watch(false),
 });
+const residentHeat = createResidentHeat($('detail'));
 const capacity = { grain:44, flour:34, bread:32, wood:32, cloth:12, repair:14, water:28 };
 
 function displayLatest() {
   state = latest;
+  if (leaveMissingResident()) return;
   if (ground !== state.map) {
     ground = state.map;
     map.setMap(ground, state.locations);
     walk?.setMap(ground);
   }
-  direct();
+  direct(false);
   render();
 }
 async function show(mode) {
@@ -81,11 +88,11 @@ function caption(c) {
 function release() { held = null; walk?.hold(null); }
 
 // Asks the director what to show, and turns both views to it when the scene changes.
-function direct() {
+function direct(repaint = true) {
   if (!watching || !state || frozen || route !== 'village' || document.hidden) return;
   const next = director.pick(state, performance.now()), cut = next.key !== scene?.key;
   scene = next;
-  if (cut) { stage(); render(); }
+  if (cut) { stage(); if (repaint) render(); }
 }
 function stage() {
   held = null;
@@ -102,9 +109,10 @@ function watch(on, remember = false) {
   watching = on; scene = null; director.reset();
   if (remember) keep('dalecrest.watch', on ? 'on' : 'off');
   if (on) {
+    if (tab === 'heat') tab = 'life';
     // A watch belongs to no one resident, so the address goes back to the village itself.
     if (route === 'village' && location.hash !== '#village') history.replaceState(null, '', '#village');
-    direct();
+    direct(false);
   } else { map.watch(null); if (!held) walk?.hold(null); }
   render();
 }
@@ -120,6 +128,7 @@ function narration() {
     return { kicker: (at ? 'At ' + at : 'Out of doors') + ' · ' + (ago < 2 ? 'just now' : ago + ' minutes ago'), line: scene.event.text };
   }
   const night = light(world.minute).night, all = scene.indoors >= scene.residents;
+  if (!scene.residents) return { kicker: 'The village', line: 'No residents are in the parish.' };
   return { kicker: night ? 'The village by night' : 'The village', line: all ? 'Everyone is indoors.' + (night ? ' The lit windows are the hearths still burning.' : '')
     : scene.indoors + ' of ' + scene.residents + ' residents are indoors.' };
 }
@@ -143,7 +152,9 @@ const portrait = actor => likeness(state.actors.findIndex(a => a.id === actor.id
 
 function who(actor) {
   const row=el('div','profile-top'), text=el('div');
-  text.append(el('h3','',actor.name),el('p','role',actor.role));
+  const name = el('h3');
+  name.append(link(actor.name, residentLink(actor)));
+  text.append(name,el('p','role',actor.role));
   row.append(portrait(actor),text);
   return row;
 }
@@ -157,23 +168,36 @@ function choose(id) {
   watch(false);
   release();
   selected=id;
-  const address='#village/'+id;
+  const address='#village/'+id+(tab==='heat'?'/heat':'');
   if (location.hash===address) { render(); return; }
   // Moving between residents on the village page replaces the address instead of filling the history.
   if (route==='village') { history.replaceState(null,'',address); navigate(); }
   else location.hash=address;
 }
 function renderProfile(actor) {
+  const picker = $('pick-resident'), residents = state.actors;
+  if (picker.options.length !== residents.length || [...picker.options].some((option, i) =>
+    option.value !== residents[i].id || option.text !== residents[i].name.split(' ')[0])) {
+    picker.replaceChildren(...residents.map(a => new Option(a.name.split(' ')[0], a.id)));
+  }
+  picker.disabled = !actor;
+  if (!actor) {
+    residentHeat.hide();
+    $('profile').replaceChildren(el('p', 'empty', 'No residents are in the parish.'));
+    $('detail').replaceChildren();
+    return;
+  }
   const traits=el('div','trait-list');
   for(const t of actor.traits) traits.append(el('span','trait',t));
   $('profile').replaceChildren(who(actor),traits);
-  const picker=$('pick-resident');
-  if(picker.options.length!==state.actors.length) {
-    picker.replaceChildren(...state.actors.map(a=>new Option(a.name.split(' ')[0],a.id)));
-  }
   picker.value=actor.id;
   for(const b of document.querySelectorAll('[data-tab]')) b.setAttribute('aria-pressed',String(b.dataset.tab===tab));
   const detail=$('detail');
+  if (tab === 'heat') {
+    residentHeat.show({ actor, map: state.map, minute: state.world.minute, locations: state.locations });
+    return;
+  }
+  residentHeat.hide();
   if(tab==='data'){
     let pre=detail.querySelector('pre');
     if(!pre){pre=el('pre','raw'); pre.tabIndex=0; pre.setAttribute('aria-label','Resident record for '+actor.name); detail.replaceChildren(pre);}
@@ -188,7 +212,7 @@ function renderProfile(actor) {
     if (r.askerId !== actor.id && r.helperId !== actor.id) continue;
     const a = el('a', 'goal', r.asker + ' asked ' + r.helper + ' to ' + r.terms +
       ' · ' + (r.status === 'accepted' ? 'Promised' : 'Awaiting a reply'));
-    a.href = '/requests.html?request=' + encodeURIComponent(r.id);
+    a.href = promiseLink(r.id);
     const item = el('p');
     item.append(a);
     requests.append(item);
@@ -262,6 +286,8 @@ function renderProfile(actor) {
   if(actor.expecting) life.push('expecting a child about '+formatDate(actor.expecting.due,'day'));
   const kids=(cottage?.children||[]).map(c=>c.name+', '+Math.max(0,ageOf(c,minute)));
   const household=block('Life and household', el('p','goal',life.join(' · ')));
+  const home = state.locations[actor.home];
+  if (home && housing(home.kind)) household.append(link(home.name, householdLink(actor.home), 'where'));
   if(actor.illness) household.append(chip('ill','Ill', 'Unwell since '+date(actor.illness.since)), el('p','reason',{hungry:'A fever brought on by hunger',cold:'A chill on the chest',worn:'Exhaustion',age:'An ague of old age'}[actor.illness.cause]+(actor.illness.severity>=2?'. Too ill to work.':'.')));
   if(kids.length) household.append(el('p','goal','Children: '+kids.join(' · ')));
   if(cottage && Number.isFinite(cottage.woodpile)) household.append(el('p','goal','Woodpile at home: '+Math.floor(cottage.woodpile)+' bundles · Larder: '+(cottage.larder||0)+' loaves'+(Number.isFinite(cottage.ration)?' · Bread due at the storehouse: '+Math.floor(cottage.ration):'')));
@@ -298,8 +324,15 @@ function renderAffairs() {
   const opened = new Set([...panel.querySelectorAll('details[open]')].map(detail => detail.dataset.motion));
   if (sitting?.agenda) {
     const votes = sitting.ballots.length, expected = sitting.attendees.length * sitting.agenda.length;
-    rows.push(el('p','affair-note','The moot is sitting at the hall. '+sitting.attendees.length+' present, '+sitting.quorum+' needed. '+votes+' of '+expected+' ballots returned.'));
-  } else if (affairs.moot) rows.push(el('p','affair-note','The moot meets at the hall, '+date(affairs.moot)+' at '+time(affairs.moot)+'.'));
+    const current = el('p','affair-note');
+    current.append(link('The moot', mootLink(sitting.id ?? 'moot-' + sitting.at)), ' is sitting at the hall. '+sitting.attendees.length+
+      ' present, '+sitting.quorum+' needed. '+votes+' of '+expected+' ballots returned.');
+    rows.push(current);
+  } else if (affairs.moot != null) {
+    const scheduled = el('p','affair-note');
+    scheduled.append(link('The moot', mootLink('moot-' + affairs.moot)), ' meets at the hall, '+date(affairs.moot)+' at '+time(affairs.moot)+'.');
+    rows.push(scheduled);
+  }
   for(const work of affairs.works){
     const row=el('div','affair'), track=el('span','track'), fill=el('i');
     fill.style.width=Math.round(100*work.done/work.need)+'%'; track.append(fill);
@@ -313,7 +346,9 @@ function renderAffairs() {
     rows.push(row);
   }
   if (last) {
-    rows.push(el('h3', 'moot-heading', 'Last moot · '+date(last.at)));
+    const heading = el('h3', 'moot-heading');
+    heading.append(link('Last moot · '+date(last.at), mootLink(last.id ?? 'moot-' + last.at)));
+    rows.push(heading);
     rows.push(el('p', 'reason', last.attendees.length+' attended. Quorum was '+last.quorum+'.'));
     for (const item of last.items) {
       const result = item.status[0].toUpperCase()+item.status.slice(1);
@@ -344,19 +379,26 @@ function renderAffairs() {
 // the residents' own memories and are fetched only when the full chronicle asks for them.
 const notableEntry = e => (e.salience ?? 3) >= 3;
 const shown = (events, filter) => filter === 'highlights' ? events.filter(notableEntry) : events.filter(e => !filter || e.type === filter);
-let fuller = { filter: null, events: [], at: 0, loading: false };
+let fuller = { filter: null, events: [], version: null, loading: false };
 async function fullChronicle(filter) {
-  if (fuller.loading || (fuller.filter === filter && performance.now() - fuller.at < 5000)) return;
-  fuller.loading = true;
+  const version = state.eventVersion;
+  if (fuller.filter === filter && (fuller.loading || fuller.version === version)) return;
+  const reading = { filter, events: fuller.filter === filter ? fuller.events : [], version: null, loading: true };
+  fuller = reading;
   try {
     const res = await fetch('/api/events' + (filter ? '?type=' + encodeURIComponent(filter) : ''), { signal: AbortSignal.timeout(9000) });
-    if (res.ok) { fuller = { filter, events: await res.json(), at: performance.now(), loading: false }; render(); }
+    if (res.ok) {
+      const events = await res.json();
+      if (fuller !== reading) return;
+      Object.assign(reading, { events, version, loading: false });
+      render();
+    }
   } catch { /* The list keeps what it showed last. */ }
-  fuller.loading = false;
+  reading.loading = false;
 }
 // Turns the village to the spot where a chronicle entry happened, in whichever view is open.
 function locate(event) {
-  if (route !== 'village') { history.pushState(null, '', '#village/' + selected); navigate(); }
+  if (route !== 'village') { history.pushState(null, '', '#village' + (selected ? '/' + selected : '')); navigate(); }
   watch(false);
   if (viewMode === 'walk' && walk) { held = event; walk.hold(event); render(); }
   else map.focus(event);
@@ -374,10 +416,9 @@ function journal(target,events,withDay=false) {
     const row=el('div','journal-row'), entry=el('p');
     entry.append(el('span','kind kind-'+e.type,kinds[e.type]||e.type),document.createTextNode(e.text));
     if (e.requestId) {
-      const a = el('a', '', 'Request history');
-      a.href = '/requests.html?request=' + encodeURIComponent(e.requestId);
-      entry.append(' ', a);
+      entry.append(' ', link('Request history', promiseLink(e.requestId)));
     }
+    if (e.mootId) entry.append(' ', link('Moot record', mootLink(e.mootId)));
     if (e.place) {
       const where = el('button', 'where', 'Show where');
       where.type = 'button';
@@ -388,19 +429,41 @@ function journal(target,events,withDay=false) {
     if (e.account) entry.append(el('span','civic-account','Model-written account · '+e.account));
     // In the short list on the village page, an entry from an earlier day says so.
     const earlier = !withDay && state && formatDate(e.minute) !== formatDate(state.world.minute);
-    row.append(el('time','journal-time',(earlier ? formatDate(e.minute,'short')+' · ' : '')+time(e.minute)),entry);
+    const stamp = el('time','journal-time');
+    stamp.append(link((earlier ? formatDate(e.minute,'short')+' · ' : '')+time(e.minute),
+      dayLink(e.minute) + (notableEntry(e) ? '#event-' + e.id : '')));
+    row.append(stamp,entry);
     fragment.append(row);
   }
   if(!events.length)fragment.append(el('p','empty','Nothing of this kind in the latest 100 records.'));
   target.replaceChildren(fragment);
 }
+function residentDirectory() {
+  const homes = Object.values(state.locations).filter(p => housing(p.kind));
+  const former = state.world.departed ?? [];
+  const signature = JSON.stringify([homes, former]);
+  if (signature === directorySignature) return;
+  directorySignature = signature;
+  const entry = (name, address) => {
+    const row = el('li');
+    row.append(link(name, address));
+    return row;
+  };
+  $('household-directory').replaceChildren(...homes.map(home => entry(
+    ['New cottage', 'Empty cottage'].includes(home.name) ? home.name + ' ' + home.id.split('-').at(-1) : home.name,
+    householdLink(home.id))));
+  $('former-residents').hidden = !former.length;
+  $('former-directory').replaceChildren(...[...former].reverse().map(person =>
+    entry(person.name + ' · ' + formatDate(person.minute), residentLink({ ...person, left: person.minute }))));
+}
 function roster() {
-  const signature=state.actors.map(a=>[a.id,a.name,a.role,a.backstory,doing(a)]).join('|');
+  residentDirectory();
+  const signature=state.actors.map(a=>[a.id,a.arrived,a.name,a.role,a.backstory,doing(a)]).join('|');
   if(signature===rosterSignature)return;
   rosterSignature=signature;
   const cards=state.actors.map(a=>{
-    const card=el('article','resident-card'),btn=el('button','record-button','Follow');
-    btn.type='button'; btn.setAttribute('aria-label','Follow '+a.name+' in the village'); btn.addEventListener('click',()=>choose(a.id));
+    const card=el('article','resident-card'),btn=el('button','record-button','View in village');
+    btn.type='button'; btn.setAttribute('aria-label','View '+a.name+' in the village'); btn.addEventListener('click',()=>choose(a.id));
     card.append(who(a),el('p','card-doing',doing(a)),el('p','bio',a.backstory),btn);return card;
   });
   $('roster').replaceChildren(...cards);
@@ -412,6 +475,7 @@ function render() {
   $('summary').textContent={village:actors.length+' residents living and working in a medieval parish.',residents:'The people, trades, and households of Dalecrest.',chronicle:'What has happened lately: the latest 100 notable entries in the village records. Choose a kind to see routine as well.'}[route];
   // The clock gives the date in full, with its weekday where there is room.
   $('day').textContent=formatDate(world.minute, matchMedia('(max-width: 690px)').matches ? 'full' : 'long');
+  $('day').href=dayLink(world.minute);
   $('time').textContent=time(world.minute);
   $('clock').title='Day '+dateOf(world.minute).villageDay+' since Dalecrest was founded';
   // The season and the weather sit under the hour, and the mark beside them follows the sky.
@@ -420,12 +484,12 @@ function render() {
   $('weather').textContent=sky?sky.label:'';
   $('weather').title=sky?'About '+Math.round(sky.temp)+'°C as we would measure it':'';
   // What happened in the last hour and a half is pinned to the map where it happened.
-  const extras={coldHearths:world.coldHearths||[], events:shown(events,'highlights').filter(e=>e.place&&world.minute-e.minute<=90).slice(0,12)};
+  const extras = { world, coldHearths:world.coldHearths||[], events:shown(events,'highlights').filter(e=>e.place&&world.minute-e.minute<=90).slice(0,12)};
   // In the village the map is the page. Its title gives way and the clock moves onto the plate.
   $('page-title').hidden=route==='village';
   $('planner-status').textContent=planner.configured?'Village decisions · '+planner.state:'Village decisions · local rules';
   if(route==='village'){
-    const actor=actors.find(a=>a.id===selected)||actors[0]; selected=actor.id;
+    const actor=actors.find(a=>a.id===selected)||actors[0]; selected=actor?.id;
     $('watch').setAttribute('aria-pressed',String(watching)); $('watch').textContent=watching?'Watching':'Watch';
     document.querySelector('.map-key').hidden=viewMode!=='plan'||watching;
     const motionMs = frozen ? 0 : Math.max(1, state.tickDueAt - performance.now());
@@ -440,7 +504,7 @@ function render() {
         const at=state.locations[held.place.id]?.name;
         caption({kicker:(at?'At '+at:'Out of doors')+' · '+(formatDate(held.minute)===formatDate(world.minute)?'':date(held.minute)+', ')+time(held.minute),
           line:held.text, back:'Back to '+actor.name.split(' ')[0]});
-      } else caption({kicker:'Following',line:actor.name+' · '+doing(actor)});
+      } else caption(actor ? {kicker:'Following',line:actor.name+' · '+doing(actor)} : null);
     } else if(!loadingWalk) caption(watching&&scene?narration():null);
     renderProfile(actor);renderAffairs();
     $('map-count').textContent=actors.length+' residents';
@@ -462,10 +526,20 @@ function render() {
     else { fullChronicle(filter); if(fuller.filter===filter) journal($('all-events'),fuller.events,true); }
   }
 }
+function leaveMissingResident() {
+  const [, who] = location.hash.slice(1).split('/');
+  if (route !== 'village' || !who || !state || state.actors.some(actor => actor.id === who)) return false;
+  location.replace(residentLink({ id: who }) + '?latest=1');
+  return true;
+}
 function navigate(){
   // #village/agnes opens the village following Agnes.
-  const [key,who]=location.hash.slice(1).split('/');
+  const [key,who,record]=location.hash.slice(1).split('/');
   route=Object.hasOwn(names,key)?key:'village';
+  if (leaveMissingResident()) return;
+  if (route !== 'village') residentHeat.hide();
+  else if (record === 'heat' && who) tab = 'heat';
+  else if (tab === 'heat') tab = 'life';
   // An address that names a resident is a wish to follow them, so a watch gives way to it.
   if(who) { selected=who; if(watching) { watching=false; scene=null; director.reset(); map.watch(null); walk?.hold(null); } }
   for(const view of document.querySelectorAll('.view'))view.hidden=view.id!==route;
@@ -477,21 +551,52 @@ function navigate(){
   $('page-title').hidden=route==='village' && Boolean(state);
   render();
 }
-async function refresh(){
-  try{
-    const res=await fetch('/api/village?mapRevision='+(latest?.map.revision ?? -1),{signal:AbortSignal.timeout(9000)});
-    if(!res.ok)throw new Error();
-    const next=await res.json();
-    next.tickDueAt = performance.now() + next.nextTickInMs;
-    next.map ??= latest?.map;
-    if (!next.map || next.map.revision !== next.world.mapRevision) throw new Error('Village map revision mismatch');
-    latest=next;
-    $('connection').className='connection online';$('connection').replaceChildren(el('i'),document.createTextNode('World online'));
-    if(!frozen) displayLatest();
-  }catch{
-    $('connection').className='connection';$('connection').replaceChildren(el('i'),document.createTextNode('Reconnecting'));
-    if(!state)$('summary').textContent='Waiting for the village server. Reconnecting automatically…';
-  }finally{setTimeout(refresh,2500);}
+let stream, retry;
+function connection(online) {
+  const badge = $('connection'), text = online ? 'World online' : 'Reconnecting';
+  badge.classList.toggle('online', online);
+  if (badge.textContent !== text) badge.replaceChildren(el('i'), document.createTextNode(text));
+  if (!online && !state) $('summary').textContent = 'Waiting for the village server. Reconnecting automatically…';
+}
+function disconnect() {
+  clearTimeout(retry);
+  stream?.close();
+  stream = null;
+}
+function connect() {
+  if (stream) return;
+  const source = stream = new EventSource('/api/village/stream');
+  let ready = false;
+  function restart() {
+    disconnect();
+    connection(false);
+    retry = setTimeout(connect, 1800);
+  }
+  function receive(event) {
+    if (stream !== source) return;
+    const now = performance.now(), baseline = event.type === 'snapshot';
+    let next;
+    try {
+      const { state: payload, nextTickInMs } = JSON.parse(event.data);
+      if (!baseline && !ready) throw new Error('Missing village snapshot');
+      next = baseline ? payload : applyVillageChanges(latest, payload);
+      if (!next.map || next.map.revision !== next.world.mapRevision || !Number.isFinite(nextTickInMs)) throw new Error('Invalid village update');
+      if (sameGround(next.map, latest?.map)) next.map = latest.map;
+      next.tickDueAt = now + nextTickInMs;
+    } catch { restart(); return; }
+    latest = next;
+    ready = true;
+    connection(true);
+    if (!frozen) displayLatest();
+  }
+  source.addEventListener('snapshot', receive);
+  source.addEventListener('update', receive);
+  source.onerror = () => {
+    if (stream !== source) return;
+    ready = false;
+    connection(false);
+    if (source.readyState === EventSource.CLOSED) restart();
+  };
 }
 $('freeze').addEventListener('click',()=>{
   if(!state)return;
@@ -500,7 +605,14 @@ $('freeze').addEventListener('click',()=>{
   $('connection').title=frozen?'The view is paused. The village clock continues to run.':'';
   if(frozen) render(); else displayLatest();
 });
-for(const btn of document.querySelectorAll('[data-tab]'))btn.addEventListener('click',()=>{tab=btn.dataset.tab;render();});
+for(const btn of document.querySelectorAll('[data-tab]'))btn.addEventListener('click',()=>{
+  tab=btn.dataset.tab;
+  if (tab === 'heat' && selected) choose(selected);
+  else {
+    if (selected && location.hash.endsWith('/heat')) history.replaceState(null, '', '#village/' + selected);
+    render();
+  }
+});
 for(const btn of document.querySelectorAll('[data-view]'))btn.addEventListener('click',()=>show(btn.dataset.view));
 $('zoom-in').addEventListener('click',()=>map.zoom(1.4));
 $('zoom-out').addEventListener('click',()=>map.zoom(1/1.4));
@@ -508,7 +620,13 @@ $('zoom-home').addEventListener('click',()=>map.home());
 $('pick-resident').addEventListener('change',e=>choose(e.target.value));
 $('caption-back').addEventListener('click',()=>{release();render();});
 $('watch').addEventListener('click',()=>watch(!watching,true));
+bindVillageSound($('sound'), now => {
+  if (route !== 'village' || frozen) return null;
+  return (viewMode === 'walk' && walk?.soundScene(now)) || map.soundScene(now);
+});
 setInterval(direct,1000);
 $('event-type').addEventListener('change',render);
 window.addEventListener('hashchange',navigate);
-navigate();refresh();
+window.addEventListener('pagehide', disconnect);
+window.addEventListener('pageshow', connect);
+navigate();connect();

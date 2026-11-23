@@ -255,8 +255,10 @@ function closeMoot(state, emit, random) {
   world.moot = null;
   if (ids.length < moot.quorum && !moot.tries) {
     world.moot = { at: moot.at + 1440, tries: 1 };
-    emit('civic', 'Only ' + ids.length + ' came to the hall. The moot will meet again tomorrow evening.', ids, { mootId: moot.id }, 'hall');
-  } else if (!items.length) emit('civic', 'The moot met at the hall but found nothing left to settle.', ids, { mootId: moot.id }, 'hall');
+    emit('civic', 'Only ' + ids.length + ' came to the hall. The moot will meet again tomorrow evening.', ids,
+      { mootId: moot.id, civic: 'closing', status: 'postponed', quorum: moot.quorum }, 'hall');
+  } else if (!items.length) emit('civic', 'The moot met at the hall but found nothing left to settle.', ids,
+    { mootId: moot.id, civic: 'closing', status: ids.length < moot.quorum ? 'postponed' : 'resolved', quorum: moot.quorum }, 'hall');
 }
 
 // What is being built and debated, in words, for whoever shows the village to a visitor.
@@ -293,7 +295,8 @@ export function tick(state, emit, random, onMootInterruption, { externalBallots 
       let at = minute - day + 1110;
       if (at - minute < 90) at += 1440;
       world.moot = { at, tries: 0 };
-      emit('civic', 'Word goes round Dalecrest: a moot will meet at the hall ' + (at - minute < 720 ? 'this evening' : 'tomorrow evening') + '.');
+      emit('civic', 'Word goes round Dalecrest: a moot will meet at the hall ' + (at - minute < 720 ? 'this evening' : 'tomorrow evening') + '.',
+        [], { mootId: 'moot-' + at, civic: 'scheduled' });
     }
   }
   if (!world.moot) return;

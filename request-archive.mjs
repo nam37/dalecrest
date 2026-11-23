@@ -11,7 +11,7 @@ export const requestIndexes = `
 export const eventRequestKey = requestKey;
 
 const validName = value => /^[a-z0-9_-]{1,200}$/i.test(value);
-const validCursor = value => /^[1-9]\d{0,18}$/.test(value) && BigInt(value) <= 9223372036854775807n;
+export const validCursor = value => /^[1-9]\d{0,18}$/.test(value) && BigInt(value) <= 9223372036854775807n;
 
 function page(rows, key) {
   const items = rows.slice(0, pageSize);

@@ -2,12 +2,15 @@
 // seen from just behind whichever resident is selected.
 import * as THREE from '/vendor/three.module.min.js';
 import { heightAt, isWater, WATER_LEVEL } from '/engine/terrain.mjs';
-import { hash2, rng, fbm, TAU } from '/engine/geom.mjs';
+import { hash2, rng, fbm, rectPoly, TAU } from '/engine/geom.mjs';
 import { createMotion } from '/motion.js';
-import { villageColors, chains } from '/map.js';
+import { chains } from '/map.js';
 import { makeFigure, poseFigure } from '/figure.js';
 import { light, hearths, indoors, yearLook, skyOver, blend } from '/ambient.js';
 import { kinds } from '/card.js';
+import { animalCoats, animalPose, fenceSpans, logsIn, parishLayout, strayCattle, workHeading } from './parish.js';
+import { residentActivity } from './resident-pose.js';
+import { sameGround } from './village-update.js';
 
 const roofs = ['#a57456', '#a88c5d', '#aa7352', '#90907a', '#9c8259', '#b19769', '#a17c58', '#a96e50'];
 const fieldTones = ['#c4b77e', '#cbbd87', '#c4b07c', '#b9b18a', '#c7bc8c', '#c9b67c'];
@@ -25,6 +28,41 @@ function box(w, h, d, color, x = 0, y = 0, z = 0) {
   const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(color));
   m.position.set(x, y, z); m.castShadow = m.receiveShadow = true;
   return m;
+}
+
+const animalShape = new THREE.SphereGeometry(1, 8, 6);
+
+function makeAnimal(kind, coat) {
+  const cow = kind === 'cattle', animal = new THREE.Group(), head = new THREE.Group();
+  const wool = animalCoats[kind][coat], face = cow ? '#745038' : '#655746';
+  function oval(parent, color, [x, y, z], [w, h, d]) {
+    const m = new THREE.Mesh(animalShape, mat(color));
+    m.position.set(x, y, z); m.scale.set(w, h, d); m.castShadow = true;
+    parent.add(m);
+  }
+  oval(animal, wool, [0, 0.209, 0], [0.179, 0.094, 0.096]);
+  if (cow) oval(animal, blend(wool, '#674630', 0.64), [-0.078, 0.225, 0], [0.087, 0.084, 0.095]);
+  else oval(animal, blend(wool, '#fff6d9', 0.4), [-0.035, 0.251, 0], [0.144, 0.062, 0.086]);
+  oval(animal, face, [-0.169, 0.213, 0], [0.046, 0.023, 0.027]);
+  head.position.set(0.133, 0.233, 0);
+  oval(head, face, [0.053, 0.022, 0], [0.062, 0.052, 0.048]);
+  oval(head, cow ? '#a08270' : face, [0.094, 0.005, 0], [0.035, 0.028, 0.043]);
+  for (const side of [-1, 1]) {
+    oval(head, face, [0.029, 0.048, side * 0.048], [0.022, 0.013, 0.026]);
+    if (cow) oval(head, '#ead4a2', [0.037, 0.063, side * 0.045], [0.014, 0.023, 0.012]);
+  }
+  animal.add(head);
+  const legs = [];
+  for (const x of [-0.105, 0.103]) {
+    for (const z of [-0.06, 0.06]) {
+      const leg = new THREE.Group();
+      leg.position.set(x, 0.15, z);
+      leg.add(box(0.031, 0.145, 0.033, face, 0, -0.072, 0));
+      animal.add(leg); legs.push(leg);
+    }
+  }
+  if (cow) animal.scale.set(1.8, 1.62, 1.48);
+  return { animal, head, legs };
 }
 // A gable roof with its ridge along x, eaves at y = 0.
 function gable(w, d, rise, over = 0.16) {
@@ -93,8 +131,10 @@ function noteSprite(events) {
 }
 function dispose(group) {
   group.traverse(o => {
-    if (o.geometry !== contactGeo) o.geometry?.dispose();
     if (o.isSprite) { o.material.map?.dispose(); o.material.dispose(); }
+    else if (o.geometry !== contactGeo && o.geometry !== animalShape) o.geometry?.dispose();
+    if (o.isInstancedMesh) o.dispose();
+    if (o.isLine) o.material.dispose();
   });
   group.clear();
 }
@@ -269,11 +309,12 @@ export function createWalk(container, onSelect, onNote) {
   let marks = [], postedKey = '', hold = null;
 
   const motion = createMotion();
-  const figures = new Map(), wheels = [];
+  const figures = new Map(), scenery = new Map(), wheels = [];
   let solids = [], grid = null, shadowSpan = 0;
-  let map = null, terrainSeed = null, actors = [], selectedId = null, active = false, frame = 0, last = 0, clock = 600;
+  let map = null, actors = [], selectedId = null, active = false, frame = 0, last = 0, clock = 600;
   // The weather now, the houses with no fire today, and the parts of the scene the season recolours.
-  let wx = null, cold = [], seasonKey = '';
+  let wx = null, cold = [], seasonKey = '', landSeasonKey = '', world = null, parish = null, cattle = [];
+  const piles = [], sheepModels = [], cattleModels = [];
   const dressed = { land: null, base: null, wet: null, fields: [], green: null, crowns: null, crownTones: [], cones: null, coneTones: [] };
   // Rain is drawn as short falling strokes and snow as drifting points, both in a box that travels with the camera.
   const DROPS = 900, FLAKES = 1100, SPAN = 26, TALL = 16;
@@ -300,6 +341,7 @@ export function createWalk(container, onSelect, onNote) {
   }
 
   function buildLand() {
+    for (const child of land.children) child.material.dispose();
     dispose(land);
     const margin = 64, cell = 1.5, nx = Math.ceil((map.w + margin * 2) / cell), nz = Math.ceil((map.h + margin * 2) / cell);
     grid = { margin, cell, nx, nz, y: new Float32Array((nx + 1) * (nz + 1)) };
@@ -328,7 +370,7 @@ export function createWalk(container, onSelect, onNote) {
     const ground = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }));
     ground.receiveShadow = true;
     land.add(ground);
-    dressed.land = ground; dressed.base = col.slice(); dressed.wet = grid.y.map(y => y < WATER_LEVEL ? 1 : 0); seasonKey = '';
+    dressed.land = ground; dressed.base = col.slice(); dressed.wet = grid.y.map(y => y < WATER_LEVEL ? 1 : 0); landSeasonKey = '';
     // The river is a ribbon just below the banks.
     const river = map.terrain.river, half = map.terrain.riverWidth / 2 + 1.4, wp = [], wi = [];
     for (let i = 0; i < river.length; i++) {
@@ -380,7 +422,7 @@ export function createWalk(container, onSelect, onNote) {
     m.receiveShadow = true;
     return m;
   }
-  let furrows = null;
+  let furrows = null, gardenMaterial = null;
   function furrowTexture() {
     if (furrows) return furrows;
     const canvas = document.createElement('canvas'); canvas.width = 8; canvas.height = 64;
@@ -391,63 +433,188 @@ export function createWalk(container, onSelect, onNote) {
     return furrows;
   }
 
-  function buildVillage() {
-    dispose(built); dispose(names); wheels.length = 0; postedKey = '';
-    // Clearing the place names also took the residents' names down, so those go back up.
-    for (const f of figures.values()) names.add(f.userData.label);
-    dressed.fields = []; dressed.crownTones = []; dressed.coneTones = []; seasonKey = '';
+  function buildGarden(garden) {
+    const group = new THREE.Group();
+    const bed = draped(garden, '#acaf77', 0.02);
+    if (!gardenMaterial) {
+      gardenMaterial = bed.material.clone();
+      gardenMaterial.map = furrowTexture();
+    }
+    bed.material = gardenMaterial;
+    group.add(bed);
+    const posts = new Set();
+    for (const [a, b] of fenceSpans(garden)) {
+      const [x, z] = a, [bx, bz] = b, y = ground(x, z), by = ground(bx, bz);
+      const level = Math.hypot(bx - x, bz - z);
+      const span = new THREE.Group();
+      span.position.set((x + bx) / 2, (y + by) / 2, (z + bz) / 2);
+      span.rotation.y = -Math.atan2(bz - z, bx - x);
+      for (const h of [0.14, 0.29]) {
+        const rail = box(Math.hypot(level, by - y), 0.042, 0.052, '#9b7850', 0, h, 0);
+        rail.rotation.z = Math.atan2(by - y, level);
+        span.add(rail);
+      }
+      group.add(span);
+      for (const [px, pz, py] of [[x, z, y], [bx, bz, by]]) {
+        const key = px.toFixed(3) + ',' + pz.toFixed(3);
+        if (posts.has(key)) continue;
+        posts.add(key);
+        group.add(box(0.071, 0.39, 0.071, '#745737', px, py + 0.185, pz));
+      }
+    }
+    return group;
+  }
+
+  function buildPile(pile) {
+    const stack = new THREE.Group();
+    stack.position.set(pile.x, ground(pile.x, pile.y), pile.y);
+    stack.rotation.y = -pile.a;
+    for (const { u, v, height, length, radius } of pile.logs) {
+      const log = new THREE.Mesh(new THREE.CylinderGeometry(radius * 0.92, radius, length, 7),
+        [mat('#805b3e'), mat('#c9a575'), mat('#b28a61')]);
+      log.position.set(u, height, v); log.rotation.z = Math.PI / 2;
+      log.castShadow = log.receiveShadow = true;
+      stack.add(log);
+    }
+    return stack;
+  }
+
+  function updateParish() {
+    if (!map) return;
+    cattle = strayCattle(map, world);
+    for (const { pile, stack } of piles) {
+      const count = logsIn(pile, world);
+      stack.children.forEach((log, index) => { log.visible = index < count; });
+    }
+  }
+
+  function moveAnimals(models, animals, time) {
+    models.forEach(({ animal, head, legs }, index) => {
+      const spec = animals[index];
+      animal.visible = Boolean(spec);
+      if (!spec) return;
+      const pose = animalPose(spec, time);
+      animal.position.set(pose.x, ground(pose.x, pose.y), pose.y);
+      animal.rotation.y = -pose.heading;
+      head.position.y = 0.233 - pose.graze * 0.073;
+      head.rotation.z = -pose.graze * 1.24;
+      legs.forEach((leg, i) => { leg.rotation.z = pose.stride * (i === 0 || i === 3 ? 0.32 : -0.32); });
+    });
+  }
+
+  function removeScenery(key, entry) {
+    for (const object of [entry.object, entry.label]) {
+      if (!object) continue;
+      object.removeFromParent();
+      dispose(object);
+    }
+    for (const material of entry.materials ?? []) material.dispose();
+    scenery.delete(key);
+  }
+
+  function bridge(A, B) {
+    const len = Math.hypot(B[0] - A[0], B[1] - A[1]), angle = Math.atan2(B[1] - A[1], B[0] - A[0]);
+    const span = new THREE.Group();
+    span.position.set((A[0] + B[0]) / 2, 0.2, (A[1] + B[1]) / 2); span.rotation.y = -angle;
+    span.add(box(len + 0.8, 0.1, 1.3, '#a98c63', 0, 0, 0), box(len + 0.8, 0.07, 0.07, '#6b5a43', 0, 0.36, 0.62), box(len + 0.8, 0.07, 0.07, '#6b5a43', 0, 0.36, -0.62));
+    for (const x of [-len / 2, -len / 6, len / 6, len / 2]) {
+      for (const z of [0.62, -0.62]) span.add(box(0.09, 1.1, 0.09, '#6b5a43', x, -0.15, z));
+    }
+    return span;
+  }
+
+  function placeScenery(p) {
+    const entry = {};
+    if (p.kind === 'green') {
+      const m = draped({ ...p, w: p.rx * 2, d: p.ry * 2 }, '#b3c08a', 0.012);
+      m.material = m.material.clone();
+      Object.assign(entry, { object: m, green: m, materials: [m.material] });
+      const pos = m.geometry.attributes.position, c = Math.cos(p.a), s = Math.sin(p.a);
+      // Pull the corners of the draped sheet in to an ellipse.
+      for (let i = 0; i < pos.count; i++) {
+        const dx = pos.getX(i) - p.x, dz = pos.getZ(i) - p.y, u = (dx * c + dz * s) / p.rx, v = (-dx * s + dz * c) / p.ry, r = Math.hypot(u, v);
+        if (r > 1) { const x = p.x + (u / r * p.rx) * c - (v / r * p.ry) * s, z = p.y + (u / r * p.rx) * s + (v / r * p.ry) * c; pos.setXYZ(i, x, ground(x, z) + 0.012, z); }
+      }
+    } else if (p.kind === 'field') {
+      if (p.stage === 0) {
+        const group = new THREE.Group();
+        for (const [x, z] of rectPoly(p)) group.add(box(0.06, 0.4, 0.06, '#7a6548', x, ground(x, z) + 0.2, z));
+        entry.object = group;
+      } else {
+        const tone = p.stage === 1 ? '#b9a67c' : fieldTones[tag(p.id) % fieldTones.length];
+        const mesh = draped(p, tone, 0.016, p.stage === 2 ? furrowTexture() : null);
+        entry.object = mesh;
+        if (p.stage === 2) Object.assign(entry, { field: { mesh, tone }, materials: [mesh.material] });
+      }
+    } else if (p.kind !== 'wood' && p.kind !== 'fishing') {
+      entry.object = buildPlace(p, map, glow);
+      entry.wheel = entry.object.userData.wheel;
+    }
+    if (p.name && p.kind !== 'field' && p.kind !== 'wood' && p.kind !== 'green') {
+      const sprite = textSprite(p.stage < 2 ? p.name + ' (building)' : p.name);
+      const labelHeight = p.kind === 'fishing' ? 0.8 : p.kind === 'well' ? 1.5 : 2.3;
+      sprite.position.set(p.x, heightAt(map, p.x, p.y) + labelHeight, p.y);
+      sprite.userData.reach = 46; sprite.userData.size = 0.34;
+      entry.label = sprite;
+    }
+    return entry;
+  }
+
+  function updateScenery() {
+    const live = new Set();
+    function reuse(key, data, build) {
+      live.add(key);
+      const signature = JSON.stringify(data), before = scenery.get(key);
+      if (before?.signature === signature) return before;
+      if (before) removeScenery(key, before);
+      const entry = { ...build(), signature };
+      if (entry.object) { entry.object.name = key; built.add(entry.object); }
+      if (entry.label) names.add(entry.label);
+      scenery.set(key, entry);
+      return entry;
+    }
+    wheels.length = piles.length = 0;
+    dressed.fields = []; dressed.green = null; seasonKey = '';
+    parish = parishLayout(map);
     solids = map.places.filter(p => p.w && p.kind !== 'field' && p.stage === 2).map(p => ({
       id: p.id, x: p.x, y: p.y, c: Math.cos(p.a), s: Math.sin(p.a), hw: p.w / 2 + 0.3, hd: p.d / 2 + 0.3, top: heightAt(map, p.x, p.y) + 1.75,
     }));
-    for (const way of chains(map)) {
-      const pts = way.pts;
-      built.add(ribbon(pts, WIDTH[way.kind], way.kind === 'road' ? '#dccaa2' : way.kind === 'lane' ? '#d6c39b' : '#cbbb92', way.kind === 'road' ? 0.022 : way.kind === 'lane' ? 0.02 : 0.016));
+    for (const { pts, kind, road } of chains(map)) {
+      const id = road >= 0 ? road : kind + ':' + pts.join(':');
+      reuse('way:' + id, { pts, kind }, () => ({ object: ribbon(pts, WIDTH[kind], kind === 'road' ? '#dccaa2' : kind === 'lane' ? '#d6c39b' : '#cbbb92',
+        kind === 'road' ? 0.022 : kind === 'lane' ? 0.02 : 0.016) }));
     }
     for (const [a, b, kind] of map.edges) {
       if (kind !== 'bridge') continue;
-      const A = map.nodes[a], B = map.nodes[b], len = Math.hypot(B[0] - A[0], B[1] - A[1]), angle = Math.atan2(B[1] - A[1], B[0] - A[0]);
-      const span = new THREE.Group();
-      span.position.set((A[0] + B[0]) / 2, 0.2, (A[1] + B[1]) / 2); span.rotation.y = -angle;
-      span.add(box(len + 0.8, 0.1, 1.3, '#a98c63', 0, 0, 0), box(len + 0.8, 0.07, 0.07, '#6b5a43', 0, 0.36, 0.62), box(len + 0.8, 0.07, 0.07, '#6b5a43', 0, 0.36, -0.62));
-      for (let x = -len / 2; x <= len / 2 + 0.01; x += len / 3) for (const z of [0.62, -0.62]) span.add(box(0.09, 1.1, 0.09, '#6b5a43', x, -0.15, z));
-      built.add(span);
+      const A = map.nodes[a], B = map.nodes[b];
+      reuse('bridge:' + a + ':' + b, [A, B], () => ({ object: bridge(A, B) }));
     }
     for (const p of map.places) {
-      if (p.kind === 'green') {
-        const disc = { x: p.x, y: p.y, w: p.rx * 2, d: p.ry * 2, a: p.a };
-        // The green and each field get a material of their own, so the season can recolour them.
-        const m = draped(disc, '#b3c08a', 0.012);
-        m.material = m.material.clone(); dressed.green = m;
-        const pos = m.geometry.attributes.position, c = Math.cos(p.a), s = Math.sin(p.a);
-        // Pull the corners of the draped sheet in to an ellipse.
-        for (let i = 0; i < pos.count; i++) {
-          const dx = pos.getX(i) - p.x, dz = pos.getZ(i) - p.y, u = (dx * c + dz * s) / p.rx, v = (-dx * s + dz * c) / p.ry, r = Math.hypot(u, v);
-          if (r > 1) { const x = p.x + (u / r * p.rx) * c - (v / r * p.ry) * s, z = p.y + (u / r * p.rx) * s + (v / r * p.ry) * c; pos.setXYZ(i, x, ground(x, z) + 0.012, z); }
-        }
-        built.add(m);
-      } else if (p.kind === 'field') {
-        if (p.stage === 0) {
-          const c = Math.cos(p.a), s = Math.sin(p.a);
-          for (const [u, v] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { const x = p.x + u * p.w / 2 * c - v * p.d / 2 * s, z = p.y + u * p.w / 2 * s + v * p.d / 2 * c; built.add(box(0.06, 0.4, 0.06, '#7a6548', x, ground(x, z) + 0.2, z)); }
-        } else {
-          const tone = p.stage === 1 ? '#b9a67c' : fieldTones[tag(p.id) % fieldTones.length];
-          const m = draped(p, tone, 0.016, p.stage === 2 ? furrowTexture() : null);
-          if (p.stage === 2) { m.material = m.material.clone(); dressed.fields.push({ mesh: m, tone }); }
-          built.add(m);
-        }
-      } else if (p.kind !== 'wood' && p.kind !== 'fishing') {
-        const g = buildPlace(p, map, glow);
-        if (g.userData.wheel) wheels.push(g.userData.wheel);
-        built.add(g);
-      }
-      if (p.name && p.kind !== 'field' && p.kind !== 'wood' && p.kind !== 'green') {
-        const sprite = textSprite(p.stage < 2 ? p.name + ' (building)' : p.name);
-        const labelHeight = p.kind === 'fishing' ? 0.8 : p.kind === 'well' ? 1.5 : 2.3;
-        sprite.position.set(p.x, heightAt(map, p.x, p.y) + labelHeight, p.y);
-        sprite.userData.reach = 46; sprite.userData.size = 0.34;
-        names.add(sprite);
-      }
+      const { green, field, wheel } = reuse('place:' + p.id, p, () => placeScenery(p));
+      if (green) dressed.green = green;
+      if (field) dressed.fields.push(field);
+      if (wheel) wheels.push(wheel);
     }
+    for (const garden of parish.gardens) reuse('garden:' + garden.id, garden, () => ({ object: buildGarden(garden) }));
+    for (const pile of parish.piles) {
+      const { object: stack } = reuse('pile:' + pile.id, pile, () => ({ object: buildPile(pile) }));
+      piles.push({ pile, stack });
+    }
+    for (const { kind, coat } of parish.sheep.slice(sheepModels.length)) {
+      const model = makeAnimal(kind, coat);
+      sheepModels.push(model); built.add(model.animal);
+    }
+    while (cattleModels.length < animalCoats.cattle.length) {
+      const model = makeAnimal('cattle', cattleModels.length);
+      cattleModels.push(model); built.add(model.animal);
+    }
+    reuse('trees', map.trees, buildTrees);
+    for (const [key, entry] of scenery) if (!live.has(key)) removeScenery(key, entry);
+    updateParish();
+    post();
+  }
+
+  function buildTrees() {
     // Trees, with a ring of distant woods beyond the mapped parish so the horizon is not bare.
     const trees = map.trees.slice(), rand = rng(map.seed + 41);
     for (let i = 0; i < 2600; i++) {
@@ -463,6 +630,7 @@ export function createWalk(container, onSelect, onNote) {
     const cones = new THREE.InstancedMesh(pineGeo, new THREE.MeshLambertMaterial({ flatShading: true }), piney.length);
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), sc = new THREE.Vector3(), tint = new THREE.Color();
     const up = new THREE.Vector3(0, 1, 0);
+    dressed.crownTones = []; dressed.coneTones = [];
     let li = 0, pi = 0;
     trees.forEach(([x, z, r, pine], i) => {
       const y = ground(x, z), k = hash2(map.seed, x * 10, z * 10);
@@ -479,7 +647,9 @@ export function createWalk(container, onSelect, onNote) {
       }
     });
     dressed.crowns = crowns; dressed.cones = cones;
-    for (const mesh of [trunks, crowns, cones]) { mesh.castShadow = true; mesh.receiveShadow = true; mesh.frustumCulled = false; built.add(mesh); }
+    const group = new THREE.Group();
+    for (const mesh of [trunks, crowns, cones]) { mesh.castShadow = true; mesh.receiveShadow = true; mesh.frustumCulled = false; group.add(mesh); }
+    return { object: group, materials: [crowns.material, cones.material] };
   }
 
   // A spot inside a building is shown at its door, where a staff can stand and be seen.
@@ -498,10 +668,13 @@ export function createWalk(container, onSelect, onNote) {
       if (spot) spot.events = [...spot.events, ...m.events].sort((a, b) => b.minute - a.minute).slice(0, 3);
       else spots.push({ key, x, z, id: m.id, events: m.events.slice() });
     }
-    const key = spots.map(s => s.key + ':' + s.events.map(e => e.id).join('.')).join('|');
+    const key = JSON.stringify(spots);
     if (key === postedKey) return;
     postedKey = key;
-    for (const g of posted.children) { const note = g.userData.note; note.material.map.dispose(); note.material.dispose(); g.userData.ripple.material.dispose(); }
+    for (const g of posted.children) {
+      const { staff, note, ripple } = g.userData;
+      staff.geometry.dispose(); note.material.map.dispose(); note.material.dispose(); ripple.material.dispose();
+    }
     posted.clear();
     for (const s of spots) {
       const g = new THREE.Group(), staff = box(0.03, 0.84, 0.03, '#5f4e39', 0, 0.42, 0), pennant = new THREE.Mesh(pennantGeo, rust);
@@ -511,7 +684,7 @@ export function createWalk(container, onSelect, onNote) {
       const note = noteSprite(s.events);
       note.position.y = 0.95;
       g.position.set(s.x, ground(s.x, s.z), s.z);
-      g.userData = { ...s, note, pennant, ripple, newest: s.events[0].minute };
+      g.userData = { ...s, staff, note, pennant, ripple, newest: s.events[0].minute };
       g.add(staff, pennant, ripple, note);
       posted.add(g);
     }
@@ -521,7 +694,8 @@ export function createWalk(container, onSelect, onNote) {
   function dress() {
     const year = yearLook(clock), snow = Math.round(wx.lying * 4) / 4, WHITE = '#f4f5f2';
     const snowed = (hex, k = 0.85) => snow ? blend(hex, WHITE, snow * k) : hex;
-    if (dressed.land) {
+    if (dressed.land && landSeasonKey !== seasonKey) {
+      landSeasonKey = seasonKey;
       const colors = dressed.land.geometry.attributes.color, a = colors.array, base = dressed.base;
       const dull = new THREE.Color('#b3ab84'), white = new THREE.Color(WHITE), c = new THREE.Color();
       for (let i = 0; i < a.length; i += 3) {
@@ -533,6 +707,7 @@ export function createWalk(container, onSelect, onNote) {
     }
     dressed.green?.material.color.set(snowed(blend('#b9b48c', '#b3c08a', year.lush)));
     for (const { mesh, tone } of dressed.fields) mesh.material.color.set(snowed(blend(year.barley, tone, 0.28)));
+    gardenMaterial?.color.set(snowed(blend('#ad9270', '#acaf77', year.lush)));
     for (const [material, base] of roofed) material.color.set(snowed(base, 0.8));
     // Out of leaf, a crown is a head of bare twigs.
     dressed.crownTones.forEach(([green, russet, when], i) => {
@@ -677,12 +852,12 @@ export function createWalk(container, onSelect, onNote) {
       // Someone at home is indoors. Their smoke and lit window stand in for them.
       f.visible = !indoors(actor);
       f.userData.label.userData.hidden = !f.visible && actor.id !== selectedId;
-      const working = !p.moving && actor.action.phase === 'working' && actor.action.kind === 'work';
-      const job = working && actor.action.job === 'fish' && !actor.action.cast ? 'bait' : actor.action.job;
-      let turn = -(working && job === 'fish' ? 0 : p.heading) - f.rotation.y;
+      const activity = residentActivity(actor, p.moving);
+      const heading = activity.working && activity.job === 'fish' ? 0 : workHeading(p, activity, parish.common);
+      let turn = -heading - f.rotation.y;
       turn = Math.atan2(Math.sin(turn), Math.cos(turn));
       f.rotation.y += turn * Math.min(1, dt * 8);
-      poseFigure(f, { moving: p.moving, gone: p.gone, now, dt, kind: actor.action.kind, job, working });
+      poseFigure(f, { ...activity, moving: p.moving, gone: p.gone, now, dt, still: calm.matches });
       f.userData.label.position.set(x, y + 0.56 + (crowd.size % 2) * 0, z);
       f.userData.label.userData.always = actor.id === selectedId;
       if (actor.id === selectedId) followed = { x, y, z, heading: p.heading, moving: p.moving, at: p.moving ? null : actor.action.target };
@@ -754,6 +929,9 @@ export function createWalk(container, onSelect, onNote) {
       ripple.visible = beat >= 0;
       if (ripple.visible) { ripple.scale.setScalar(0.25 + beat * 0.9); ripple.material.opacity = 0.75 * (1 - beat); }
     }
+    const animalTime = calm.matches ? 0 : now;
+    moveAnimals(sheepModels, parish.sheep, animalTime);
+    moveAnimals(cattleModels, cattle, animalTime);
     for (const wheel of wheels) wheel.rotation.z += dt * 0.7 * wheel.userData.spin;
     sky(now, dt);
     renderer.render(scene, camera);
@@ -833,14 +1011,22 @@ export function createWalk(container, onSelect, onNote) {
 
   return {
     setMap(next) {
-      const fresh = terrainSeed !== next.seed;
-      map = next; terrainSeed = next.seed;
-      if (fresh) buildLand();
-      buildVillage();
+      if (sameGround(map, next)) return;
+      const newTerrain = !map || map.seed !== next.seed || map.w !== next.w || map.h !== next.h
+        || JSON.stringify(map.terrain) !== JSON.stringify(next.terrain);
+      map = next;
+      if (newTerrain) {
+        for (const [key, entry] of scenery) removeScenery(key, entry);
+        buildLand();
+        postedKey = '';
+      }
+      updateScenery();
       start();
     },
     update(rows, id, minute, motionMs, extras) {
       cold = extras?.coldHearths || [];
+      world = extras?.world;
+      updateParish();
       actors = (rows || []).filter(a => Number.isFinite(a.position?.x));
       motion.update(actors, performance.now(), motionMs, extras?.liveTick);
       // extras.events are the latest chronicle entries that have a place, newest first, as on the map.
@@ -858,6 +1044,12 @@ export function createWalk(container, onSelect, onNote) {
       if (Number.isFinite(minute)) clock = minute;
     },
     setActive(on) { active = on; if (on) { resize(); start(); } },
+    soundScene(now) {
+      if (!active || !map || !wx || !look.ready) return null;
+      const radius = Math.min(37, 6 + 0.66 * (look.reach ?? look.dist));
+      return { map, weather: wx, actors, cattle, sheep: parish.sheep, moving: id => motion.at(id, now)?.moving,
+        listener: { x: look.target.x, y: look.target.z, rightX: Math.sin(look.yaw), rightY: -Math.cos(look.yaw), radius } };
+    },
     // Holds the view on the place of a chronicle entry, or on any { place: { x, y, id } }, until it is
     // let go with hold(null). from gives a distance and a tilt to stand off at.
     hold(event, from) {
@@ -882,7 +1074,9 @@ export function createWalk(container, onSelect, onNote) {
     destroy() {
       active = false; cancelAnimationFrame(frame); observer.disconnect();
       document.removeEventListener('visibilitychange', visible);
-      dispose(scene); renderer.dispose(); canvas.remove();
+      for (const [key, entry] of scenery) removeScenery(key, entry);
+      for (const child of land.children) child.material.dispose();
+      dispose(scene); gardenMaterial?.dispose(); furrows?.dispose(); renderer.dispose(); canvas.remove();
     },
   };
 }

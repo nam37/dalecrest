@@ -6,12 +6,12 @@
 </head><body>
   <header class="masthead"><div class="mast-inner">
     <a href="#village" class="wordmark"><img src="/crest.svg" width="36" height="40" alt="">Dalecrest</a>
-    <nav aria-label="Observatory"><a href="#village">Village</a><a href="#residents">Residents</a><a href="#chronicle">Chronicle</a><a href="/daily.html">Dalecrest Daily</a><a href="/atlas.html">Sandbox</a></nav>
+    <nav aria-label="Observatory"><a href="#village">Village</a><a href="#residents">Residents</a><a href="#chronicle">Chronicle</a><a href="/following.html">Following</a><a href="/growth.html">Growth</a><a href="/daily.html">Dalecrest Daily</a><a href="/atlas.html">Sandbox</a></nav>
     <span id="connection" class="connection"><i></i> Connecting</span>
   </div></header>
   <main>
     <div class="page-title" id="page-title"><div><h1 id="title">Village observatory</h1><p id="summary">Opening the village records…</p></div>
-      <div id="title-clock"><div class="clock" id="clock"><span class="sun" id="orb" aria-hidden="true">☼</span><div><span id="day">—</span><strong id="time">—</strong><span id="weather" class="weather"></span></div></div></div>
+      <div id="title-clock"><div class="clock" id="clock"><span class="sun" id="orb" aria-hidden="true">☼</span><div><a id="day">—</a><strong id="time">—</strong><span id="weather" class="weather"></span></div></div></div>
     </div>
     <section id="village" class="view">
       <div class="village-layout">
@@ -23,6 +23,7 @@
               <div class="view-switch" role="group" aria-label="How to view the village"><button type="button" data-view="plan" aria-pressed="true">Map</button><button type="button" data-view="walk" aria-pressed="false">Walk</button></div>
               <button class="view-toggle" id="watch" type="button" aria-pressed="false" title="Let the view go to whoever is in the middle of something.">Watch</button>
               <button class="view-toggle" id="freeze" type="button" aria-pressed="false" title="Hold this view still. The village carries on.">Pause</button>
+              <button class="view-toggle" id="sound" type="button" aria-pressed="false" title="Play ambient village sound.">Sound</button>
             </div>
             <div class="map-zoom"><button type="button" id="zoom-in" aria-label="Zoom in">+</button><button type="button" id="zoom-out" aria-label="Zoom out">−</button><button type="button" id="zoom-home" aria-label="Show the whole village">⌂</button></div>
             <div id="caption" class="scene-caption" hidden aria-live="polite"><div class="eyebrow" id="caption-kicker"></div><p id="caption-line"></p><p id="caption-why" class="reason"></p><button type="button" id="caption-back" class="where" hidden></button></div>
@@ -31,7 +32,7 @@
         </article>
         <aside class="resident-panel"><div class="panel-head"><h2>Resident</h2><select id="pick-resident" aria-label="Inspect resident"></select></div>
           <div id="profile"></div>
-          <div class="tabs" aria-label="Resident record views"><button data-tab="life" aria-pressed="true">Life</button><button data-tab="memory" aria-pressed="false">Memory</button><button data-tab="data" aria-pressed="false">Data</button></div>
+          <div class="tabs" aria-label="Resident record views"><button data-tab="life" aria-pressed="true">Life</button><button data-tab="memory" aria-pressed="false">Memory</button><button data-tab="heat" aria-pressed="false">Heat map</button><button data-tab="data" aria-pressed="false">Data</button></div>
           <div id="detail"></div>
         </aside>
       </div>
@@ -41,7 +42,11 @@
           <section class="stores affairs"><div class="section-title"><h2>Village affairs</h2></div><div id="affairs"></div></section></div>
       </div>
     </section>
-    <section id="residents" class="view" hidden><div id="roster" class="roster"></div></section>
+    <section id="residents" class="view" hidden>
+      <div id="roster" class="roster"></div>
+      <section class="journal-preview resident-directory"><h2>Households</h2><ul id="household-directory"></ul></section>
+      <details class="journal-preview resident-directory" id="former-residents" hidden><summary>Former residents</summary><ul id="former-directory"></ul></details>
+    </section>
     <section id="chronicle" class="view" hidden><div class="chronicle-head"><a href="/requests.html">Help request archive</a><label>Show <select id="event-type"><option value="highlights">Highlights</option><option value="">Everything</option><option value="social">Encounters</option><option value="work">Work</option><option value="meal">Meals</option><option value="plan">Resident decisions</option><option value="civic">Village affairs</option><option value="build">Building</option><option value="arrival">Arrivals</option><option value="life">Lives</option><option value="visit">Visitors</option><option value="storm">Weather</option><option value="feast">Feast days</option><option value="intention">In their own words</option><option value="goal">Goals</option><option value="fieldnote">Robin’s notebook</option><option value="village">Village life</option></select></label></div><div id="all-events"></div></section>
     <footer><span>Dalecrest village records</span><span id="planner-status"></span></footer>
   </main>

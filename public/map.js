@@ -5,8 +5,14 @@ import { rectPoly, rng, hash2, TAU } from '/engine/geom.mjs';
 import { createMotion } from '/motion.js';
 import { light, hearths, indoors, yearLook, skyOver, blend } from '/ambient.js';
 
+import { drawMapFigure } from './map-figure.js';
+import { drawAnimal, drawGarden, drawWoodpile } from './map-parish.js';
+import { parishLayout, strayCattle, workHeading } from './parish.js';
+import { residentActivity } from './resident-pose.js';
+
+export { villageColors } from './resident-pose.js';
+
 const ink = '#524d3b', ground = '#cdd6a4';
-export const villageColors = ['#976048', '#65785a', '#b27a4b', '#537470', '#797291', '#856144', '#527997', '#957050'];
 const roofs = ['#a57456', '#a88c5d', '#aa7352', '#90907a', '#9c8259', '#b19769', '#a17c58', '#a96e50'];
 const fieldTones = ['#c4b77e', '#cbbd87', '#c4b07c', '#b9b18a', '#c7bc8c', '#c9b67c'];
 const leaf = ['#74935f', '#7f9d66', '#8ca872', '#688858'], needle = ['#577a5c', '#4f7056', '#628263'];
@@ -236,20 +242,7 @@ function paintPaper(c, map, look, scale) {
     }
     c.restore();
   });
-  // A kitchen garden behind each finished cottage, on the side away from its door.
-  for (const p of places) {
-    if (p.kind !== 'cottage' || p.stage !== 2) continue;
-    const side = (p.at[0] - p.x) * -Math.sin(p.a) + (p.at[1] - p.y) * Math.cos(p.a) > 0 ? 1 : -1;
-    c.save(); c.translate(p.x, p.y); c.rotate(p.a);
-    const y0 = -side * p.d / 2, deep = -side * 1.5, x0 = -p.w / 2 - 0.1, wide = p.w + 0.2;
-    c.fillStyle = tag(p.id) % 2 ? '#cfd29b88' : '#c8c58d88'; c.globalAlpha = 0.35 + 0.65 * year.lush; c.fillRect(x0, y0, wide, deep); c.globalAlpha = 1;
-    if (snow) { c.fillStyle = SNOW; c.globalAlpha = snow * 0.7; c.fillRect(x0, y0, wide, deep); c.globalAlpha = 1; }
-    c.strokeStyle = '#8f8a5c88'; c.lineWidth = line * 0.7; c.beginPath();
-    for (let x = x0 + 0.3; x < x0 + wide; x += 0.42) { c.moveTo(x, y0 + deep * 0.15); c.lineTo(x, y0 + deep * 0.9); }
-    c.stroke();
-    c.setLineDash([0.16, 0.16]); c.strokeStyle = '#7b6d50aa'; c.lineWidth = line; c.strokeRect(x0, y0, wide, deep); c.setLineDash([]);
-    c.restore();
-  }
+  for (const garden of look.parish.gardens) drawGarden(c, garden, year, snow, line);
   // Ways, narrowest first so the road lies over the lanes that join it.
   for (const kind of ['track', 'path', 'lane', 'road']) {
     const width = WAYS[kind][0], fill = snowed(WAYS[kind][1], 0.4);
@@ -390,6 +383,84 @@ function prepare(map) {
   return look;
 }
 
+export function surveyBounds(maps, cells = [], cellSize = 0) {
+  let left = Infinity, top = Infinity, right = -Infinity, bottom = -Infinity;
+  function include(x, y, rx, ry) {
+    left = Math.min(left, x - rx); right = Math.max(right, x + rx);
+    top = Math.min(top, y - ry); bottom = Math.max(bottom, y + ry);
+  }
+  for (const map of maps) {
+    for (const p of map.places) {
+      const radius = p.r ?? (p.w ? Math.hypot(p.w, p.d) / 2 : 2);
+      include(p.x, p.y, p.rx ?? radius, p.ry ?? radius);
+    }
+    for (const [a, b, kind] of map.edges) {
+      if (kind !== 'lane') continue;
+      for (const node of [a, b]) include(...map.nodes[node], 0, 0);
+    }
+  }
+  for (const [x, y] of cells) include((x + 0.5) * cellSize, (y + 0.5) * cellSize, cellSize / 2, cellSize / 2);
+  return Number.isFinite(left) ? [left - 6, top - 5, right + 6, bottom + 5] : [0, 0, maps[0].w, maps[0].h];
+}
+
+// A still plate for the archive and resident records, using the live map's terrain and buildings.
+export function createSurvey(canvas) {
+  const c = canvas.getContext('2d');
+  let groundKey, look, lastMap;
+  return (map, { minute = 720, bounds, changes = [], heat } = {}) => {
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    if (!w || !h) return;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+    const key = [map.seed, map.w, map.h].join(':');
+    if (key !== groundKey) { look = prepare(map); groundKey = key; }
+    if (map !== lastMap) {
+      look.chains = chains(map);
+      look.parish = parishLayout(map);
+      look.woods = [...map.trees].sort((a, b) => a[1] - b[1]);
+      lastMap = map;
+    }
+    look.year = yearLook(minute);
+    look.snow = Math.round(skyOver(minute, map.seed).lying * 4) / 4;
+    const [left, top, right, bottom] = bounds ?? surveyBounds([map], heat?.cells, heat?.cellSize);
+    const scale = Math.min(w / (right - left), h / (bottom - top));
+    const cx = (left + right) / 2, cy = (top + bottom) / 2;
+    c.setTransform(scale * dpr, 0, 0, scale * dpr, dpr * (w / 2 - cx * scale), dpr * (h / 2 - cy * scale));
+    paintPaper(c, map, look, scale);
+    if (heat?.cells.length) {
+      c.fillStyle = '#f7efdb70';
+      c.fillRect(cx - w / scale / 2, cy - h / scale / 2, w / scale, h / scale);
+      const { cells, cellSize } = heat, strongest = Math.log1p(cells[0][2]);
+      for (const [x, y, minutes] of cells) {
+        const intensity = Math.log1p(minutes) / strongest;
+        c.fillStyle = blend('#edc060', '#a22e20', intensity);
+        c.globalAlpha = 0.36 + 0.51 * intensity;
+        c.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+      }
+      c.globalAlpha = 1;
+      c.strokeStyle = '#6d2c21'; c.lineWidth = 1.2 / scale;
+      c.strokeRect(cells[0][0] * cellSize, cells[0][1] * cellSize, cellSize, cellSize);
+      return;
+    }
+    for (const p of changes) {
+      if (p.w) trace(c, rectPoly(p, 0.24), true);
+      else { c.beginPath(); c.arc(p.x, p.y, 1, 0, TAU); }
+      c.strokeStyle = '#f7ead1'; c.lineWidth = 4 / scale; c.stroke();
+      c.strokeStyle = '#a44d2b'; c.lineWidth = 1.85 / scale; c.stroke();
+    }
+    if (w > 540) {
+      c.font = 'italic ' + (15 / scale) + 'px "IM Fell English", Georgia, serif';
+      c.textAlign = 'center'; c.textBaseline = 'top';
+      c.strokeStyle = '#f6eddb'; c.fillStyle = ink; c.lineWidth = 3 / scale;
+      for (const p of map.places) {
+        if (!p.name || !['green', 'mill', 'wood'].includes(p.kind)) continue;
+        const y = p.y + (p.ry ?? p.d ?? 1.5) / 2 + 1;
+        c.strokeText(p.name, p.x, y); c.fillText(p.name, p.x, y);
+      }
+    }
+  };
+}
+
 // cards.resident(actor, others) and cards.event(events, spot) return what the card over a resident or a
 // chronicle note should say. Without them there is no card.
 export function createMap(canvas, onSelect, cards) {
@@ -414,7 +485,7 @@ export function createMap(canvas, onSelect, cards) {
     canvas.parentElement.append(card);
   }
   // The weather over the village now, and the houses that got no firewood this morning.
-  let wx = null, cold = [];
+  let wx = null, cold = [], world = null, cattle = [];
   const view = { x: 80, y: 60, scale: 6 };
   // The sheet is repainted when the day changes or snow settles or goes.
   function seasonal() {
@@ -488,31 +559,6 @@ export function createMap(canvas, onSelect, cards) {
     c.lineWidth = 3.6; c.strokeStyle = '#efe6cde6'; c.lineJoin = 'round'; c.strokeText(text, 0, 0);
     c.fillStyle = '#37331f'; c.fillText(text, 0, 0);
     c.restore();
-  }
-
-  // A small standing figure: tunic in the resident's colour, a head, and a hat, hood or coif.
-  const skins = ['#c99873', '#bb9270', '#ce9d78', '#bc8e6c', '#bf926d', '#aa7a55', '#d6a77d', '#c59a70'];
-  function figure(x, y, s, index, stride, facing) {
-    const cloth = villageColors[index % villageColors.length], bob = Math.abs(Math.sin(stride)) * s * 0.07;
-    c.fillStyle = 'rgba(40,34,20,.3)'; c.beginPath(); c.ellipse(x + s * 0.06, y + s * 0.03, s * 0.34, s * 0.11, 0, 0, TAU); c.fill();
-    // Legs show a stride when walking.
-    const step = Math.sin(stride) * s * 0.11;
-    c.strokeStyle = '#4b3f30'; c.lineWidth = Math.max(1.2, s * 0.1); c.lineCap = 'round';
-    c.beginPath(); c.moveTo(x - s * 0.08, y - s * 0.22); c.lineTo(x - s * 0.08 + step, y); c.moveTo(x + s * 0.08, y - s * 0.22); c.lineTo(x + s * 0.08 - step, y); c.stroke();
-    const t = y - bob;
-    c.beginPath();
-    c.moveTo(x - s * 0.25, t - s * 0.16);
-    c.quadraticCurveTo(x - s * 0.24, t - s * 0.58, x - s * 0.11, t - s * 0.64);
-    c.lineTo(x + s * 0.11, t - s * 0.64);
-    c.quadraticCurveTo(x + s * 0.24, t - s * 0.58, x + s * 0.25, t - s * 0.16);
-    c.closePath();
-    c.fillStyle = cloth; c.fill(); c.strokeStyle = '#3a3324'; c.lineWidth = 1; c.stroke();
-    c.fillStyle = 'rgba(255,245,215,.22)'; c.fillRect(x - s * 0.19, t - s * 0.6, s * 0.12, s * 0.4);
-    const hx = x + facing * s * 0.03, hy = t - s * 0.8;
-    disc(c, hx, hy, s * 0.17, skins[index % 8], '#3a3324', 0.9);
-    if (index % 3 === 0) { c.fillStyle = '#c3a467'; c.beginPath(); c.ellipse(hx, hy - s * 0.1, s * 0.27, s * 0.09, 0, 0, TAU); c.fill(); c.strokeStyle = '#6d5a34'; c.lineWidth = 0.8; c.stroke(); disc(c, hx, hy - s * 0.15, s * 0.12, '#bc985a'); }
-    else if (index % 3 === 1) { c.fillStyle = cloth; c.beginPath(); c.arc(hx, hy, s * 0.19, Math.PI * 1.05, Math.PI * 1.95); c.lineTo(hx + s * 0.2, hy + s * 0.08); c.lineTo(hx - s * 0.2, hy + s * 0.08); c.closePath(); c.fill(); c.strokeStyle = '#3a3324'; c.lineWidth = 0.7; c.stroke(); }
-    else { c.fillStyle = '#ece5cd'; c.beginPath(); c.arc(hx, hy - s * 0.02, s * 0.18, Math.PI, 0); c.closePath(); c.fill(); c.strokeStyle = '#8b8266'; c.lineWidth = 0.7; c.stroke(); }
   }
 
   // A point a given fraction of the way down the river.
@@ -714,6 +760,9 @@ export function createMap(canvas, onSelect, cards) {
     const sky = light(clock), lit = hearths(map, actors, cold), still = reduced.matches ? 0 : time;
     c.setTransform(dpr, 0, 0, dpr, 0, 0);
     c.drawImage(paper, 0, 0, w, h);
+    for (const pile of look.parish.piles) drawWoodpile(c, pile, world, look.snow, toScreen, view.scale);
+    for (const animal of look.parish.sheep) drawAnimal(c, animal, still, toScreen, view.scale);
+    for (const animal of cattle) drawAnimal(c, animal, still, toScreen, view.scale);
     ambient(still, sky, lit);
     c.textAlign = 'center'; c.textBaseline = 'middle';
     if (view.scale > 6.5) {
@@ -769,7 +818,10 @@ export function createMap(canvas, onSelect, cards) {
       }
       // Someone at home is out of sight. Their lit window stands in for them.
       if (!inside) {
-        figure(x, y, s, index, p.moving ? p.gone * 3.1 : 0, Math.cos(p.heading) >= 0 ? 1 : -1);
+        const activity = residentActivity(actor, p.moving);
+        const heading = workHeading(p, activity, look.parish.common);
+        drawMapFigure(c, { x, y, size: s, actor, activity, index, moving: p.moving, gone: p.gone, now: time,
+          facing: Math.cos(heading) >= 0 ? 1 : -1, still: reduced.matches });
         if (actor.action?.kind === 'waiting') {
           const bx = x + s * 0.42, by = y - s * 1.06;
           disc(c, bx, by, Math.max(5.2, s * 0.3), '#fffdf2', '#5d5341', 0.9);
@@ -968,6 +1020,8 @@ export function createMap(canvas, onSelect, cards) {
       if (!look || next.seed !== map?.seed) look = prepare(next);
       map = next; locations = names;
       look.chains = chains(map);
+      look.parish = parishLayout(map);
+      cattle = strayCattle(map, world);
       // Trees are drawn north to south, so each crown overlaps the ones behind it.
       look.woods = [...map.trees].sort((a, b) => a[1] - b[1]);
       seasonal();
@@ -978,6 +1032,8 @@ export function createMap(canvas, onSelect, cards) {
     update(rows, id, names, motionMs, minute, extras) {
       if (Number.isFinite(minute)) clock = minute;
       cold = extras?.coldHearths || [];
+      world = extras?.world;
+      cattle = map ? strayCattle(map, world) : [];
       seasonal();
       actors = (rows || []).filter(a => Number.isFinite(a.position?.x));
       if (names) locations = names;
@@ -1000,6 +1056,12 @@ export function createMap(canvas, onSelect, cards) {
       selectedId = id; schedule();
     },
     zoom, home, redraw, focus,
+    soundScene(now) {
+      if (!map || !wx || !w || !h) return null;
+      const radius = Math.max(8, Math.min(47, Math.min(w, h) / view.scale * 0.47));
+      return { map, weather: wx, actors, cattle, sheep: look.parish.sheep,
+        listener: { x: view.x, y: view.y, rightX: 1, rightY: 0, radius }, moving: id => motion.at(id, now)?.moving };
+    },
     // Keeps a resident ({ id }), a spot ({ x, y }) or the whole village ({ whole: true }) in view until
     // told otherwise with watch(null), or until the reader moves the sheet, which calls cards.steered.
     // A card held open from before is put away when a watch begins: the caption speaks for the scene.

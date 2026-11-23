@@ -1,11 +1,15 @@
 import http from 'node:http';
 import { readFile, readdir } from 'node:fs/promises';
-import { initialize, advance, snapshot, currentMap, pool, recentEvents, reviewGoalsOnce, publishCivicAccountOnce } from './db.mjs';
+import { initialize, advance, snapshot, currentMap, pool, recentEvents, reviewGoalsOnce, publishCivicAccountOnce, listenForVillageChanges } from './db.mjs';
 import { planOnce, plannerStatus, plannerPollMs } from './planner.mjs';
 import { locationsOf } from './sim.mjs';
 import { affairs } from './engine/civic.mjs';
 import { requestArchive } from './request-archive.mjs';
 import { dailyArchive, publishNextDaily } from './daily.mjs';
+import { createVillageStream } from './village-stream.mjs';
+import { mapRevisions, mapRevision, residentHeat } from './village-history.mjs';
+import { recordPage } from './record-pages.mjs';
+import { recordPath } from './public/record-links.js';
 
 const host = process.env.HOST || '127.0.0.1';
 const port = Number(process.env.PORT || 4173);
@@ -25,19 +29,30 @@ for (const [family, cuts] of Object.entries(faces)) {
 }
 
 await initialize();
+async function villageState() {
+  const state = await snapshot({ withMap: true });
+  return { ...state, locations: locationsOf(state.map, state.actors), affairs: affairs(state), planner: { ...plannerStatus } };
+}
+const stream = createVillageStream(villageState);
+const stopListening = listenForVillageChanges(stream.changed);
+function json(res, status, body) {
+  res.writeHead(status, { 'Content-Type': 'application/json' }).end(JSON.stringify(body));
+}
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://localhost');
     const path = url.pathname;
+    const page = recordPath(path);
+    const heat = path.match(/^\/api\/residents\/([a-z0-9-]+)\/heat-map$/);
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Cache-Control', 'no-store');
     if (!['GET', 'HEAD'].includes(req.method)) { res.writeHead(405, { Allow: 'GET, HEAD' }).end(); return; }
-    if (path === '/api/village') {
-      const { map, ...state } = await snapshot({ withMap: true });
+    if (path === '/api/village/stream') stream.subscribe(res, req.method === 'HEAD');
+    else if (path === '/api/village') {
+      const { map, ...state } = await villageState();
       const knownRevision = url.searchParams.get('mapRevision');
       const includeMap = knownRevision !== null && knownRevision !== String(map.revision);
-      res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ...state, map: includeMap ? map : undefined,
-        locations: locationsOf(map, state.actors), affairs: affairs({ ...state, map }), planner: plannerStatus }));
+      res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ...state, map: includeMap ? map : undefined }));
     } else if (path === '/api/events') {
       const kind = url.searchParams.get('type');
       if (kind && !/^[a-z]{1,20}$/.test(kind)) { res.writeHead(400).end(); return; }
@@ -48,10 +63,29 @@ const server = http.createServer(async (req, res) => {
     } else if (path === '/api/daily') {
       const { status, body } = await dailyArchive(pool, url.searchParams.get('day'));
       res.writeHead(status, { 'Content-Type': 'application/json' }).end(JSON.stringify(body));
+    } else if (path.startsWith('/api/records/')) {
+      const ref = recordPath(path.slice('/api/records'.length));
+      if (!ref) { json(res, 400, { error: 'Invalid record address.' }); return; }
+      const { status, body } = ref.kind === 'promises'
+        ? await requestArchive(pool, new URL('/api/requests/' + ref.id + url.search, url))
+        : await recordPage(pool, ref, url.searchParams);
+      json(res, status, body);
+    } else if (path === '/api/map/revisions') {
+      const raw = url.searchParams.get('revision');
+      if (raw === null) { json(res, 200, await mapRevisions(pool)); return; }
+      const revision = Number(raw);
+      if (!/^\d+$/.test(raw) || !Number.isSafeInteger(revision)) { json(res, 400, { error: 'Invalid map revision.' }); return; }
+      const frame = await mapRevision(pool, revision);
+      json(res, frame ? 200 : 404, frame ?? { error: 'Map revision not found.' });
+    } else if (heat) {
+      const raw = url.searchParams.get('days') ?? '7';
+      if (!['7', '30', 'all'].includes(raw)) { json(res, 400, { error: 'Invalid lookback.' }); return; }
+      const data = await residentHeat(pool, heat[1], raw === 'all' ? null : Number(raw));
+      json(res, data ? 200 : 404, data ?? { error: 'Resident not found.' });
     } else if (path === '/api/map') {
       res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(await currentMap()));
-    } else if (files.has(path)) {
-      const file = files.get(path);
+    } else if (page || files.has(path)) {
+      const file = files.get(page ? page.kind === 'promises' ? '/requests.html' : '/record.html' : path);
       const body = await readFile(file);
       if (path.startsWith('/vendor/')) res.setHeader('Cache-Control', 'public, max-age=604800');
       res.writeHead(200, { 'Content-Type': types[file.pathname.split('.').pop()] + '; charset=utf-8' }).end(body);
@@ -66,7 +100,12 @@ const clock = setInterval(async () => {
   catch { console.error('Village tick could not be committed. Retrying on next tick.'); }
   finally { advancing = false; }
 }, 1000);
-const planner = setInterval(planOnce, plannerPollMs);
+async function plan() {
+  const before = plannerStatus.state;
+  await planOnce();
+  if (plannerStatus.state !== before) stream.changed();
+}
+const planner = setInterval(plan, plannerPollMs);
 const editDaily = () => publishNextDaily(pool).catch(error => {
   console.error('Dalecrest Daily publication delayed.', error.message);
 });
@@ -90,11 +129,13 @@ const reviews = setInterval(async () => {
 }, 4000);
 server.listen(port, host, () => {
   console.log('Dalecrest is listening at http://' + host + ':' + port);
-  planOnce();
+  plan();
   editDaily();
 });
 function shutdown() {
   clearInterval(clock); clearInterval(planner); clearInterval(press); clearInterval(reviews); clearInterval(accounts);
+  stopListening();
+  stream.close();
   server.close(() => pool.end());
 }
 process.on('SIGINT', shutdown);

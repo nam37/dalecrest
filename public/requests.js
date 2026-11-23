@@ -1,9 +1,12 @@
 import { formatDate } from '/engine/calendar.mjs';
+import { copyLink, dayLink, promiseLink, recordPath, residentAtLink } from './record-links.js';
+import { newer, promiseFollows, promiseTitle as titleOf, readFollows, writeFollows } from './follows.js';
 
 const url = new URL(location.href);
-const id = url.searchParams.get('request'), resident = url.searchParams.get('resident'), before = url.searchParams.get('before');
+const direct = recordPath(url.pathname);
+const id = direct?.kind === 'promises' ? direct.id : url.searchParams.get('request');
+const resident = url.searchParams.get('resident'), before = url.searchParams.get('before');
 const records = document.getElementById('records'), summary = document.getElementById('summary');
-const storageKey = 'dalecrest.followedRequests.v1';
 const label = { asked: 'Awaiting a reply', accepted: 'Promised', declined: 'Declined', unanswered: 'No reply by the deadline',
   kept: 'Promise kept', broken: 'Promise missed', released: 'Help no longer needed' };
 const node = (tag, value, cls) => {
@@ -17,26 +20,11 @@ function link(text, href) {
   a.href = href;
   return a;
 }
-function address(params = {}) {
-  const query = new URLSearchParams(params).toString();
-  return '/requests.html' + (query ? '?' + query : '');
-}
 function date(minute) {
   const clock = [Math.floor(minute / 60) % 24, minute % 60].map(n => String(n).padStart(2, '0')).join(':');
   return formatDate(Number(minute)) + ' at ' + clock;
 }
-const titleOf = r => r.terms ? r.terms[0].toUpperCase() + r.terms.slice(1) : r.opening;
-function follows() {
-  try { return new Map(JSON.parse(localStorage.getItem(storageKey) || '[]')); }
-  catch { return new Map(); }
-}
-function writeFollows(all) {
-  try { localStorage.setItem(storageKey, JSON.stringify([...all])); return true; }
-  catch { return false; }
-}
-function newer(eventId, seen) {
-  return /^\d+$/.test(seen) && BigInt(eventId) > BigInt(seen);
-}
+const follows = () => readFollows(promiseFollows);
 function renderSaved() {
   const area = document.getElementById('followed'), all = follows();
   area.replaceChildren();
@@ -44,7 +32,7 @@ function renderSaved() {
   const list = node('ul');
   for (const [key, entry] of all) {
     const row = node('li');
-    row.append(link(entry.title, address({ request: key })));
+    row.append(link(entry.title, promiseLink(key)));
     list.append(row);
   }
   area.append(node('h2', 'Requests you follow'), list);
@@ -61,7 +49,7 @@ function followButton(r) {
     const all = follows(), wasSaved = all.has(r.id);
     if (wasSaved) all.delete(r.id);
     else all.set(r.id, { title: titleOf(r) + ' · ' + r.asker, seen: r.lastEvent.id });
-    if (writeFollows(all)) {
+    if (writeFollows(promiseFollows, all)) {
       paint(!wasSaved);
       notice.textContent = wasSaved ? 'Removed from followed requests.' : 'Saved in this browser.';
     } else notice.textContent = 'This browser could not save your choice. You can bookmark this page.';
@@ -70,13 +58,13 @@ function followButton(r) {
 }
 function parties(r) {
   const p = node('span', '', 'request-parties');
-  p.append(link(r.asker, '/#village/' + encodeURIComponent(r.askerId)), ' asked ',
-    link(r.helper, '/#village/' + encodeURIComponent(r.helperId)), ' for help.');
+  p.append(link(r.asker, residentAtLink(r.askerId, r.opened)), ' asked ', link(r.helper, residentAtLink(r.helperId, r.opened)), ' for help.');
   return p;
 }
 function renderDetail({ request: r, items }) {
   document.getElementById('title').textContent = titleOf(r);
   document.title = titleOf(r) + ' · Dalecrest';
+  copyLink(document.getElementById('copy-promise'), document.getElementById('copied-promise'), promiseLink(r.id));
   summary.replaceChildren(parties(r), node('span', (label[r.status] || 'Recorded') + (r.due != null ? ' · Due ' + date(r.due) : '')));
   followButton(r);
   records.append(node('h2', 'Recorded events'));
@@ -84,7 +72,9 @@ function renderDetail({ request: r, items }) {
   const lastSeen = (before && url.searchParams.get('since')) || entry?.seen;
   for (const event of items) {
     const article = node('article', '', 'request-entry');
-    article.append(node('time', date(event.minute), 'journal-time'));
+    const stamp = node('time', null, 'journal-time');
+    stamp.append(link(date(event.minute), dayLink(event.minute)));
+    article.append(stamp);
     if (entry && newer(event.id, lastSeen)) article.append(node('strong', 'New since your last visit', 'request-new'));
     article.append(node('p', event.description));
     records.append(article);
@@ -93,7 +83,7 @@ function renderDetail({ request: r, items }) {
   if (!before && entry && newer(r.lastEvent.id, entry.seen)) {
     url.searchParams.set('since', entry.seen);
     all.set(r.id, { ...entry, seen: r.lastEvent.id });
-    writeFollows(all);
+    writeFollows(promiseFollows, all);
   }
 }
 function renderList({ items }) {
@@ -106,7 +96,7 @@ function renderList({ items }) {
   records.append(node('h2', before ? 'Earlier requests' : 'Requests by date'));
   for (const r of items) {
     const row = node('article', '', 'request-entry'), heading = node('h3');
-    heading.append(link(titleOf(r), address({ request: r.id })));
+    heading.append(link(titleOf(r), promiseLink(r.id)));
     row.append(heading, parties(r), node('strong', label[r.status] || 'Recorded'));
     if (all.has(r.id) && newer(r.lastEvent.id, all.get(r.id).seen)) row.append(node('strong', 'New since your last visit', 'request-new'));
     row.append(node('p', r.lastEvent.description), node('time', date(r.lastEvent.minute), 'journal-time'));
@@ -121,7 +111,7 @@ async function load() {
   if (before) params.set('before', before);
   if (id || resident || before) {
     const back = document.getElementById('back');
-    back.href = address();
+    back.href = '/requests.html';
     back.textContent = 'All help requests';
   }
   const response = await fetch('/api/requests' + (id ? '/' + encodeURIComponent(id) : '') + '?' + params);

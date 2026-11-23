@@ -1,0 +1,116 @@
+// Scene details are derived from the stored map in both views, including older maps.
+import { clamp, dist, lerp, polysTouch, rectPoly, TAU } from '../engine/geom.mjs';
+import { place } from '../engine/roads.mjs';
+import { freeGround } from '../engine/sites.mjs';
+import { herdLoose } from '../engine/visitors.mjs';
+import { WOODPILE_HOLDS } from '../engine/households.mjs';
+
+function besideBuilding(p, u, v, w, d) {
+  const c = Math.cos(p.a), s = Math.sin(p.a);
+  return { x: p.x + u * c - v * s, y: p.y + u * s + v * c, w, d, a: p.a };
+}
+
+export function parishLayout(map) {
+  const gardens = [], piles = [], occupied = [];
+  function reserve(options, roadGap = 0.15) {
+    for (const p of options) {
+      const shape = rectPoly(p, 0.1);
+      if (!freeGround(map, shape, { gap: 0.08, roadGap, bank: 0.4 })) continue;
+      if (occupied.some(other => polysTouch(shape, other))) continue;
+      if (map.trees.some(t => dist([p.x, p.y], t) < Math.hypot(p.w, p.d) / 2 + t[2] * 0.5)) continue;
+      occupied.push(shape);
+      return p;
+    }
+    return null;
+  }
+
+  const wood = place(map, 'wood');
+  if (wood) {
+    const [x, y] = wood.at, options = [];
+    for (const radius of [1.35, 1.9, 2.6, 3.3, 4.2]) {
+      for (let i = 0; i < 12; i++) {
+        const a = TAU * i / 12;
+        options.push({ x: x + radius * Math.cos(a), y: y + radius * Math.sin(a), w: 1.2, d: 0.76, a });
+      }
+    }
+    const p = reserve(options);
+    if (p) piles.push({ ...p, id: wood.id, common: true, columns: 4, rows: 4 });
+  }
+
+  for (const p of map.places) {
+    if (p.kind !== 'cottage' || p.stage !== 2) continue;
+    const door = Math.sign((p.at[0] - p.x) * -Math.sin(p.a) + (p.at[1] - p.y) * Math.cos(p.a)) || 1;
+    const garden = reserve([1.5, 1.15, 0.8].map(d => besideBuilding(p, 0, -door * (p.d / 2 + 0.26 + d / 2), p.w, d)));
+    if (garden) gardens.push({ ...garden, id: p.id, door });
+    const options = [-1, 1].map(side => besideBuilding(p, side * (p.w / 2 + 0.74), -door * p.d * 0.18, 0.8, 0.48));
+    options.push(besideBuilding(p, 0, -door * (p.d / 2 + (garden?.d ?? 0) + 0.85), 0.8, 0.48));
+    const pile = reserve(options);
+    if (pile) piles.push({ ...pile, id: p.id, columns: 3, rows: 3 });
+  }
+
+  const green = place(map, 'green'), meadowOptions = [];
+  if (green) {
+    for (const radius of [7, 10, 13, 17]) {
+      for (let i = 0; i < 16; i++) {
+        const a = i * TAU / 16;
+        meadowOptions.push({ x: green.x + Math.cos(a) * radius, y: green.y + Math.sin(a) * radius, w: 4.4, d: 3.6, a: 0 });
+      }
+    }
+  }
+  const meadow = reserve(meadowOptions, 0.6);
+  const sheep = meadow ? [[-1.35, 0.1], [-0.48, -1.05], [0.1, 0.82], [0.76, -0.25], [1.42, 0.89]].map(([u, v], i) => ({
+    kind: 'sheep', x: meadow.x + u, y: meadow.y + v, phase: (map.seed % 17 + i * 5) * 0.6, coat: i % 3,
+  })) : [];
+  for (const pile of piles) pile.logs = woodLogs(pile);
+  return { gardens, piles, sheep, common: piles.find(p => p.common) };
+}
+
+export function workHeading(position, activity, commonPile) {
+  if (!activity.working || !commonPile || !['cut', 'fetchWood'].includes(activity.job)) return position.heading;
+  return Math.atan2(commonPile.y - position.y, commonPile.x - position.x);
+}
+
+export function fenceSpans(garden) {
+  const [nw, ne, se, sw] = rectPoly(garden);
+  // The side facing the cottage stays open.
+  const sides = garden.door > 0 ? [[sw, nw], [nw, ne], [ne, se]] : [[nw, sw], [sw, se], [se, ne]];
+  return sides.flatMap(([a, b]) => {
+    const n = Math.ceil(dist(a, b) / 0.95);
+    const point = t => [lerp(a[0], b[0], t), lerp(a[1], b[1], t)];
+    return Array.from({ length: n }, (_, i) => [point(i / n), point((i + 1) / n)]);
+  });
+}
+
+export function logsIn(pile, world) {
+  const stock = pile.common ? world?.supplies?.wood : world?.cottages?.[pile.id]?.woodpile;
+  const capacity = pile.common ? world?.capacity?.wood || 32 : WOODPILE_HOLDS;
+  return Math.ceil(clamp((stock || 0) / capacity) * pile.rows * pile.columns);
+}
+
+function woodLogs(pile) {
+  const diameter = pile.d / pile.columns;
+  return Array.from({ length: pile.rows * pile.columns }, (_, i) => {
+    const row = Math.floor(i / pile.columns), column = i % pile.columns;
+    return { u: Math.sin(i * 2.6) * diameter * 0.26, v: (column - (pile.columns - 1) / 2) * diameter * (1 - row * 0.13),
+      height: (row * 0.84 + 0.55) * diameter, length: pile.w * (0.86 + (i % 3) * 0.07), radius: diameter * 0.49 };
+  });
+}
+
+export function strayCattle(map, world) {
+  const field = world && herdLoose(world) && place(map, world.herd.field);
+  if (field?.stage !== 2) return [];
+  return [[-1.6, 0.2], [0.48, -1.02], [1.42, 1.04]].map(([u, v], i) => ({
+    ...besideBuilding(field, u, v, 0, 0), kind: 'cattle', phase: 3 + i * 3.3, coat: i,
+  }));
+}
+
+export function animalPose(animal, now) {
+  const cycle = now / 11000 + animal.phase / TAU;
+  const lap = Math.floor(cycle), f = cycle - lap, walk = clamp(f / 0.52);
+  const angle = animal.phase + (lap + walk * walk * (3 - 2 * walk)) * 2.3;
+  const graze = clamp(Math.min((f - 0.52) * 12, (1 - f) * 12));
+  return { x: animal.x + Math.cos(angle) * 0.32, y: animal.y + Math.sin(angle) * 0.27, heading: angle + Math.PI / 2,
+    stride: Math.sin(angle * 9) * 4 * walk * (1 - walk), graze };
+}
+
+export const animalCoats = { sheep: ['#e8dfc2', '#d7c8ad', '#f2ebd5'], cattle: ['#a8754d', '#87573b', '#bd9474'] };

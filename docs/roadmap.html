@@ -302,7 +302,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
       <li><a href="#stage-3b"><span class="n">3b</span> A menu worth choosing from <i class="pip built"></i></a></li>
       <li><a href="#stage-4"><span class="n">4</span> Voices and the moot <i class="pip built"></i></a></li>
       <li><a href="#stage-5"><span class="n">5</span> Worth watching <i class="pip hand"></i></a></li>
-      <li><a href="#stage-6"><span class="n">6</span> Worth following <i class="pip"></i></a></li>
+      <li><a href="#stage-6"><span class="n">6</span> Worth following <i class="pip hand"></i></a></li>
       <li><a href="#stage-7"><span class="n">7</span> Taking part <i class="pip"></i></a></li>
       <li><a href="#stage-8"><span class="n">8</span> A wider world <i class="pip"></i></a></li>
     </ol>
@@ -348,7 +348,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
     <li class="built"><a href="#stage-3b"><span class="stone">3b</span><b>The menu</b><small>Built · measuring</small></a></li>
     <li class="built"><a href="#stage-4"><span class="stone">4</span><b>Voices</b><small>Built · measuring</small></a></li>
     <li class="hand"><a href="#stage-5"><span class="stone">5</span><b>Watching</b><small>In hand</small></a></li>
-    <li><a href="#stage-6"><span class="stone">6</span><b>Following</b><small>Groundwork</small></a></li>
+    <li class="hand"><a href="#stage-6"><span class="stone">6</span><b>Following</b><small>In hand</small></a></li>
     <li><a href="#stage-7"><span class="stone">7</span><b>Taking part</b><small>Groundwork</small></a></li>
     <li><a href="#stage-8"><span class="stone">8</span><b>Wider world</b><small>Later</small></a></li>
   </ol>
@@ -427,11 +427,11 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
   <p>The map and the walking view are sound and draw the same data. What is missing is legibility and life.</p>
   <ul class="checks">
     <li data-s="part"><div class="what">Nothing marks that something is happening. A request, a moot and a building site look like an empty lane.</div><span class="st">A resident who is deciding carries a question mark on the map and rests a hand on the chin in the walking view, and a site shows as stakes, then a frame. A note marks where each recent chronicle entry happened, in both views, and the director takes a watcher there. A request or a moot in progress still has no mark of its own.</span></li>
-    <li data-s="part"><div class="what">Every trade is the same arm movement, and a resting resident stands outside their door.</div><span class="st">A resident at home is indoors, with a lit window and smoke standing in for them. The walking view has jointed figures with a tool and a movement for each trade, from commit <code>c3353a5</code>. The map's figures do not.</span></li>
+    <li data-s="done"><div class="what">Every trade is the same arm movement, and a resting resident stands outside their door.</div><span class="st">Both views draw the tools and motions of the work. Smoke and lit windows show where a hearth is in use.</span></li>
     <li data-s="part"><div class="what">A selected resident is not in the URL, a fresh page always starts with Agnes, and only the latest 100 chronicle entries can be reached.</div><span class="st">The selected resident is in the address, so a link or a refresh keeps them. A bare address now opens on the director’s watch. The chronicle still stops at 100.</span></li>
-    <li data-s="part"><div class="what">There is no season, weather, sound or change with the hour on the map.</div><span class="st">Season, weather, night and the hour show in both views. There is no sound.</span></li>
-    <li data-s="part"><div class="what">The walking view can only follow. It rebuilds the whole scene whenever the map changes.</div><span class="st">A visitor can look around, move closer and click a resident to follow, and the view can hold on a place from the chronicle. The village is still rebuilt on every map revision.</span></li>
-    <li data-s="todo"><div class="what">The page fetches every resident's whole record every 2.5 seconds.</div><span class="st">Unchanged. Only the map is fetched on demand.</span></li>
+    <li data-s="done"><div class="what">There is no season, weather, sound or change with the hour on the map.</div><span class="st">Both views show the weather and the hour. The Sound toggle brings in the river, weather, animals and nearby work.</span></li>
+    <li data-s="done"><div class="what">The walking view can only follow. It rebuilds the whole scene whenever the map changes.</div><span class="st">A visitor can look around, follow a resident, or hold on a chronicle entry. Map revisions update the affected scenery while the camera and residents stay in place.</span></li>
+    <li data-s="done"><div class="what">The page fetches every resident's whole record every 2.5 seconds.</div><span class="st">The server streams a snapshot when a viewer connects and sends changed fields and entries after that.</span></li>
   </ul>
 </section>
 
@@ -577,7 +577,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
         <div class="what"><strong>Credit.</strong> Oswin keeps a promise when his chosen shift names the agreement and adds the wood on time. Someone else's delivery may relieve the shortage. Mabel can release Oswin if she learns enough to change her mind. An accepted agreement still open at its deadline expires as broken.</div>
         <span class="st">Commit <code>45e3e16</code> added reconsidering and release. Tested in <code>social-turns.test.mjs</code>.</span>
       </li>
-      <li data-s="part">
+      <li data-s="done">
         <div class="what"><strong>A thread a viewer can follow.</strong></div>
         <ul class="sub">
           <li data-s="done">A link to a resident</li>
@@ -585,11 +585,11 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
           <li data-s="done">The resident panel shows open requests and their status, with a link to the recorded changes</li>
           <li data-s="done">History can be read by participant or commitment beyond the latest 100 entries</li>
           <li data-s="done">A follow button kept in the browser, and “since your last visit”</li>
-          <li data-s="part">Mabel with a peel at the oven, Oswin working at the woodpile</li>
-          <li data-s="todo">A stack that changes with the store</li>
+          <li data-s="done">Mabel with a peel at the oven, Oswin working at the woodpile, in both views</li>
+          <li data-s="done">A stack that changes with the store</li>
           <li data-s="done">An oven that is lit during a bake</li>
         </ul>
-        <span class="st">The <a href="https://dalecrest.trinsicstudios.com/requests.html">request archive</a> reads the recorded outcomes. The peel and axe are in the walking view.</span>
+        <span class="st">The <a href="https://dalecrest.trinsicstudios.com/requests.html">request archive</a> reads the recorded outcomes. Both views show the work at the oven and coppice, and the firewood pile follows the recorded stock.</span>
       </li>
     </ul>
     <p>The pilot uses the residents' existing goals. Goal reviews arrive in Stage 2.</p>
@@ -821,10 +821,10 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
       <li data-s="done"><div class="what"><strong>A director.</strong> A watch mode that follows whoever is in the middle of something and holds on the scene. It is what a first-time visitor sees.</div><span class="st">A bare address opens on the watch. It follows whoever is in the middle of something, goes to a place when news arrives there, and shows the whole parish when everyone is indoors. A caption says what is in view and gives the recorded reason. Choosing a resident or moving the map ends it, and Watch brings it back. Scenes are ranked by fixed rules in <code>public/director.js</code>, tested in <code>director.test.mjs</code>. Visitors’ marks from Stage 7 do not inform it yet, and it has not been tried on first-time viewers.</span></li>
       <li data-s="done"><div class="what"><strong>Show the basis.</strong> A resident who is waiting on a decision looks like someone making up their mind. A resident following routine looks like routine.</div><span class="st">The resident panel and the map card show the recorded reason for an activity or a wait. A deciding resident carries a question mark on the map and a hand on the chin in the walking view.</span></li>
       <li data-s="done"><div class="what"><strong>Dalecrest Daily.</strong> Robin reports from around the village. The morning editor uses his notes and the public records to cover the previous day and follow earlier stories. Each passage links to supporting events.</div></li>
-      <li data-s="part"><div class="what"><strong>Seasons, weather and the hour</strong> in both views. Tools in hand, a movement for each trade, residents who go indoors.</div><span class="st">Seasons, weather, night and going indoors are in both views. Tools and trade movements arrived in commit <code>c3353a5</code>, in the walking view only.</span></li>
-      <li data-s="part"><div class="what"><strong>A richer parish.</strong> Gardens, fences, woodpiles, animals, moving water, sound.</div><span class="st">Kitchen gardens, shaded relief, canopy woods, light moving on the river and drifting cloud shadow. No fences, woodpiles, animals or sound.</span></li>
-      <li data-s="todo"><div class="what"><strong>Time-lapse</strong> of the village's growth from stored map revisions.</div></li>
-      <li data-s="todo"><div class="what"><strong>Streaming.</strong> Send changes to the page as they happen. Update the walking view in place.</div><span class="st">The page polls every 2.5 seconds. Walking is animated between snapshots, which hides most of the gap.</span></li>
+      <li data-s="done"><div class="what"><strong>Seasons, weather and the hour</strong> in both views. Tools in hand, a movement for each trade, residents who go indoors.</div><span class="st">Both views show seasonal change, weather, daylight and night, residents going indoors, and the tools and movements of their work.</span></li>
+      <li data-s="done"><div class="what"><strong>A richer parish.</strong> Gardens, fences, woodpiles, animals, moving water, sound.</div><span class="st">Both views have fenced kitchen gardens, woodpiles that reflect firewood stocks, grazing sheep and stray cattle during herd events. Moving water, shaded relief, canopy woods and drifting cloud shadow are in place. The Sound toggle plays the river, weather, animal calls and nearby work in both views.</span></li>
+      <li data-s="done"><div class="what"><strong>Time-lapse</strong> of the village's growth from stored map revisions.</div><span class="st">Growth plays or scrubs through dated map revisions on a fixed view of the parish. The archive begins with the earliest saved map. A resident’s Heat map tab shows where their recorded village minutes were spent.</span></li>
+      <li data-s="done"><div class="what"><strong>Streaming.</strong> Send changes to the page as they happen. Update the walking view in place.</div><span class="st">One shared stream sends committed changes to Map and Walk, including decisions made between ticks. A reconnect starts with the current village. Walking continues in place as residents and scenery change.</span></li>
     </ul>
     <p class="donewhen"><b>Done when</b> someone who opens the site with no explanation stays more than two minutes and can say afterwards what happened while they watched.</p>
   </article>
@@ -835,12 +835,12 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
       <span class="numeral">6</span>
       <h3>Worth following</h3>
       <span class="meta">Size M · Needs Stages 1 and 2</span>
-      <span class="stamp">Groundwork<br>only</span>
+      <span class="stamp hand">In hand</span>
     </header>
     <div class="meter"><span class="bar"><i class="d"></i><i class="p"></i></span><span class="count"></span></div>
     <ul class="checks">
-      <li data-s="part"><div class="what"><strong>Pages with addresses</strong> for every resident, household, promise, moot and day.</div><span class="st">A resident has an address, such as <code>#village/agnes</code>. Nothing else does.</span></li>
-      <li data-s="todo"><div class="what"><strong>Follow</strong> with no account, plus a feed for the village and for each resident, a weekly letter and a webhook.</div></li>
+      <li data-s="done"><div class="what"><strong>Pages with addresses</strong> for every resident, household, promise, moot and day.</div><span class="st">All five records have copyable links. Resident addresses distinguish people who reuse the same actor ID. Moot pages can read their results from the chronicle after they leave the live panel. The earlier resident and request links still open.</span></li>
+      <li data-s="part"><div class="what"><strong>Follow</strong> with no account, plus a feed for the village and for each resident, a weekly letter and a webhook.</div><span class="st">Following saves residents, households, promises and moots in this browser and shows what has changed since each record was last opened. The feeds, weekly letter and webhook are still planned.</span></li>
       <li data-s="todo"><div class="what"><strong>Why did she do that?</strong> A public, trimmed view of the record: what the resident knew, which goals were in force, whether the activity was a fresh choice or routine, and what happened. Motive is shown only where a record supports it. The full exchange stays private.</div></li>
       <li data-s="todo"><div class="what"><strong>An archive</strong> of every day of the chronicle with the map as it was.</div></li>
     </ul>
@@ -1034,7 +1034,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
     </li>
     <li>
       <h3>Many viewers at once</h3>
-      <p>Each open page asks for the whole village every 2.5 seconds and the server builds the answer afresh each time. Stage 5's streaming improves freshness. It does not by itself settle what a hundred watchers cost.</p>
+      <p>The server reads and prepares each update once for all attached viewers. A connection that falls too far behind reconnects with a fresh snapshot. Measure bandwidth, memory and clock lateness with a hundred concurrent watchers.</p>
       <p>One snapshot built per tick and shared by everyone may be enough.</p>
       <p class="when"><b>Before</b>Stage 5's first public test.</p>
     </li>

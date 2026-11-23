@@ -909,11 +909,14 @@ function stepMinute(state, events, externalActions, records, pilot) {
 
 // With externalActions the Decisions API chooses at each real choice and the engine never picks an
 // activity itself. records, when given, receives how each activity came about.
-export function stepVillage(state, { minutes = 5, externalActions = false, records = null, pilot = standing.PILOT } = {}) {
+export function stepVillage(state, { minutes = 5, externalActions = false, records = null, pilot = standing.PILOT, observe } = {}) {
   if (!Number.isSafeInteger(minutes) || minutes < 0) throw new RangeError('minutes must be a nonnegative integer');
   normalize(state);
   const events = [];
-  for (let i = 0; i < minutes; i++) stepMinute(state, events, externalActions, records, pilot);
+  for (let i = 0; i < minutes; i++) {
+    stepMinute(state, events, externalActions, records, pilot);
+    observe?.(state);
+  }
   state.world.mapRevision = state.map.revision;
   return events;
 }

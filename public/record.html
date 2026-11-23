@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en"><head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#293d33"><title>Village record · Dalecrest</title>
+  <link rel="icon" href="/crest.svg"><link rel="stylesheet" href="/style.css">
+</head><body>
+  <header class="masthead"><div class="mast-inner">
+    <a href="/#village" class="wordmark"><img src="/crest.svg" width="36" height="40" alt="">Dalecrest</a>
+    <nav aria-label="Observatory"><a href="/#village">Village</a><a href="/#residents">Residents</a><a href="/#chronicle">Chronicle</a><a href="/following.html">Following</a><a href="/growth.html">Growth</a><a href="/daily.html">Dalecrest Daily</a><a href="/atlas.html">Sandbox</a></nav>
+  </div></header>
+  <main class="request-archive village-record">
+    <p class="archive-back"><a href="/#chronicle">Village chronicle</a></p>
+    <header class="page-title">
+      <div><p class="eyebrow" id="record-kind"></p><h1 id="record-title">Village record</h1><p id="record-summary" role="status">Reading the village records…</p></div>
+      <div class="record-share">
+        <div class="record-buttons"><button id="record-follow" type="button" hidden></button><button id="record-copy" type="button" hidden>Copy link</button></div>
+        <span id="record-follow-status" role="status"></span><span id="record-copied" role="status"></span>
+      </div>
+    </header>
+    <div id="record-actions" class="record-actions"></div>
+    <section id="record-updates" class="journal-preview follow-updates" aria-labelledby="record-updates-title" hidden></section>
+    <article id="record-content" class="journal-preview" hidden></article>
+    <nav id="record-pages" class="edition-links" aria-label="Village days"></nav>
+    <noscript>Enable JavaScript to read the village records.</noscript>
+  </main>
+  <script type="module" src="/record.js"></script>
+</body></html>

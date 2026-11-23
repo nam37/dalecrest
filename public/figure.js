@@ -3,13 +3,11 @@
 // they are doing. poseFigure moves it: a stride, a movement for each trade, and a thoughtful stance
 // while deciding. The figure faces +x and stands on y = 0. About 0.47 units tall, which is 1.9 m.
 import * as THREE from '/vendor/three.module.min.js';
-import { villageColors } from '/map.js';
+import { aprons, residentPose, skins, toolFor, villageColors } from './resident-pose.js';
 
 const TAU = Math.PI * 2;
-const skins = ['#c99873', '#bb9270', '#ce9d78', '#bc8e6c', '#bf926d', '#aa7a55', '#d6a77d', '#c59a70'];
 const hairs = ['#62503c', '#65594b', '#6b4733', '#584d3c', '#765c4a', '#67492e', '#524633', '#795b3c'];
 const hose = ['#5b4d3c', '#4f5546', '#6b5a43', '#4d4c56'];
-const APRON = { bake: '#ebe4cf', mill: '#e2dac4', mend: '#8a6a45' };
 
 const materials = new Map();
 function soft(color, extra) {
@@ -48,27 +46,32 @@ function mesh(geometry, material, x = 0, y = 0, z = 0, shadow = true) {
 }
 
 // The tool of each kind of work, held in the right hand and pointing forward from it.
-function tool(job) {
+function tool(kind) {
   const g = new THREE.Group(), wood = soft('#8a6a45'), iron = soft('#9aa0a2');
   const shaft = (length, radius = 0.006) => { const m = mesh(new THREE.CylinderGeometry(radius, radius, length, 6), wood, length / 2, 0, 0); m.rotation.z = Math.PI / 2; return m; };
-  if (job === 'cut') g.add(shaft(0.17), mesh(new THREE.BoxGeometry(0.03, 0.045, 0.009), iron, 0.155, -0.012, 0));
-  else if (job === 'build' || job === 'mend') g.add(shaft(0.11), mesh(new THREE.CylinderGeometry(0.017, 0.017, 0.044, 8), soft('#6f5a3e'), 0.11, 0, 0));
-  else if (job === 'harvest') {
+  if (kind === 'axe') g.add(shaft(0.17), mesh(new THREE.BoxGeometry(0.03, 0.045, 0.009), iron, 0.155, -0.012, 0));
+  else if (kind === 'mallet') g.add(shaft(0.11), mesh(new THREE.CylinderGeometry(0.017, 0.017, 0.044, 8), soft('#6f5a3e'), 0.11, 0, 0));
+  else if (kind === 'sickle') {
     const blade = mesh(new THREE.TorusGeometry(0.034, 0.0042, 4, 10, 2.5), iron, 0.075, 0, 0);
     blade.rotation.set(Math.PI / 2, 0, 0.5);
     g.add(shaft(0.05), blade);
-  } else if (job === 'bake') g.add(shaft(0.27), mesh(new THREE.BoxGeometry(0.075, 0.006, 0.064), soft('#b89366'), 0.3, 0, 0));
-  else if (job === 'draw' || job === 'waterBarley') {
+  } else if (kind === 'peel') g.add(shaft(0.27), mesh(new THREE.BoxGeometry(0.075, 0.006, 0.064), soft('#b89366'), 0.3, 0, 0));
+  else if (kind === 'pail') {
     const pail = mesh(new THREE.CylinderGeometry(0.031, 0.025, 0.046, 10, 1, true), soft('#8a6a45', { side: THREE.DoubleSide }), 0.01, -0.045, 0);
     g.add(pail, mesh(new THREE.CircleGeometry(0.03, 10), soft('#6f8f96'), 0.01, -0.034, 0, false));
     g.children[1].rotation.x = -Math.PI / 2;
-  } else if (job === 'fish') {
+  } else if (kind === 'rod') {
     const rod = shaft(0.6, 0.007);
     const line = mesh(new THREE.CylinderGeometry(0.001, 0.001, 0.25, 4), soft('#c4b994'), 0.59, -0.125, 0);
     g.add(rod, line);
-  } else if (job === 'mill') { const sack = mesh(shapes.hand, soft('#d9cba3'), 0.03, 0.01, -0.06); sack.scale.set(2.6, 3.4, 2.4); g.add(sack); }
-  else if (job === 'weave') { const wool = mesh(shapes.hand, soft('#e9e3d0'), 0.15, 0, 0); wool.scale.set(1.5, 1.1, 1.1); g.add(shaft(0.17, 0.0045), wool); }
-  else return null;
+  } else if (kind === 'sack') { const sack = mesh(shapes.hand, soft('#d9cba3'), 0.03, 0.01, -0.06); sack.scale.set(2.6, 3.4, 2.4); g.add(sack); }
+  else if (kind === 'shuttle') { const wool = mesh(shapes.hand, soft('#e9e3d0'), 0.15, 0, 0); wool.scale.set(1.5, 1.1, 1.1); g.add(shaft(0.17, 0.0045), wool); }
+  else if (kind === 'hoe') g.add(shaft(0.23), mesh(new THREE.BoxGeometry(0.032, 0.009, 0.06), iron, 0.22, -0.02, 0));
+  else if (kind === 'board') g.add(mesh(new THREE.BoxGeometry(0.085, 0.012, 0.064), wood, 0.04, 0, 0),
+    mesh(new THREE.BoxGeometry(0.075, 0.003, 0.052), soft('#ede2be'), 0.04, 0.008, 0));
+  else if (kind === 'bundle') {
+    for (let i = 0; i < 3; i++) g.add(mesh(new THREE.BoxGeometry(0.105, 0.025, 0.024), wood, 0.03, 0, (i - 1) * 0.024));
+  }
   return g;
 }
 
@@ -88,7 +91,7 @@ export function makeFigure(actor, index) {
   if (!tunics.has(hem)) tunics.set(hem, shapes.tunic(hem));
   const tunic = mesh(tunics.get(hem), tunicColor); tunic.scale.set(0.8, 1, 1); body.add(tunic);
   const belt = mesh(shapes.belt, soft('#4a3a2a'), 0, 0.058, 0, false); belt.scale.set(0.8, 1, 1); body.add(belt);
-  const apron = APRON[actor.trade];
+  const apron = aprons[actor.trade];
   if (apron) { const bib = mesh(new THREE.BoxGeometry(0.012, 0.15, 0.074), soft(apron), 0.046, 0.0, 0, false); bib.rotation.z = -0.1; body.add(bib); }
   const arms = [1, -1].map(side => {
     const pivot = new THREE.Group(); pivot.position.set(0, 0.152, side * 0.066); pivot.rotation.x = -side * 0.13;
@@ -120,59 +123,24 @@ export function makeFigure(actor, index) {
 const ease = (current, target, k) => current + (target - current) * k;
 
 // Poses a figure for this frame. state: { moving, gone, now, dt, kind, job, working }.
-export function poseFigure(figure, { moving, gone, now, dt, kind, job, working }) {
-  const rig = figure.userData.rig, [right, left] = rig.arms, k = Math.min(1, dt * 9), t = now / 1000 + rig.index * 1.7;
+export function poseFigure(figure, state) {
+  const { moving, dt } = state;
+  const rig = figure.userData.rig, [right, left] = rig.arms, k = Math.min(1, dt * 9);
   // The tool for the job in hand, made the first time it is needed.
-  const want = working ? job : null;
+  const want = toolFor(state);
   if (rig.held !== want) {
     if (rig.held) rig.tools.get(rig.held).visible = false;
     if (want && !rig.tools.has(want)) {
-      const made = tool(want) || new THREE.Group();
+      const made = tool(want);
       made.position.set(0, -0.14, 0);
-      (want === 'mill' ? rig.body : right).add(made);
-      if (want === 'mill') made.position.set(0.02, 0.1, 0);
+      (want === 'sack' ? rig.body : right).add(made);
+      if (want === 'sack') made.position.set(0.02, 0.1, 0);
       rig.tools.set(want, made);
     }
     if (want) rig.tools.get(want).visible = true;
     rig.held = want;
   }
-  let legSwing = 0, armR = 0, armL = 0, spreadR = -0.13, lean = 0, sway = 0, nod = 0, lift = 0;
-  if (moving) {
-    const stride = Math.sin(gone * 9);
-    legSwing = stride * 0.62; armR = -stride * 0.5; armL = stride * 0.5; lean = -0.07; lift = Math.abs(Math.cos(gone * 9)) * 0.007;
-  } else if (working && (job === 'cut' || job === 'build' || job === 'mend')) {
-    // Raise the tool slowly and bring it down fast.
-    const s = (t * 0.75) % 1, up = s < 0.72 ? s / 0.72 : 1 - (s - 0.72) / 0.28;
-    armR = -0.5 - 2.0 * up; armL = -0.4 - 0.9 * up; lean = -0.12 - 0.16 * (1 - up);
-  } else if (working && (job === 'harvest' || job === 'weed' || job === 'bait')) {
-    // Bent to the corn, sweeping the sickle across.
-    lean = -0.62; armR = -0.75 + Math.sin(t * 2.6) * 0.28; spreadR = -0.13 + Math.sin(t * 2.6) * 0.55; armL = -0.95; nod = 0.25;
-  } else if (working && job === 'bake') {
-    // Working the peel in and out of the oven mouth.
-    const push = Math.sin(t * 1.9) * 0.24; armR = -1.3 + push; armL = -1.15 + push; lean = -0.1 - push * 0.25;
-  } else if (working && job === 'draw') {
-    // Hauling the rope hand over hand.
-    armR = -1.25 + Math.sin(t * 3.2) * 0.5; armL = -1.25 - Math.sin(t * 3.2) * 0.5; lean = -0.08;
-  } else if (working && job === 'waterBarley') {
-    armR = -1.2 - Math.sin(t * 1.8) * 0.35; armL = -0.9; lean = -0.3;
-  } else if (working && job === 'fish') {
-    armR = -1.3 + Math.sin(t * 0.8) * 0.07; armL = -0.85; sway = Math.sin(t * 0.6) * 0.03;
-  } else if (working && job === 'hunt') {
-    lean = -0.18; nod = 0.22 + Math.sin(t * 1.1) * 0.1; sway = Math.sin(t * 1.3) * 0.09;
-  } else if (working && job === 'mill') {
-    armR = -1.0; armL = -1.0; lean = -0.14; sway = Math.sin(t * 1.3) * 0.04;
-  } else if (working && job === 'weave') {
-    armR = -1.05 + Math.sin(t * 5) * 0.14; armL = -1.0 - Math.sin(t * 5) * 0.14; lean = -0.1; nod = 0.18;
-  } else if (kind === 'waiting') {
-    // A hand to the chin, and the weight shifting from foot to foot.
-    armR = -2.25 + Math.sin(t * 0.8) * 0.06; armL = -0.2; nod = 0.14; sway = Math.sin(t * 0.7) * 0.05;
-  } else if (kind === 'social' || kind === 'meeting') {
-    // Talking with the hands, now and then.
-    const speak = Math.max(0, Math.sin(t * 1.1)) * Math.max(0, Math.sin(t * 0.37 + 1));
-    armR = -0.25 - speak * 0.95; armL = -0.1 - Math.max(0, Math.sin(t * 0.9 + 2)) * 0.25; sway = Math.sin(t * 0.6) * 0.03; nod = Math.sin(t * 1.4) * 0.05;
-  } else {
-    sway = Math.sin(t * 0.8) * 0.025; armR = Math.sin(t * 0.8) * 0.04; armL = -armR;
-  }
+  const { legSwing, armR, armL, spreadR, lean, sway, nod, lift } = residentPose({ ...state, index: rig.index });
   // A stride follows the ground exactly; everything else eases into place.
   const q = moving ? 1 : k;
   rig.legs[0].rotation.z = ease(rig.legs[0].rotation.z, legSwing, q);

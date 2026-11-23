@@ -4,6 +4,7 @@ import { createMap } from '/map.js';
 import { formatDate } from '/engine/calendar.mjs';
 import { skyOver } from '/ambient.js';
 import { residentCard } from '/card.js';
+import { bindVillageSound } from './village-audio.js';
 
 const $ = id => document.getElementById(id);
 const el = (tag, cls, value) => { const node = document.createElement(tag); if (cls) node.className = cls; if (value !== undefined) node.textContent = value; return node; };
@@ -26,7 +27,7 @@ function show() {
   }
   if (!actors.some(a => a.id === selected)) selected = actors[0].id;
   const snapshot = structuredClone(actors);
-  const extras = { coldHearths: world.coldHearths || [] };
+  const extras = { world, coldHearths: world.coldHearths || [] };
   map.update(snapshot, selected, names, undefined, world.minute, extras);
   if (mode === 'walk') walk?.update(snapshot, selected, world.minute, undefined, extras);
   $('day').textContent = time(world.minute);
@@ -86,6 +87,7 @@ for (const b of document.querySelectorAll('[data-view]')) b.addEventListener('cl
 $('zoom-in').addEventListener('click', () => map.zoom(1.4));
 $('zoom-out').addEventListener('click', () => map.zoom(1 / 1.4));
 $('zoom-home').addEventListener('click', () => map.home());
+bindVillageSound($('sound'), now => (mode === 'walk' && walk?.soundScene(now)) || map.soundScene(now));
 const asked = new URLSearchParams(location.search);
 if (asked.get('seed')) $('seed').value = asked.get('seed');
 found();

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en"><head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#293d33"><title>Dalecrest · Village growth</title>
+  <link rel="icon" href="/crest.svg"><link rel="stylesheet" href="/style.css">
+</head><body>
+  <header class="masthead"><div class="mast-inner">
+    <a href="/#village" class="wordmark"><img src="/crest.svg" width="36" height="40" alt="">Dalecrest</a>
+    <nav aria-label="Observatory"><a href="/#village">Village</a><a href="/#residents">Residents</a><a href="/#chronicle">Chronicle</a><a href="/following.html">Following</a><a href="/growth.html" aria-current="page">Growth</a><a href="/daily.html">Dalecrest Daily</a><a href="/atlas.html">Sandbox</a></nav>
+  </div></header>
+  <main class="growth">
+    <div class="page-title">
+      <div><h1>Village growth</h1><p id="growth-range">Opening the map archive…</p></div>
+      <a class="where" href="/#village">Back to the live village</a>
+    </div>
+    <section class="map-panel growth-panel" aria-label="Village time-lapse">
+      <div class="growth-plate"><canvas id="growth-map" role="img" aria-label="Archived map of Dalecrest"></canvas></div>
+      <div class="growth-timeline">
+        <div class="growth-revision"><strong><a id="growth-date"></a></strong><span id="growth-count"></span></div>
+        <div class="growth-controls" id="growth-controls" hidden>
+          <button type="button" class="view-toggle" id="growth-prev" aria-label="Previous revision">‹</button>
+          <button type="button" class="view-toggle" id="growth-play">Play</button>
+          <button type="button" class="view-toggle" id="growth-next" aria-label="Next revision">›</button>
+          <input type="range" id="growth-seek" min="0" max="0" value="0" aria-label="Map revision">
+        </div>
+        <p class="growth-details" id="growth-details"></p>
+        <p id="growth-status" role="status"></p>
+        <button type="button" class="view-toggle" id="growth-retry" hidden>Try again</button>
+      </div>
+    </section>
+  </main>
+  <script type="module" src="/growth.js"></script>
+</body></html>

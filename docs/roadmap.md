@@ -14,17 +14,17 @@
 | Stage | State | Done | Under way | Not begun |
 | --- | --- | ---: | ---: | ---: |
 | 0. Liveness and meaningful choices | Built, awaiting the pilot week | 5 | 2 | 0 |
-| 1. The promise pilot | In hand | 6 | 2 | 0 |
+| 1. The promise pilot | In hand | 7 | 1 | 0 |
 | 2. Goals and memory | Built, live reviews to be read | 6 | 0 | 0 |
 | 3. A village with stakes | Built, awaiting the live measure | 7 | 0 | 0 |
 | 3a. The common store | Built, awaiting the live measure | 6 | 1 | 0 |
 | 3b. A menu worth choosing from | Built, awaiting the live measure and wording pass | 5 | 0 | 1 |
 | 4. Voices: competing interests and the moot | Built, awaiting a live moot | 5 | 0 | 0 |
-| 5. Worth watching | In hand | 4 | 2 | 2 |
-| 6. Worth following | Groundwork only | 0 | 1 | 3 |
+| 5. Worth watching | In hand | 8 | 0 | 0 |
+| 6. Worth following | In hand | 1 | 1 | 2 |
 | 7. Taking part | Groundwork only | 0 | 1 | 4 |
 | 8. A wider world | Not begun | 0 | 0 | 1 |
-| All stages | | 44 | 9 | 11 |
+| All stages | | 50 | 6 | 8 |
 
 **Reading the live village.** `readout.mjs` reads every "Done when" measure the database can answer, stage by stage, and marks it met, not met, no data or needing a viewer. On the server: `docker exec dalecrest-app node readout.mjs`, for the last 168 real hours by default. It does not replace `tools/pilot-report.mjs`, which breaks Stage 0 down further.
 
@@ -92,11 +92,11 @@ What is already right and should be kept: the simulation is deterministic and re
 The map and the walking view are sound and draw the same data. What is missing is legibility and life.
 
 - [ ] Nothing marks that something is happening. A request, a moot and a building site look like an empty lane. *Under way: a resident who is deciding carries a question mark on the map and rests a hand on the chin in the walking view, and a site shows as stakes, then a frame. A note marks where each recent chronicle entry happened, in both views, and the director takes a watcher there. A request or a moot in progress still has no mark of its own.*
-- [ ] Every trade is the same arm movement, and a resting resident stands outside their door. *Under way: a resident at home is indoors, with a lit window and smoke standing in for them. The walking view has jointed figures with a tool and a movement for each trade. The map's figures do not.*
+- [x] Every trade is the same arm movement, and a resting resident stands outside their door. *Both views draw the tools and motions of the work. Smoke and lit windows show where a hearth is in use.*
 - [ ] A selected resident is not in the URL, a fresh page always starts with Agnes, and only the latest 100 chronicle entries can be reached. *Under way: the selected resident is in the address, so a link or a refresh keeps them. A bare address now opens on the director’s watch. The chronicle still stops at 100.*
-- [ ] There is no season, weather, sound or change with the hour on the map. *Under way: season, weather, night and the hour show in both views. There is no sound.*
-- [ ] The walking view can only follow. It rebuilds the whole scene whenever the map changes. *Under way: a visitor can look around, move closer and click a resident to follow, and the view can hold on a place from the chronicle. The village is still rebuilt on every map revision.*
-- [ ] The page fetches every resident's whole record every 2.5 seconds. *Not begun: only the map is fetched on demand.*
+- [x] There is no season, weather, sound or change with the hour on the map. *Both views show the weather and the hour. The Sound toggle brings in the river, weather, animals and nearby work.*
+- [x] The walking view can only follow. It rebuilds the whole scene whenever the map changes. *A visitor can look around, follow a resident, or hold on a chronicle entry. Map revisions update the affected scenery while the camera and residents stay in place.*
+- [x] The page fetches every resident's whole record every 2.5 seconds. *The server streams a snapshot when a viewer connects and sends changed fields and entries after that.*
 
 ## Principles
 
@@ -183,14 +183,14 @@ Build one promise that can survive a night's sleep, and let a viewer find out ho
 - [x] **Requests and commitments.** Done. All seven statuses exist in `engine/exchanges.mjs`. A request asks for one shift's output within 24 village hours.
 - [x] **Choices.** Done.
 - [x] **Credit.** Done. Commit `45e3e16` added reconsidering and release. Tested in `social-turns.test.mjs`.
-- [ ] **A thread a viewer can follow.** Under way. The request archive is live. Work remains on how the oven and woodpile look.
+- [x] **A thread a viewer can follow.** The request archive is live. Both views show the work at the oven and coppice, and the firewood pile follows the recorded stock.
   - [x] A link to a resident
   - [x] A permanent link to each delivered request
   - [x] The resident panel shows open requests and their status, with a link to the recorded changes
   - [x] History by participant or commitment beyond the latest 100 entries
   - [x] A follow button kept in the browser, and "since your last visit"
-  - [ ] Mabel with a peel at the oven, Oswin working at the woodpile. Under way: in the walking view only, from commit `c3353a5`.
-  - [ ] A stack that changes with the store
+  - [x] Mabel with a peel at the oven, Oswin working at the woodpile, in both views
+  - [x] A stack that changes with the store
   - [x] An oven that is lit during a bake
 - [ ] **First proof in a test village.** Under way. The scripted branches, the changed stock and the restart are covered by automated tests. A run with budgeted model turns is not on record.
 - [x] **Second proof: one ordinary pressure.** Done. Winter fuel. Seed 26113 gives 15 mornings with flour and no firewood, held as a test in `seasons.test.mjs`.
@@ -403,10 +403,10 @@ Presentation. The pilot delivers the first of it: links, the promise thread and 
 - [x] **A director.** Done. A bare address opens on the watch. It follows whoever is in the middle of something, goes to a place when news arrives there, and shows the whole parish when everyone is indoors. A caption says what is in view and gives the recorded reason. Choosing a resident or moving the map ends it, and Watch brings it back. Scenes are ranked by fixed rules in `public/director.js`, tested in `director.test.mjs`. Visitors’ marks from Stage 7 do not inform it yet, and it has not been tried on first-time viewers.
 - [x] **Show the basis.** Done. The resident panel and the map card show the recorded reason for an activity or a wait. A deciding resident carries a question mark on the map and a hand on the chin in the walking view.
 - [x] **Dalecrest Daily.** Robin reports from around the village. Each morning’s edition includes his notes, village records and follow-ups.
-- [ ] **Seasons, weather and the hour.** Under way. Seasons, weather, night and going indoors are in both views. Tools and trade movements arrived in commit `c3353a5`, in the walking view only.
-- [ ] **A richer parish.** Under way. Kitchen gardens, shaded relief, canopy woods, light moving on the river and drifting cloud shadow. No fences, woodpiles, animals or sound.
-- [ ] **Time-lapse.** Not begun.
-- [ ] **Streaming.** Not begun. The page polls every 2.5 seconds. Walking is animated between snapshots, which hides most of the gap.
+- [x] **Seasons, weather and the hour.** Both views show seasonal change, weather, daylight and night, residents going indoors, and the tools and movements of their work.
+- [x] **A richer parish.** Both views have fenced kitchen gardens, woodpiles that reflect firewood stocks, grazing sheep and stray cattle during herd events. Moving water, shaded relief, canopy woods and drifting cloud shadow are in place. The Sound toggle plays the river, weather, animal calls and nearby work in both views.
+- [x] **Time-lapse.** Growth plays or scrubs through dated map revisions on a fixed view of the parish. The archive begins with the earliest saved map. A resident’s Heat map tab shows where their recorded village minutes were spent.
+- [x] **Streaming.** One shared stream sends committed changes to Map and Walk, including decisions made between ticks. A reconnect starts with the current village. Walking continues in place as residents and scenery change.
 
 - **Show events where they happen**, on the map and in the walking view. A chronicle entry takes you to its place and time.
 - **A director.** A watch mode that follows whoever is in the middle of something and holds on the scene. It is what a first-time visitor sees.
@@ -423,8 +423,8 @@ Done when: someone who opens the site with no explanation stays more than two mi
 
 **Marked off · 21 November 2026.**
 
-- [ ] **Pages with addresses.** Under way. A resident has an address, such as `#village/agnes`. Nothing else does.
-- [ ] **Follow.** Not begun.
+- [x] **Pages with addresses.** Residents, households, promises, moots and village days have copyable links. Resident addresses distinguish people who reuse the same actor ID. Moot pages can read their results from the chronicle after they leave the live panel. The earlier resident and request links still open.
+- [ ] **Follow.** Under way. Visitors can follow residents, households, promises and moots in their browser. Following shows updates for each record since it was last opened. The feeds, weekly letter and webhook are still planned.
 - [ ] **Why did she do that?** Not begun.
 - [ ] **An archive.** Not begun.
 
@@ -577,7 +577,7 @@ Questions the stages above do not answer. This section was added on 21 November 
 1. **Keeping the two editions in step.** This document is the canonical plan and [roadmap.html](roadmap.html) is a hand-made rendering of it. Both now carry the marks, so every change of status has to be made twice. Generating the page from this file would remove that. *Before the next status changes.*
 2. **Proving a model change is safe.** Every exchange is stored with the exact request that was sent. Replaying stored requests against a candidate model or a reworded request would show how choices shift before the village feels it. Stages 1 and 2 both change what the request contains, and design decision 6 expects providers to change. *Before the first change of model, or Stage 2's larger request.*
 3. **Records that only grow.** Events, the activity log and decision traces gain rows with every tick, and each resident's record grows with what they hold. Stage 6 wants an archive of every day. What is kept whole, what is summarised and what may be dropped needs deciding while the tables are still small. *Before Stage 6, or the first slow query.*
-4. **Many viewers at once.** Each open page asks for the whole village every 2.5 seconds and the server builds the answer afresh each time. Stage 5's streaming improves freshness. It does not by itself settle what a hundred watchers cost. One snapshot built per tick and shared by everyone may be enough. *Before Stage 5's first public test.*
+4. **Many viewers at once.** The server reads and prepares each update once for all attached viewers. A connection that falls too far behind reconnects with a fresh snapshot. Measure bandwidth, memory and clock lateness with a hundred concurrent watchers before Stage 5's first public test.
 5. **A village that can be read without the map.** Acceptance test 8 puts first-time viewers on phones. Both views are pictures: a visitor using a screen reader, or a small screen in the walking view, gets little of what is happening. A plain account of the current scene would serve them and would also feed Stage 5's director. *Before acceptance test 8 is run.* *Note, 21 November 2026: the director's caption is a first plain account. It is text, it is announced to a screen reader, and it covers the one scene in view, not the village.*
 6. **Model-written prose in public.** Stage 2 publishes a resident's own sentence, Stage 4 an account of what was said, and Stage 5 a daily account. Each is text nobody reviewed, shown under the village's name. The plan labels these as accounts. It does not yet say how they are screened, how a wrong one is withdrawn, or how they keep a period voice. *Before Stage 2's first published sentence.*
 7. **History beyond the parish.** Dalecrest was founded on 1 August 1312 and keeps the real Julian calendar. The Great Famine of 1315 to 1317 lies under three village years ahead, about a year and a half of real time at the present pace. Whether the outside world reaches the village at all is undecided, and a 48-day year would cut the calendar loose from history altogether. *With open decisions 8 and 10.*

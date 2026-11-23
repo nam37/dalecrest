@@ -52,8 +52,11 @@ export function createMotion(span = 3100) {
         sample(t, now);
         if (tick) {
           const action = actor.action;
-          // Repeated polls and selection changes during one tick must leave its walk in progress.
-          if (t.minute === tick.minute && t.target === action.target && t.phase === action.phase && same(to, t.end)) continue;
+          // A stream update or selection change unrelated to the route leaves the walk in progress.
+          const samePath = path.length === t.path.length && path.every((point, i) => same(point, t.path[i]));
+          if (t.minute === tick.minute && t.target === action.target && t.phase === action.phase && same(to, t.end)
+            && t.traceId === action.decisionTraceId && t.remaining === action.remaining && samePath
+            && (path.length || t.revision === tick.map?.revision)) continue;
           let points = [];
           if (action.phase === 'travelling' && action.remaining > 0) {
             const waypoints = action.path ?? route(tick.map, to, action.target)?.pts ?? [];
@@ -63,7 +66,8 @@ export function createMotion(span = 3100) {
           // A fresh decision can arrive mid-tick, so begin that walk when we first see it.
           const start = action.path ? tick.endsAt - tick.ms : now;
           setSegment(t, [to, ...points], start, Math.max(1, tick.endsAt - start));
-          Object.assign(t, { end: to, minute: tick.minute, target: action.target, phase: action.phase });
+          Object.assign(t, { end: to, minute: tick.minute, target: action.target, phase: action.phase, path,
+            traceId: action.decisionTraceId, remaining: action.remaining, revision: tick.map?.revision });
           continue;
         }
         if (same(to, t.end)) { t.path = path; continue; }

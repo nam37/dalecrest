@@ -54,8 +54,8 @@ export function residentState(actor) {
 }
 
 // Observe each real minute. Choosing the same activity again creates a new action object.
-export function advanceWithTraces(village, minutes, traces, externalActions = false, records = null) {
-  if (!traces.length) return { events: stepVillage(village, { minutes, externalActions, records }), steps: [] };
+export function advanceWithTraces(village, minutes, traces, externalActions = false, records = null, observe) {
+  if (!traces.length) return { events: stepVillage(village, { minutes, externalActions, records, observe }), steps: [] };
   const events = [], steps = [];
   const byActor = new Map(traces.map(t => [t.actor_id, t]));
   for (let i = 0; i < minutes; i++) {
@@ -67,7 +67,7 @@ export function advanceWithTraces(village, minutes, traces, externalActions = fa
         observed.push({ actor, trace, action: actor.action, phase: actor.action.phase, remaining: actor.action.remaining });
       }
     }
-    const tickEvents = stepVillage(village, { minutes: 1, externalActions, records });
+    const tickEvents = stepVillage(village, { minutes: 1, externalActions, records, observe });
     events.push(...tickEvents);
     for (const { actor, trace, action, phase, remaining } of observed) {
       const add = kind => steps.push({ trace_id: trace.id, minute: next, kind, details: residentState(actor) });

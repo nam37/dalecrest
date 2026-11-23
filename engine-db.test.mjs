@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
+import { mapRevision, mapRevisions, residentHeat } from './village-history.mjs';
 
 // Runs only when DALECREST_TEST_ADMIN_URL names a development server that may create databases.
 const adminUrl = process.env.DALECREST_TEST_ADMIN_URL;
@@ -46,6 +47,9 @@ test('PostgreSQL moves an old village onto a map, then stores a newcomer and the
     assert.equal((await db.snapshot({ withMap:true })).map,initialObserver.map);
     assert.ok(snapshot.actors.every(a => /^cottage-\d$/.test(a.home) && a.action.target === a.home));
     assert.equal(snapshot.world.minute, world.minute);
+    assert.deepEqual(await mapRevisions(db.pool), [{ revision: first, minute: world.minute }]);
+    assert.deepEqual((await mapRevision(db.pool, first)).map, initialObserver.map);
+    assert.equal((await residentHeat(db.pool, 'agnes', 7)).minutes, 0);
     await db.initialize();
     assert.equal((await db.pool.query('SELECT count(*)::int AS n FROM dalecrest.events')).rows[0].n, 1);
 
@@ -68,6 +72,14 @@ test('PostgreSQL moves an old village onto a map, then stores a newcomer and the
     assert.equal(latestObserver.world.mapRevision,latestObserver.map.revision);
     assert.deepEqual(latestObserver.map,stored.state);
     assert.equal(initialObserver.map.revision,first);
+    const archive = await mapRevisions(db.pool);
+    assert.ok(archive.length > 1);
+    assert.equal(archive[0].revision, first);
+    assert.equal(archive.at(-1).revision, latestObserver.map.revision);
+    assert.deepEqual((await mapRevision(db.pool, first)).map, initialObserver.map);
+    const presence = await residentHeat(db.pool, 'agnes', null);
+    assert.equal(presence.minutes, latestObserver.world.minute - world.minute);
+    assert.equal(presence.cells.reduce((total, cell) => total + cell[2], 0), presence.minutes);
     assert.ok((await db.pool.query("SELECT 1 FROM dalecrest.events WHERE kind = 'arrival'")).rowCount);
   } finally {
     if (db) await db.pool.end();

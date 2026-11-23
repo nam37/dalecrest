@@ -1,4 +1,5 @@
 import { formatDate } from '/engine/calendar.mjs';
+import { dayLink, promiseLink } from './record-links.js';
 
 const $ = id => document.getElementById(id);
 const day = new URLSearchParams(location.search).get('day');
@@ -26,7 +27,8 @@ function showIssue({ day, edition, older, newer }) {
   const issueDate = formatDate(day * 1440, 'long');
   document.title = 'Dalecrest Daily · ' + issueDate;
   Object.assign($('edition-date'), { textContent: issueDate, href: address(day), hidden: false });
-  $('coverage').textContent = 'From ' + formatDate((day - 1) * 1440, 'long');
+  const start = (day - 1) * 1440;
+  $('coverage').replaceChildren('From ', link(formatDate(start, 'long'), dayLink(start)));
   $('headline').textContent = edition.headline;
   const numbers = new Map(edition.sources.map((source, index) => [source.id, index + 1]));
   function paragraphs(id, items) {
@@ -68,7 +70,7 @@ function showIssue({ day, edition, older, newer }) {
     const clock = [Math.floor(source.minute / 60) % 24, source.minute % 60].map(n => String(n).padStart(2, '0')).join(':');
     stamp.textContent = (source.kind === 'fieldnote' ? 'Robin’s notebook' : 'Village record') + ' · ' + formatDate(source.minute, 'short') + ', ' + clock;
     li.append(stamp, ' ' + source.text);
-    if (source.requestId) li.append(' ', link('Request history', '/requests.html?request=' + encodeURIComponent(source.requestId)));
+    if (source.requestId) li.append(' ', link('Request history', promiseLink(source.requestId)));
     return li;
   }));
   $('records').hidden = !edition.sources.length;

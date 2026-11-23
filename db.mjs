@@ -11,6 +11,8 @@ import { salienceOf, PUBLIC } from './engine/chronicle.mjs';
 import { knowledgeSchema, writeGoals, writeObservations } from './knowledge.mjs';
 import { claimReview, sendReview, settleReview } from './goal-reviews.mjs';
 import { initializeTraces, advanceWithTraces, writeSteps, writeActivities, residentState } from './decision-trace.mjs';
+import { historySchema, collectPresence, writePresence } from './village-history.mjs';
+import { eventMootKey, recordIndexes } from './record-pages.mjs';
 
 if (!process.env.DATABASE_URL) throw new Error('Set DATABASE_URL in .env to a PostgreSQL database before starting Dalecrest.');
 const minimumResidents = Number(process.env.VILLAGE_MIN_RESIDENTS ?? 8);
@@ -42,9 +44,13 @@ async function loadMap(db, revision) {
   const { rows } = await db.query('SELECT state FROM dalecrest.map WHERE id=1');
   return held = rows[0]?.state ?? null;
 }
-async function saveMap(db, map) {
-  await db.query(`INSERT INTO dalecrest.map(id, revision, state) VALUES (1, $1, $2)
-    ON CONFLICT (id) DO UPDATE SET revision = excluded.revision, state = excluded.state`, [map.revision, map]);
+async function saveMap(db, map, minute) {
+  await db.query(`WITH current AS (
+      INSERT INTO dalecrest.map(id, revision, state) VALUES (1, $1, $2)
+      ON CONFLICT (id) DO UPDATE SET revision=excluded.revision, state=excluded.state RETURNING revision, state
+    )
+    INSERT INTO dalecrest.map_revisions(revision, minute, state)
+    SELECT revision, $3, state FROM current ON CONFLICT (revision) DO NOTHING`, [map.revision, map, minute]);
 }
 async function saveActors(db, actors) {
   // A resident who has left or died is no longer in the village. A new one takes the next place in the order.
@@ -91,11 +97,13 @@ export async function initialize() {
       ALTER TABLE dalecrest.events ADD COLUMN IF NOT EXISTS place jsonb;
       ALTER TABLE dalecrest.events ADD COLUMN IF NOT EXISTS salience smallint;
       ${requestIndexes}
+      ${recordIndexes}
       ${dailySchema}
       ${civicAccountSchema}
       CREATE TABLE IF NOT EXISTS dalecrest.map (
         id integer PRIMARY KEY CHECK (id = 1), revision bigint NOT NULL, state jsonb NOT NULL
       );
+      ${historySchema}
       CREATE TABLE IF NOT EXISTS dalecrest.planner_limits (
         provider text PRIMARY KEY, next_request_at timestamptz NOT NULL
       );
@@ -124,6 +132,18 @@ export async function initialize() {
     await db.query(`UPDATE dalecrest.events SET salience = ${PUBLIC - 1} WHERE salience >= ${PUBLIC} AND kind = 'social'
       AND outcome->>'delivered' = 'false' AND NOT outcome ? 'requestId'`);
     await db.query(knowledgeSchema);
+    await db.query(`
+      CREATE OR REPLACE FUNCTION dalecrest.notify_observers() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        PERFORM pg_notify('dalecrest_village_changed', '');
+        RETURN NULL;
+      END;
+      $$;
+      ${['world', 'actors', 'map', 'events', 'civic_accounts'].map(table => `
+        CREATE OR REPLACE TRIGGER notify_observers AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE
+          ON dalecrest.${table} FOR EACH STATEMENT EXECUTE FUNCTION dalecrest.notify_observers();
+      `).join('')}
+    `);
     await db.query(`ALTER TABLE dalecrest.world ADD COLUMN IF NOT EXISTS ticks bigint NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS late_ms_max integer NOT NULL DEFAULT 0`);
     // The clock stops with the server. Time it was down is not counted as the clock running late.
@@ -138,21 +158,30 @@ export async function initialize() {
         await db.query("UPDATE dalecrest.actors SET state=$1 WHERE id='robin'", [robin]);
       }
       // A village founded before the map existed keeps its residents and gains the ground under them.
-      if ((await db.query('SELECT id FROM dalecrest.map WHERE id=1')).rowCount) return;
       const world = stored.rows[0].state;
+      if ((await db.query('SELECT id FROM dalecrest.map WHERE id=1')).rowCount) {
+        // Earlier versions kept a single map. Its current revision is the first available checkpoint.
+        await db.query(`INSERT INTO dalecrest.map_revisions(revision, minute, state)
+          SELECT revision, $1, state FROM dalecrest.map WHERE id=1 ON CONFLICT (revision) DO NOTHING`, [world.minute]);
+        return;
+      }
       const actors = (await db.query('SELECT state FROM dalecrest.actors ORDER BY ordinal')).rows.map(r => r.state);
       const map = adoptVillage({ world, actors }, seed);
       await db.query('UPDATE dalecrest.world SET state=$1 WHERE id=1', [world]);
       await saveActors(db, actors);
-      await saveMap(db, map);
+      await saveMap(db, map, world.minute);
       await recordEvents(db, [{ minute: world.minute, type: 'village', actorIds: [], text: 'The parish was surveyed, and every lane, field and cottage of Dalecrest set down on a new map.' }]);
       return;
     }
     const village = createVillage(seed);
-    if (process.env.PLANNER_PROVIDER !== 'openai') village.events.push(...stepVillage(village, { minutes: 105 }));
+    const presence = collectPresence();
+    const foundingRevision = village.map.revision;
+    await saveMap(db, village.map, village.world.minute);
+    if (process.env.PLANNER_PROVIDER !== 'openai') village.events.push(...stepVillage(village, { minutes: 105, observe: presence.observe }));
     await db.query('INSERT INTO dalecrest.world(id, state) VALUES (1, $1)', [village.world]);
     await saveActors(db, village.actors);
-    await saveMap(db, village.map);
+    if (village.map.revision !== foundingRevision) await saveMap(db, village.map, village.world.minute);
+    await writePresence(db, presence.rows);
     await recordEvents(db, village.events);
   });
 }
@@ -218,7 +247,8 @@ async function tick(db) {
   const records = [];
   const village = { world, actors, map };
   const arrivals = welcomeResidents(village, minimumResidents);
-  const { events, steps } = advanceWithTraces(village, minutes, traces, direct, records);
+  const presence = collectPresence();
+  const { events, steps } = advanceWithTraces(village, minutes, traces, direct, records, presence.observe);
   // The right-hand sides read the row as it was, so lateness is measured against the tick that was due.
   await db.query(`UPDATE dalecrest.world SET state=$1, ticks=ticks+1,
     late_ms_max=greatest(late_ms_max, least(extract(epoch FROM now()-next_tick)*1000, 2000000000)::int),
@@ -227,7 +257,8 @@ async function tick(db) {
   await writeGoals(db, actors);
   await writeObservations(db, actors, chronicle);
   await saveActors(db, actors);
-  if (map.revision !== before) await saveMap(db, map);
+  if (map.revision !== before) await saveMap(db, map, world.minute);
+  await writePresence(db, presence.rows);
   await queueEditions(db, beforeMinute, world.minute);
   await writeSteps(db, steps, chronicle, traces, world.minute);
   await writeActivities(db, records);
@@ -240,10 +271,13 @@ export async function snapshot({ withMap = false } = {}) {
   const result = await pool.query(`
     SELECT w.state AS world,
       ${withMap ? `greatest(0, extract(epoch FROM w.next_tick - statement_timestamp()) * 1000)::int AS "nextTickInMs",
+        jsonb_build_array((SELECT max(id) FROM dalecrest.events),
+          (SELECT count(*) FROM dalecrest.civic_accounts WHERE account IS NOT NULL)) AS "eventVersion",
         (SELECT m.state FROM dalecrest.map m WHERE m.id=w.id AND m.revision IS DISTINCT FROM $1::bigint) AS map,` : ''}
-      (SELECT jsonb_agg(state ORDER BY ordinal) FROM dalecrest.actors) AS actors,
+      COALESCE((SELECT jsonb_agg(state ORDER BY ordinal) FROM dalecrest.actors), '[]'::jsonb) AS actors,
       COALESCE((SELECT jsonb_agg(to_jsonb(recent) ORDER BY recent.id DESC) FROM
-        (SELECT id, minute, kind AS type, actor_ids AS "actorIds", description AS text, place, salience, ${eventRequestKey} AS "requestId", ${eventAccount} AS account
+        (SELECT id, minute, kind AS type, actor_ids AS "actorIds", description AS text, place, salience,
+          ${eventRequestKey} AS "requestId", ${eventMootKey} AS "mootId", ${eventAccount} AS account
          FROM dalecrest.events WHERE salience >= ${PUBLIC} ORDER BY id DESC LIMIT 100) recent),'[]'::jsonb) AS events
     FROM dalecrest.world w WHERE w.id=1`, withMap ? [cached?.revision ?? null] : []);
   const state = result.rows[0];
@@ -257,10 +291,46 @@ export async function snapshot({ withMap = false } = {}) {
   return state;
 }
 
+// LISTEN has its own session so streaming viewers never hold a connection from the query pool.
+export function listenForVillageChanges(changed) {
+  let connection, retry, stopped = false, backoff = 1000;
+  async function connect() {
+    const db = new pg.Client({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 5000, keepAlive: true });
+    connection = db;
+    function lost() {
+      if (stopped || connection !== db) return;
+      connection = null;
+      db.end().catch(() => {});
+      retry = setTimeout(connect, backoff);
+      backoff = Math.min(backoff * 2, 10000);
+    }
+    db.on('error', lost);
+    db.once('end', lost);
+    db.on('notification', message => {
+      if (connection === db && message.channel === 'dalecrest_village_changed') changed();
+    });
+    try {
+      await db.connect();
+      await db.query('LISTEN dalecrest_village_changed');
+      if (!stopped && connection === db) {
+        backoff = 1000;
+        changed();
+      }
+    } catch { lost(); }
+  }
+  connect();
+  return () => {
+    stopped = true;
+    clearTimeout(retry);
+    connection?.end().catch(() => {});
+  };
+}
+
 // The latest 100 entries of one kind, or of every kind, routine included, for the full chronicle.
 export async function recentEvents(kind) {
   const { rows } = await pool.query(`SELECT id, minute, kind AS type, actor_ids AS "actorIds", description AS text, place, salience,
-      ${eventRequestKey} AS "requestId", ${eventAccount} AS account FROM dalecrest.events WHERE ($1::text IS NULL OR kind = $1) ORDER BY id DESC LIMIT 100`, [kind || null]);
+      ${eventRequestKey} AS "requestId", ${eventMootKey} AS "mootId", ${eventAccount} AS account
+      FROM dalecrest.events WHERE ($1::text IS NULL OR kind = $1) ORDER BY id DESC LIMIT 100`, [kind || null]);
   return rows;
 }
 
