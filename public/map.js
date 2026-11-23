@@ -303,7 +303,7 @@ function paintPaper(c, map, look, scale) {
       c.moveTo(x + r * (dx + size), y + r * dy); c.arc(x + r * dx, y + r * dy, r * size, 0, TAU);
     }
   }
-  c.fillStyle = snow ? '#4a5f5c3d' : '#22352b4d'; c.fill();
+  c.fillStyle = '#22352b4d'; c.fill();
   for (const [x, y, r, pine] of look.woods) {
     const k = hash2(map.seed, x * 10, y * 10);
     if (pine) {
