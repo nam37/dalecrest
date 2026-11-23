@@ -8,7 +8,9 @@ import { visitorContext } from './engine/visitors.mjs';
 import { storehouseContext } from './engine/storehouse.mjs';
 import { recall } from './engine/memory.mjs';
 import { activeGoals, goalContext } from './engine/goals.mjs';
-import { preferredOuting } from './engine/foraging.mjs';
+import { preferredOuting, processing } from './engine/foraging.mjs';
+import { restockingPreference } from './engine/action-menu.mjs';
+import { nextFreshExpiry } from './engine/fresh-food.mjs';
 
 // The memories put before the action model: what bears on the people the resident's goals, marriage and
 // open requests concern and on where they are, weighed against recency and importance.
@@ -52,12 +54,23 @@ export function actionDescription(action, names = {}) {
 export function actionBody(actor, world, menu, names = {}, weather, menuContext = {}) {
   const last = actor.action.previous, hearth = actor.observations?.hearth;
   const outing = preferredOuting(actor, menu);
+  const restocking = restockingPreference(actor, world, menu);
+  const hall = names.hall;
+  const atHall = hall && Math.hypot(actor.position.x - hall.x, actor.position.y - hall.y) <= 3;
+  const processingOptions = [...menu].flatMap(([choice, action]) => {
+    const work = processing[action.job];
+    if (!work) return [];
+    const expires = atHall ? nextFreshExpiry(world, work.input) : undefined;
+    return [{ choice, effect: work.effect, ...(expires != null && { oldestIngredientSpoilsAt: villageTime(expires) }) }];
+  });
   const ballot = [...menu.values()].find(action => action.kind === 'ballot');
   const civic = civicContext(actor, world);
   const observation = {
     name: actor.name, role: actor.role, traits: actor.traits, goals: actor.goalBook ? goalContext(actor, names) : actor.goals,
     desires: actor.desires.map(({ focus, weight, target }) => ({ focus, weight, target })),
     ...(outing && { preferredActivity: outing }),
+    ...(restocking && { restockingOpportunity: restocking }),
+    ...(processingOptions.length && { processingOptions }),
     ...menuContext,
     ...civic,
     ...((ballot || civic.civicNews || [...menu.values()].some(action => action.kind === 'civic')) &&
@@ -78,12 +91,13 @@ export function actionBody(actor, world, menu, names = {}, weather, menuContext 
   const review = options.some(o => o.value.startsWith('retain:'))
     ? ' Reconsider whether you still need the help using the new information. Use only the offered choices. A reported delivery tells you how much was added. Supplies can be used afterward.' : '';
   const preference = outing ? ' Favor the preferred activity when the resident’s needs and responsibilities allow, and decide whether this is a good time to go.' : '';
+  const resupply = restocking ? ' Favor processing an existing catch when the restocking opportunity advances the resident’s goal or addresses a known shortage and their needs allow it. Consider the time and the ingredients.' : preference;
   return JSON.stringify({
     model: DECISIONS_MODEL, input: [{ role: 'user', content: [{ type: 'input_json', data: observation }] }],
     questions: [{ type: 'choice', name: 'next_action', choices: options,
       instructions: ballot
         ? 'Cast this resident’s ballot on the motion before the moot. Choose support, opposition or abstention in light of their goals, obligations and observations. Consider who witnessed each claim and who passed it on. A report can be mistaken.'
-        : 'Choose the activity this resident will begin now. Weigh goals, needs (100 is urgent), time, weather and memories. The last oven check is what they personally counted then. Null means they have not checked. Stocks can change.' + preference + review }]
+        : 'Choose the activity this resident will begin now. Weigh goals, needs (100 is urgent), time, weather and memories. The last oven check is what they personally counted then. Null means they have not checked. Stocks can change.' + resupply + review }]
   });
 }
 

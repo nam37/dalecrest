@@ -14,8 +14,9 @@ import { villageTime } from './exchanges.mjs';
 
 const DAY = 1440;
 export const MAX_GOALS = 4;
-export const STORE_ITEMS = ['grain', 'flour', 'bread', 'wood', 'water', 'cloth', 'preserved'];
-export const GOAL_JOBS = ['harvest', 'mill', 'bake', 'cut', 'weave', 'mend', 'draw', 'build', 'fish', 'hunt', 'fetchWood', 'fetchBread'];
+export const STORE_ITEMS = ['grain', 'flour', 'bread', 'wood', 'water', 'cloth', 'preserved', 'leather'];
+export const GOAL_JOBS = ['harvest', 'mill', 'bake', 'cut', 'weave', 'mend', 'draw', 'build', 'fish', 'hunt', 'fetchWood', 'fetchBread',
+  'dressGame', 'cureFish', 'smokeMeat', 'tanHide', 'repairShoes'];
 const FOCI = ['work', 'social', 'rest', 'food'];
 // A review is due when the resident has gone this long without one.
 export const REVIEW_EVERY = 3 * DAY;

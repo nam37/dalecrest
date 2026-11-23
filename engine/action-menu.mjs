@@ -7,10 +7,32 @@ import { isNight, PILOT } from './standing.mjs';
 import { requestIsOpen } from './request-review.mjs';
 import { villageJobs } from './village-work.mjs';
 import { isOwnTrade } from './workday.mjs';
+import { knownShelfCount } from './storehouse.mjs';
+import { wornShoes } from './footwear.mjs';
 
 const TARGET_SIZE = 12;
 const VISIT_LIMIT = 4;
 const NEWS_LIMIT = 2;
+
+export function restockingPreference(actor, world, feasible) {
+  const goals = activeGoals(actor);
+  const goalFor = item => goals.some(goal => goal.condition?.type === 'store' && goal.condition.item === item);
+  const seen = knownShelfCount(actor);
+  const countedEmpty = item => seen?.stock?.[item] === 0 && world.minute - seen.minute <= 1440;
+  const choiceFor = (...jobs) => jobs.map(job => [...feasible].find(([, action]) => action.job === job)?.[0]).find(Boolean);
+  const preserveGoal = goalFor('preserved');
+  if (preserveGoal || countedEmpty('preserved')) {
+    const choice = choiceFor('cureFish', 'smokeMeat', 'dressGame');
+    if (choice) return { choice, reason: preserveGoal ? 'My goal is to put preserved food on the storehouse shelves.'
+      : 'The last storehouse count I know of found no preserved food.' };
+  }
+  const leatherGoal = goalFor('leather');
+  if (leatherGoal || (wornShoes(actor) && countedEmpty('leather'))) {
+    const choice = choiceFor('tanHide', 'dressGame');
+    if (choice) return { choice, reason: leatherGoal ? 'My goal is to put leather on the storehouse shelves.'
+      : 'My shoes need mending and the last count I know of found no leather.' };
+  }
+}
 
 function closeBy(actor, other) {
   return other && Math.hypot(other.position.x - actor.position.x, other.position.y - actor.position.y) <= 3;
@@ -93,6 +115,7 @@ export function shapeActionMenu(actor, state, feasible, ownTrade) {
   protect(trade[0]?.[0], 'own_trade');
   if (actor.trade === 'bake' && !trade.length) protect(rows.find(([, action]) => action.kind === 'inspect')?.[0], 'oven_check');
   protect(preferredOuting(actor, feasible)?.choice, 'preferred_outing');
+  protect(restockingPreference(actor, state.world, feasible)?.choice, 'restocking');
 
   const visits = shortlistVisits(rows.filter(([, a]) => a.kind === 'social'), actor, residents, relevant);
   const ordinaryNews = rows.filter(([id, action]) => action.verb === 'share' && !protectedChoices.has(id))

@@ -1,11 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { availableActions, createVillage, startChosen, stepVillage } from './sim.mjs';
+import { availableActions, createVillage, locationsOf, startChosen, stepVillage } from './sim.mjs';
 import { actionBody } from './decisions.mjs';
 import { weatherAt } from './engine/seasons.mjs';
 import { ripeningOn } from './engine/stores.mjs';
 import { place, route } from './engine/roads.mjs';
 import { isWater } from './engine/terrain.mjs';
+import { FRESH_LIFE } from './engine/fresh-food.mjs';
+import { SHOE_WEAR } from './engine/footwear.mjs';
+import { shapeActionMenu } from './engine/action-menu.mjs';
 
 const tick = (village, minutes = 1) => stepVillage(village, { minutes, externalActions: true });
 
@@ -152,7 +155,7 @@ test('fishing gathers bait in the same action, catches fish, and wears out a sav
   assert.equal(fisher.fishing.wear, 0);
 });
 
-test('game and fish become meals, leather and preserves, while fresh stock can spoil', () => {
+test('game and fish become meals, leather and preserves, while cooked stock spoils at dawn', () => {
   const village = createVillage();
   const oswin = village.actors.find(actor => actor.id === 'oswin'), { world } = village;
   world.minute = 720;
@@ -173,14 +176,14 @@ test('game and fish become meals, leather and preserves, while fresh stock can s
   assert.deepEqual(work('dressGame'), { game: -1, meat: 3, hide: 1 });
   assert.deepEqual(work('tanHide'), { hide: -1, water: -2, leather: 1 });
   assert.deepEqual(work('smokeMeat'), { meat: -3, wood: -1, preserved: 3 });
-  world.supplies.fish = 6;
+  world.supplies.fish = 4;
   assert.deepEqual(work('cookFish'), { fish: -2, wood: -1, cooked: 3 });
-  assert.deepEqual(work('cureFish'), { fish: -3, wood: -1, preserved: 3 });
+  assert.deepEqual(work('cureFish'), { fish: -2, wood: -1, preserved: 2 });
   world.minute = 1799;
   tick(village);
   assert.equal(world.supplies.fish, 0);
   assert.equal(world.supplies.cooked, 1);
-  assert.equal(world.supplies.preserved, 6);
+  assert.equal(world.supplies.preserved, 5);
   oswin.needs.hunger = 80;
   choose(village, oswin, 'food:cooked:');
   let ate = false;
@@ -188,4 +191,100 @@ test('game and fish become meals, leather and preserves, while fresh stock can s
   assert.ok(ate);
   assert.equal(world.supplies.cooked, 0);
   assert.ok(oswin.needs.hunger < 25);
+});
+
+test('legacy raw food survives one dawn, then expires once across a saved game', () => {
+  const village = createVillage(), { world } = village;
+  world.minute = 1799;
+  world.supplies.game = 1;
+  world.supplies.fish = 1;
+  tick(village, 0);
+  const expires = 1799 + FRESH_LIFE;
+  assert.deepEqual(world.freshFood.game, [{ quantity: 1, expires }]);
+  tick(village);
+  assert.equal(world.supplies.game, 1);
+  assert.equal(world.supplies.fish, 1);
+  const resumed = JSON.parse(JSON.stringify(village));
+  resumed.world.minute = expires - 1;
+  const spoiled = tick(resumed).find(e => e.outcome?.spoiled);
+  assert.deepEqual(spoiled.outcome.spoiled, { fish: 1, game: 1 });
+  assert.equal(resumed.world.supplies.game, 0);
+  assert.equal(resumed.world.supplies.fish, 0);
+  assert.ok(!tick(resumed).some(e => e.outcome?.spoiled));
+});
+
+test('one catch can be claimed for curing, carried to the storehouse and counted on delivery', () => {
+  const village = createVillage(), { world, actors, map } = village;
+  const fisher = actors.find(actor => actor.id === 'hugh'), [cook] = actors;
+  world.minute = 720;
+  moveTo(village, fisher, 'fishing-bank');
+  const outing = choose(village, fisher, 'work:fish:');
+  assert.ok(tick(village, outing.remaining).some(event => event.outcome?.stockDelta?.fish === 2));
+  const expires = world.freshFood.fish[0].expires;
+  assert.equal(expires, world.minute + FRESH_LIFE);
+  fisher.observations ??= {};
+  fisher.observations.storehouse = { site: 'storehouse', minute: world.minute, stock: { bread: 8, cloth: 0, preserved: 0, leather: 0 } };
+  const names = locationsOf(map, actors);
+  const decision = () => {
+    const { menu, audit } = shapeActionMenu(fisher, village, availableActions(fisher, village));
+    return { audit, ...JSON.parse(actionBody(fisher, world, menu, names)).input[0].content[0].data };
+  };
+  assert.equal(decision().processingOptions.find(option => option.choice === 'work:cureFish:hall').oldestIngredientSpoilsAt, undefined);
+  moveTo(village, fisher, 'hall');
+  const prompt = decision();
+  assert.equal(prompt.audit.protected['work:cureFish:hall'], 'restocking');
+  assert.equal(prompt.restockingOpportunity.choice, 'work:cureFish:hall');
+  assert.match(prompt.processingOptions.find(option => option.choice === 'work:cureFish:hall').oldestIngredientSpoilsAt, /August 1312 at/);
+  const cure = choose(village, fisher, 'work:cureFish:');
+  assert.ok(!availableActions(cook, village).has('work:cookFish:hall'));
+  const doneAtHall = tick(village, cure.remaining);
+  assert.ok(!doneAtHall.some(event => event.outcome?.job === 'cureFish'));
+  assert.equal(world.supplies.fish, 0);
+  assert.equal(world.supplies.preserved, 0);
+  assert.deepEqual(fisher.action.carrying, { preserved: 2 });
+  const resumed = JSON.parse(JSON.stringify(village));
+  const delivered = tick(resumed, 100).find(event => event.outcome?.job === 'cureFish');
+  assert.match(delivered.text, /cured two portions.*took them to the storehouse/);
+  assert.deepEqual(delivered.outcome.stockDelta, { fish: -2, wood: -1, preserved: 2 });
+  assert.equal(resumed.world.supplies.preserved, 2);
+});
+
+test('processing takes the oldest fish and a new catch keeps its own expiry', () => {
+  const village = createVillage(), { world, actors: [cook] } = village;
+  world.minute = 720;
+  world.supplies.fish = 2;
+  tick(village, 0);
+  const oldest = world.freshFood.fish[0].expires;
+  world.minute += 90;
+  world.supplies.fish += 2;
+  tick(village, 0);
+  moveTo(village, cook, 'hall');
+  const action = choose(village, cook, 'work:cookFish:');
+  assert.ok(tick(village, action.remaining).some(event => event.outcome?.stockDelta?.fish === -2));
+  assert.deepEqual(world.freshFood.fish, [{ quantity: 2, expires: oldest + 90 }]);
+  world.minute = oldest - 1;
+  assert.ok(!tick(village).some(e => e.outcome?.spoiled?.fish));
+  assert.equal(world.supplies.fish, 2);
+});
+
+test('one piece of delivered leather repairs shoes and makes a long walk less tiring', () => {
+  const village = createVillage(), { world, actors: [actor] } = village;
+  world.minute = 720;
+  world.supplies.leather = 1;
+  actor.shoeWear = SHOE_WEAR;
+  moveTo(village, actor, 'storehouse');
+  const leather = choose(village, actor, 'work:repairShoes:');
+  const result = tick(village, leather.remaining).find(event => event.outcome?.job === 'repairShoes');
+  assert.deepEqual(result.outcome.stockDelta, { leather: -1 });
+  assert.equal(world.supplies.leather, 0);
+  assert.equal(actor.shoeWear, 0);
+  assert.ok(!availableActions(actor, village).has('work:repairShoes:storehouse'));
+  actor.needs.fatigue = 20;
+  actor.action = { kind: 'work', job: 'cut', phase: 'travelling', remaining: 78, target: 'wood', label: 'Stacking firewood' };
+  const worn = structuredClone(village);
+  worn.actors[0].shoeWear = SHOE_WEAR;
+  tick(village, 10);
+  tick(worn, 10);
+  assert.deepEqual(worn.actors[0].position, actor.position);
+  assert.ok(worn.actors[0].needs.fatigue > actor.needs.fatigue + 1);
 });

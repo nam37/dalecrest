@@ -4,6 +4,9 @@ import { addFishingBank, forageJobs, LINE_WEAR_LIMIT, offerForaging, provisions 
 import { FIELD_HOLDS, growing, ripeningOn } from './stores.mjs';
 import { finishVisitor, visitorChoices, visitorJobs, visitorObstacle } from './visitors.mjs';
 import { finishHousehold, householdChoices, householdContext, householdJobs, householdObstacle, prepareHousehold } from './households.mjs';
+import { normalizeFreshFood } from './fresh-food.mjs';
+import { shoeJob, shoeRepair, wornShoes } from './footwear.mjs';
+import { seeShelves, storehouseOf } from './storehouse.mjs';
 
 export const bedJob = 'repairBed';
 
@@ -11,6 +14,7 @@ export const villageJobs = {
   ...forageJobs,
   ...householdJobs,
   ...visitorJobs,
+  [shoeJob]: shoeRepair,
   weed: { label: 'Weeding the barley strip', task: 'weeding', duration: 35, makes: {} },
   waterBarley: { label: 'Watering the barley strip', task: 'watering', duration: 29, takes: { water: 2 }, makes: {} },
   repairBed: { label: 'Repairing the bed', task: 'bed repair', duration: 68, takes: { wood: 2 }, makes: {}, indoors: true },
@@ -34,6 +38,7 @@ export function normalizeVillageWork({ world, actors, map }) {
     world.capacity[item] ??= capacity;
     world.supplies[item] ??= 0;
   }
+  normalizeFreshFood(world);
   addFishingBank(map);
   for (const actor of actors) prepareCottage(world, actor, place(map, actor.home));
   const agnes = actors.find(actor => actor.id === 'agnes');
@@ -67,7 +72,8 @@ export function repairBedSpec(actor) {
   return actor.trade === 'mend' ? { ...spec, duration: 40, takes: { wood: 1 } } : spec;
 }
 
-export function ownWorkChoices(actor, { world, map }, offer, weary) {
+export function ownWorkChoices(actor, state, offer, weary) {
+  const { world, map } = state;
   const strip = world.barleyStrip;
   const daylight = nextOutdoorStart(world.minute) === world.minute, sky = weatherAt(world.minute, map.seed);
   if (strip?.keeper === actor.id && daylight && growing(world.minute)) {
@@ -88,7 +94,11 @@ export function ownWorkChoices(actor, { world, map }, offer, weary) {
   }
   if (world.minute >= cottage?.sweepDue) offer('sweep', actor.home, 36 - weary, 'The cottage needs sweeping. A clean room is easier to rest in.');
   if (world.minute >= cottage?.floorDue) offer('repairFloor', actor.home, 51 - weary * 0.6, 'A rotten board makes the cottage draughty.');
-  offerForaging(actor, { world, map }, offer, sky, daylight, weary);
+  const storehouse = storehouseOf(map);
+  if (storehouse && wornShoes(actor)) {
+    offer(shoeJob, storehouse.id, 54 - weary, 'One piece of leather would re-sole my shoes and make long walks less tiring.');
+  }
+  offerForaging(actor, state, offer, sky, daylight, weary);
   householdChoices(actor, { world, map }, offer, weary, world.hearthRate || 0);
   visitorChoices(actor, { world, map }, offer, weary);
 }
@@ -97,6 +107,7 @@ export function villageWorkObstacle(actor, world, sky) {
   const { job, target, commitmentId } = actor.action;
   if (Object.hasOwn(householdJobs, job)) return householdObstacle(actor, world);
   if (Object.hasOwn(visitorJobs, job)) return visitorObstacle(actor, world);
+  if (job === shoeJob && !wornShoes(actor)) return 'the shoes did not need mending';
   if (job === 'weed' && !(world.barleyStrip?.weeds >= 2)) return 'the strip had already been weeded';
   if (job === 'waterBarley' && (!(world.barleyStrip?.moisture <= 1) || sky.rain || sky.snow)) return 'the strip no longer needed watering';
   if (job === bedJob) {
@@ -113,6 +124,11 @@ export function finishVillageWork(actor, { world, map }) {
   const { job, target } = actor.action;
   if (Object.hasOwn(householdJobs, job)) return finishHousehold(actor, world);
   if (Object.hasOwn(visitorJobs, job)) return finishVisitor(actor, { world, map });
+  if (job === shoeJob) {
+    actor.shoeWear = 0;
+    seeShelves(actor, world, 'mending shoes');
+    return 're-soled their shoes with a piece of leather from the storehouse';
+  }
   if (job === 'weed') {
     world.barleyStrip.weeds = 0;
     return 'cleared the weeds from the barley at ' + place(map, target).name;
@@ -147,6 +163,7 @@ export function ownWorkContext(actor, world) {
       barleyReady: world.fields[strip.site] >= 3 } }),
     ...(cottage?.brokenBed && { ownBed: 'Broken. Rest at home restores less energy until the bed is repaired.' }),
     ...(chores.length && { ownCottage: chores }),
+    ...(wornShoes(actor) && { ownShoes: 'My soles are worn through. Long walks tire me more until I re-sole my shoes.' }),
     ...householdContext(actor, world, world.hearthRate || 0),
     ...(actor.fishing && { fishingGear: { bait: actor.fishing.bait, poleNeedsRepair: actor.fishing.wear >= LINE_WEAR_LIMIT } })
   };

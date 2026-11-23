@@ -159,11 +159,15 @@ export function stockLarder(actor, world, n) {
   cottage.larder += n;
 }
 
-// What a resident knows of the storehouse and their allowance, for the action model.
-export function storehouseContext(actor, world, minute) {
+export function knownShelfCount(actor) {
   const seen = actor.observations?.storehouse;
   const heard = actor.reports?.store;
-  const latest = heard && (!seen || heard.fact.minute > seen.minute) ? { minute: heard.fact.minute, stock: heard.fact.stock, toldBy: heard.from } : seen;
+  return heard && (!seen || heard.fact.minute > seen.minute) ? { minute: heard.fact.minute, stock: heard.fact.stock, toldBy: heard.from } : seen;
+}
+
+// What a resident knows of the storehouse and their allowance, for the action model.
+export function storehouseContext(actor, world, minute) {
+  const latest = knownShelfCount(actor);
   return { breadAllowance: dueWords(actor, world),
     ...(latest && { lastStorehouseCount: { minutesAgo: minute - latest.minute, ...latest.stock, ...(latest.toldBy && { toldBy: latest.toldBy }) } }) };
 }

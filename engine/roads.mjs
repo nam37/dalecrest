@@ -168,20 +168,23 @@ export const walkingSpeed = actor => actor.traits.includes('restless') ? 2.65 : 
 
 export function walkingSegment(actor, path, minutes = 1) {
   let left = walkingSpeed(actor) * minutes;
+  let walked = 0;
   let from = [actor.position.x, actor.position.y], passed = 0;
   const points = [];
   for (const to of path) {
     const length = dist(from, to);
     if (length > left) {
       points.push([from[0] + left * (to[0] - from[0]) / length, from[1] + left * (to[1] - from[1]) / length]);
+      walked += left;
       break;
     }
     points.push(to);
     passed++;
     left -= length;
+    walked += length;
     from = to;
   }
-  return { points, passed };
+  return { points, passed, walked };
 }
 
 // Walking distance between two places along the ways.

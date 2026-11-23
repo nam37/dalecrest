@@ -23,6 +23,8 @@ import { forgetTold, judge } from './engine/chronicle.mjs';
 import { normalizeMemories } from './engine/memory.mjs';
 import { noteShift, normalizeGoals, settleGoals, watchGoals } from './engine/goals.mjs';
 import { familiar, fade, warm } from './engine/bonds.mjs';
+import { spoilFreshFood, trackFreshChange } from './engine/fresh-food.mjs';
+import { walkingFatigue } from './engine/footwear.mjs';
 
 export const FOCUSES = ['work', 'social', 'rest', 'food'];
 export const DEFAULT_SEED = 26111;
@@ -393,10 +395,11 @@ function travel(actor, state, emit) {
     action.path = found.pts;
     if (found.direct && found.from && found.length >= 5 && found.byRoad > found.length * 1.25) action.across = found.from;
   }
-  const { points, passed } = walkingSegment(actor, action.path);
+  const { points, passed, walked } = walkingSegment(actor, action.path);
   if (points.length) {
     const [x, y] = points.at(-1);
     actor.position = { x, y };
+    actor.needs.fatigue = clamp(actor.needs.fatigue + walkingFatigue(actor, walked));
   }
   action.path.splice(0, passed);
   if (action.path.length) return false;
@@ -611,7 +614,11 @@ function finishShift(actor, state, emit, sky) {
   // Finished goods for the storehouse count once they are on its shelves. Everything else counts now.
   const store = storehouseOf(state.map), carried = {};
   if (store) for (const [item, quantity] of Object.entries(job.makes)) if (STORED.includes(item) && quantity > 0) carried[item] = quantity;
-  for (const [item, change] of Object.entries(stockDelta)) world.supplies[item] += change - (carried[item] || 0);
+  for (const [item, change] of Object.entries(stockDelta)) {
+    const immediate = change - (carried[item] || 0);
+    world.supplies[item] += immediate;
+    trackFreshChange(world, item, immediate);
+  }
   if (key === 'fetchBread') actor.action.drawn = job.takes.bread;
   actor.lastJob = minute;
   if (actor.lastWorkDay !== Math.floor(minute / 1440)) { actor.daysWorked++; actor.lastWorkDay = Math.floor(minute / 1440); }
@@ -731,13 +738,9 @@ function stepMinute(state, events, externalActions, records, pilot) {
           [actor.id], 'observation', own ? { shortage: 'woodpile' } : { shortage: 'wood' });
       }
     }
-    let spoiled = 0;
-    for (const item of ['game', 'meat', 'fish', 'cooked']) {
-      const loss = Math.ceil(world.supplies[item] / 2);
-      world.supplies[item] -= loss;
-      spoiled += loss;
-    }
-    if (spoiled) emit('village', 'Some fresh fish, game or cooked food spoiled in the hall’s stores overnight.', [], undefined, 'hall');
+    const spoiled = Math.ceil(world.supplies.cooked / 2);
+    world.supplies.cooked -= spoiled;
+    if (spoiled) emit('village', 'Some cooked food spoiled in the hall’s stores overnight.', [], { spoiled: { cooked: spoiled } }, 'hall');
     dawnLives(state, emit, () => random(world), (child, home) => {
       const grown = grownChild(state, child, home, () => random(world));
       grown.desires = inferDesires(grown);
@@ -746,6 +749,8 @@ function stepMinute(state, events, externalActions, records, pilot) {
       emit('life', grown.name + ' has come of age and takes up work as a ' + grown.role.toLowerCase() + '.', [grown.id], { life: 'grown' });
     });
   }
+  const spoiled = spoilFreshFood(world);
+  if (Object.keys(spoiled).length) emit('village', 'Some raw fish or game spoiled in the hall’s stores.', [], { spoiled }, 'hall');
   tickLives(state, emit);
   tickVisitors(state, emit);
   if (minute % 1440 === FEAST_HOURS[0] && feastOf(minute)) emit('feast', 'Dalecrest keeps ' + feastOf(minute) + ' with a feast on the green this afternoon.', [], undefined, 'green');

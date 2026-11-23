@@ -23,9 +23,28 @@ export const forageJobs = {
     result: 'mended the fishing pole and can cast again' },
   cookFish: { label: 'Cooking the river catch', task: 'cooking', duration: 27, takes: { fish: 2, wood: 1 }, makes: { cooked: 3 }, indoors: true,
     result: 'cooked three portions of fish for the hall' },
-  cureFish: { label: 'Curing fish for later', task: 'curing', duration: 62, takes: { fish: 3, wood: 1 }, makes: { preserved: 3 }, indoors: true,
-    result: 'cured three portions of fish to keep' }
+  cureFish: { label: 'Curing fish for later', task: 'curing', duration: 62, takes: { fish: 2, wood: 1 }, makes: { preserved: 2 }, indoors: true,
+    result: 'cured two portions of fish to keep' }
 };
+
+export const processing = {
+  dressGame: { input: 'game', effect: 'Dressing one animal yields three portions of meat to cook or smoke and one hide to tan.' },
+  cookFish: { input: 'fish', effect: 'Cooking uses two fish and one bundle of wood for three fresh portions at the hall.' },
+  cureFish: { input: 'fish', effect: 'Curing uses two fish and one bundle of wood for two salt fish portions, then delivers them to the storehouse.' },
+  cookMeat: { input: 'meat', effect: 'Cooking uses two portions of game meat and one bundle of wood for three fresh portions at the hall.' },
+  smokeMeat: { input: 'meat', effect: 'Smoking uses three portions of game meat and one bundle of wood, then delivers three preserved portions to the storehouse.' },
+  tanHide: { input: 'hide', effect: 'Tanning uses a hide and two buckets of water, then delivers a piece of leather that can mend worn shoes.' },
+};
+
+function unclaimedIngredients(actor, { world, actors }) {
+  const remaining = { ...world.supplies };
+  for (const other of actors) {
+    if (other === actor || other.action.kind !== 'work' || other.action.remaining <= 0 || other.action.carrying) continue;
+    const job = other.action.job, food = processing[job];
+    if (food) remaining[food.input] -= forageJobs[job].takes[food.input];
+  }
+  return remaining;
+}
 
 const dayOf = minute => Math.floor(minute / 1440);
 const outingsToday = (actor, job, minute) => actor.outings?.[job] === dayOf(minute);
@@ -62,7 +81,8 @@ export function addFishingBank(map) {
   if (best) addPlace(map, 'fishing', { x: best[0], y: best[1], at: best }, { id: 'fishing-bank', name: 'Fishing bank' });
 }
 
-export function offerForaging(actor, { world, map }, offer, sky, daylight, weary) {
+export function offerForaging(actor, state, offer, sky, daylight, weary) {
+  const { world, map } = state;
   const gear = actor.fishing;
   if (gear?.wear >= LINE_WEAR_LIMIT) {
     offer('mendPole', actor.home, 49 - weary * 0.6, 'My fishing pole needs work before I can cast again.');
@@ -78,14 +98,22 @@ export function offerForaging(actor, { world, map }, offer, sky, daylight, weary
         gather ? { duration: CAST_MINUTES + BAIT_MINUTES, label: 'Gathering bait and fishing for supper' } : {});
     }
   }
-  offer('dressGame', 'hall', 49 - weary, 'There is game to dress at the hall.');
-  offer('tanHide', 'hall', 37 - weary, 'There is a hide to tan at the hall.');
+  // A cook and a curer cannot both start work on the same catch. A shift frees its claim as soon
+  // as it ends or begins carrying its finished goods. The engine checks real stock again on completion.
+  const unclaimed = unclaimedIngredients(actor, state);
+  const process = (job, score, reason) => {
+    const { input } = processing[job];
+    if (unclaimed[input] >= forageJobs[job].takes[input]) offer(job, 'hall', score - weary, reason);
+  };
+  const bareShelf = world.supplies.preserved === 0;
+  process('dressGame', bareShelf ? 61 : 49, 'Dressing game gives us meat and a raw hide.');
+  process('tanHide', 41, 'A tanned hide gives the village leather to mend shoes.');
   const roomForSupper = world.supplies.cooked < 5;
   for (const job of ['cookMeat', 'cookFish']) {
-    offer(job, 'hall', (roomForSupper ? 55 : 32) - weary, 'Cooking fresh food gives the village another supper.');
+    process(job, roomForSupper ? 55 : 32, 'Cooking fresh food gives the village another supper.');
   }
   for (const job of ['smokeMeat', 'cureFish']) {
-    offer(job, 'hall', (roomForSupper ? 40 : 53) - weary, 'Preserving the surplus will keep it for another day.');
+    process(job, bareShelf ? 58 : roomForSupper ? 40 : 53, 'Preserving the surplus will keep it for another day.');
   }
 }
 
