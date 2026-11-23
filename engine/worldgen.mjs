@@ -2,7 +2,7 @@
 // places people work, then buildings on lots along those ways, fields and woods.
 import { rng, spline, dist, r2, fbm, TAU, inPoly, lerp } from './geom.mjs';
 import { riverDistance, isWater } from './terrain.mjs';
-import { HALF, addNode, addEdge, nearestOnRoads, outline, place } from './roads.mjs';
+import { HALF, addNode, addEdge, nearestOnRoads, outline, place, touch } from './roads.mjs';
 import { FOOTPRINT, addPlace, pickLot } from './sites.mjs';
 
 export const MAP_VERSION = 1;
@@ -53,6 +53,34 @@ function plant(map, rand) {
       map.trees.push([r1(x), r1(y), r1(0.6 + size * 0.55), pine ? 1 : 0]);
     }
   }
+}
+
+// The coppice's woodland runs on south and west of it, into the corner of the parish. A map drawn
+// before it did gains those trees once, by the rules the rest were planted by: off the water's edge,
+// clear of buildings and fields, back from the ways, and not crowding a tree already standing.
+// Returns how many were planted.
+export function spreadWood(map) {
+  const wood = place(map, 'wood');
+  if (!wood || wood.spread) return 0;
+  wood.spread = true;
+  const { seed, riverWidth } = map.terrain, rand = rng(seed + 91), before = map.trees.length;
+  const solids = map.places.map(p => outline(p, p.kind === 'field' ? 0.4 : 1)).filter(Boolean);
+  const cx = wood.x - 5, cy = wood.y + 19.5;
+  for (let gy = 3; gy < map.h - 2; gy += 2.1) {
+    for (let gx = 3; gx < map.w - 2; gx += 2.1) {
+      const x = gx + (rand() - 0.5) * 1.7, y = gy + (rand() - 0.5) * 1.7;
+      const roll = rand(), kindRoll = rand(), size = rand();
+      // The edge of the wood is ragged, as the coppice's own is.
+      if (Math.hypot((x - cx) / 40, (y - cy) / 18) > 0.72 + 0.56 * fbm(seed + 5, x / 6, y / 6, 2)) continue;
+      if (roll > 0.86 || riverDistance(map, x, y) - riverWidth / 2 < 0.7 || solids.some(poly => inPoly([x, y], poly))) continue;
+      const way = nearestOnRoads(map, [x, y], () => true);
+      if (way.d < HALF[way.kind] + 1 || map.trees.some(t => dist(t, [x, y]) < 1.5)) continue;
+      const pine = fbm(seed + 77, x / 30, y / 30) > 0.52 ? kindRoll < 0.8 : kindRoll < 0.08;
+      map.trees.push([r1(x), r1(y), r1(0.6 + size * 0.55), pine ? 1 : 0]);
+    }
+  }
+  touch(map);
+  return map.trees.length - before;
 }
 
 export function generateMap(seed = 26111) {

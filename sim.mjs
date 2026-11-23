@@ -1,6 +1,6 @@
 // All durable state is plain JSON. No wall-clock reads or process-local random state.
 // A village is { world, actors, map }: the map is the generated and grown ground they live on.
-import { generateMap } from './engine/worldgen.mjs';
+import { generateMap, spreadWood } from './engine/worldgen.mjs';
 import { r2 } from './engine/geom.mjs';
 import { place, placesOf, route, walkingSegment } from './engine/roads.mjs';
 import * as civic from './engine/civic.mjs';
@@ -129,6 +129,7 @@ function normalize({ world, actors, map }) {
   normalizeCivicNews({ world, actors, map });
   normalizeVillageWork({ world, actors, map });
   addStorehouse(map);
+  spreadWood(map);
   normalizeAllowance({ world, actors });
   normalizeBuildings({ world, map });
 }
