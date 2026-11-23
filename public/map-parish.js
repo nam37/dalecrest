@@ -1,5 +1,5 @@
 import { animalCoats, animalPose, fenceSpans, logsIn } from './parish.js';
-import { blend } from './ambient.js';
+import { blend, PLAIN_LIGHT } from './ambient.js';
 
 const tau = Math.PI * 2;
 
@@ -43,17 +43,30 @@ export function drawWoodpile(c, pile, world, snow, toScreen, scale) {
   c.restore();
 }
 
-export function drawAnimal(c, animal, time, toScreen, scale) {
+// The shadow an animal throws: its own outline moved away from the light. Drawn about the animal's
+// place on the sheet, before the sheet is turned to its heading.
+export function animalShade(c, sun, heading, size, rx, ry) {
+  if (sun.depth < 0.02) return;
+  c.save();
+  c.translate(-sun.toward[0] * sun.reach * size * 0.5, -sun.toward[1] * sun.reach * size * 0.5);
+  c.rotate(heading);
+  c.beginPath(); c.ellipse(0, 0, rx * size, ry * size, 0, 0, tau);
+  c.fillStyle = 'rgba(74,69,44,' + (0.24 * sun.depth).toFixed(3) + ')'; c.fill();
+  c.restore();
+}
+
+export function drawAnimal(c, animal, time, toScreen, scale, sun = PLAIN_LIGHT) {
   const { x, y, heading, graze } = animalPose(animal, time);
   const cattle = animal.kind === 'cattle';
   const [sx, sy] = toScreen(x, y), size = Math.max(cattle ? 5.5 : 3.8, scale * (cattle ? 0.44 : 0.25));
   const wool = animalCoats[animal.kind][animal.coat], face = cattle ? '#71523d' : '#665746';
-  c.save(); c.translate(sx, sy); c.rotate(heading); c.scale(size, size);
+  c.save(); c.translate(sx, sy);
+  animalShade(c, sun, heading, size, 1, 0.55);
+  c.rotate(heading); c.scale(size, size);
   const oval = (u, v, a, b, color, edge) => {
     c.beginPath(); c.ellipse(u, v, a, b, 0, 0, tau); c.fillStyle = color; c.fill();
     if (edge) { c.strokeStyle = edge; c.lineWidth = 0.15; c.stroke(); }
   };
-  oval(0.03, 0.26, 1, 0.55, '#4a452c3d');
   oval(0, 0, 0.91, cattle ? 0.52 : 0.58, wool, '#61543c');
   if (!cattle) {
     oval(-0.27, -0.17, 0.52, 0.29, blend(wool, '#fff9e3', 0.48));

@@ -14,6 +14,24 @@ export function light(minute) {
   return { minute: m, p, day, bright, dark: 1 - bright, dusk, night: bright < 0.35 };
 }
 
+// The light a plan is drawn in when it shows no particular hour: from the north-west, as on a survey sheet.
+export const PLAIN_LIGHT = { toward: [-0.644, -0.765], reach: 1, depth: 1 };
+
+// The sun as the plan sees it, with north at the top of the sheet. It keeps the path it follows over
+// the walk view: up in the east, round by the south and down in the west.
+//   toward  the way to the light across the sheet, as a unit vector
+//   reach   how far a shadow runs for each unit of height: long at either end of the day, short at noon
+//   depth   how firm shadows are, from 0 (none) to 1
+// Cloud spreads the light, so shadows shorten and soften under it. By night the moon stands in the
+// south-west, as it does over the walk view, and throws a fainter shadow of its own.
+export function sunOver(minute, cloud = 0) {
+  const { p, day } = light(minute), murk = cloud * cloud;
+  if (!(day > 0)) return { toward: [-0.669, 0.743], reach: 0.93 * (1 - 0.55 * murk), depth: 0.42 * smooth(0, 0.08, p < 0 ? -p : p - 1) * (1 - 0.6 * murk) };
+  const x = Math.cos(Math.PI * p), y = 0.45 * Math.sin(Math.PI * p) + 0.2, flat = Math.hypot(x, y);
+  return { toward: [x / flat, y / flat], reach: Math.min(2.4, flat / Math.max(0.06, day * 0.95)) * (1 - 0.55 * murk),
+    depth: smooth(0, 0.22, day) * (1 - 0.6 * murk) };
+}
+
 // A colour part of the way from one hex colour to another.
 export function blend(a, b, t) {
   const k = Math.min(1, Math.max(0, t)), n = i => { const x = parseInt(a.slice(i, i + 2), 16), y = parseInt(b.slice(i, i + 2), 16); return Math.round(x + (y - x) * k).toString(16).padStart(2, '0'); };

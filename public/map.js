@@ -1,12 +1,14 @@
 // The plan view. Everything here is drawn from the village's stored map, so a new lane,
 // field or cottage appears as soon as the residents have made it.
 import { heightAt } from '/engine/terrain.mjs';
-import { rectPoly, rng, hash2, TAU } from '/engine/geom.mjs';
+import { rectPoly, rng, hash2, smooth, TAU } from '/engine/geom.mjs';
 import { createMotion } from '/motion.js';
-import { light, hearths, indoors, yearLook, skyOver, blend } from '/ambient.js';
+import { light, hearths, indoors, yearLook, skyOver, sunOver, blend, PLAIN_LIGHT } from '/ambient.js';
 
 import { drawMapFigure } from './map-figure.js';
 import { drawAnimal, drawGarden, drawWoodpile } from './map-parish.js';
+import { drawGame, drawFish } from './map-wildlife.js';
+import { wildlife } from './wildlife.js';
 import { parishLayout, strayCattle, workHeading } from './parish.js';
 import { residentActivity } from './resident-pose.js';
 
@@ -82,7 +84,7 @@ export function chains(map) {
   return out;
 }
 
-function building(c, p, line, lodgers, snowed = color => color) {
+function building(c, p, line, lodgers, snowed = color => color, toward = PLAIN_LIGHT.toward) {
   const [w, d] = [p.w, p.d], hw = w / 2, hd = d / 2;
   c.save();
   c.translate(p.x, p.y); c.rotate(p.a);
@@ -103,8 +105,8 @@ function building(c, p, line, lodgers, snowed = color => color) {
     c.lineWidth = line; c.stroke();
     c.restore(); return;
   }
-  // Light falls from the north-west, so the roof plane turned that way is the paler one.
-  const sunny = Math.cos(p.a) * 0.7 - Math.sin(p.a) * 0.7 > 0 ? -1 : 1;
+  // The roof plane turned to the light is the paler one.
+  const sunny = toward[1] * Math.cos(p.a) - toward[0] * Math.sin(p.a) > 0 ? 1 : -1;
   const roof = p.kind === 'hall' ? '#8e7459' : p.kind === 'mill' ? '#9b7858' : p.kind === 'granary' ? '#a8935f' : p.kind === 'alehouse' ? '#9a6a4c' : p.kind === 'storehouse' ? '#7d6b52' : roofs[h % roofs.length];
   c.fillStyle = snowed(roof); c.fillRect(-hw, -hd, w, d);
   c.fillStyle = '#fff5d02e'; c.fillRect(-hw, sunny < 0 ? -hd : 0, w, hd);
@@ -146,6 +148,8 @@ function paintPaper(c, map, look, scale) {
   c.lineCap = 'round'; c.lineJoin = 'round';
   // The season and any lying snow change the colours the sheet is painted in.
   const year = look.year || { leaf: 1, turn: 0, lush: 1, barley: null }, snow = look.snow || 0;
+  // Where the light comes from, and how far a thing one unit tall throws its shadow across the sheet.
+  const sun = look.sun || PLAIN_LIGHT, [lx, ly] = sun.toward, castX = -lx * 1.24 * sun.reach, castY = -ly * 1.24 * sun.reach;
   const snowed = (color, k = 0.82) => snow ? blend(color, SNOW, snow * k) : color;
   c.fillStyle = snowed(blend('#e3dcc6', ground, year.lush)); c.fillRect(-40, -40, map.w + 80, map.h + 80);
   for (const [x, y, r, warm] of look.washes) {
@@ -274,39 +278,45 @@ function paintPaper(c, map, look, scale) {
   // Shadows first, then buildings, then the trees that overhang them. Everything that falls on the
   // ground, from buildings and trees alike, is gathered into one shape and filled once, so shadows
   // that meet run together instead of darkening one another. A tree's shade is its crown's own
-  // outline thrown south-east, away from the light, and joined to the foot of the tree.
-  const leafy = year.leaf > 0.3, shade = '#26382e4d', roofed = [];
+  // outline drawn out away from the light: a round end under the tree and another where its top falls.
+  const leafy = year.leaf > 0.3, roofed = [], shady = sun.depth > 0.01;
+  const shade = 'rgba(38,56,46,' + (0.3 * sun.depth).toFixed(3) + ')', small = 'rgba(90,83,57,' + (0.18 * sun.depth).toFixed(3) + ')';
   const ring = pts => { pts.forEach(([x, y], i) => i ? c.lineTo(x, y) : c.moveTo(x, y)); c.closePath(); };
+  const away = Math.atan2(castY, castX);
   const treeShade = () => {
     for (const [x, y, r, pine] of look.woods) {
       if (!pine && !leafy) continue;
-      for (const [dx, dy, size] of [[0.1, 0.12, 1.04], [0.34, 0.41, 1], [0.58, 0.7, 0.96]]) {
-        c.moveTo(x + r * (dx + size), y + r * dy); c.arc(x + r * dx, y + r * dy, r * size, 0, TAU);
-      }
+      const fx = x + castX * r * 0.73, fy = y + castY * r * 0.73;
+      c.moveTo(x + Math.cos(away + Math.PI / 2) * r * 1.03, y + Math.sin(away + Math.PI / 2) * r * 1.03);
+      c.arc(x, y, r * 1.03, away + Math.PI / 2, away + Math.PI * 1.5);
+      c.arc(fx, fy, r * 0.95, away - Math.PI / 2, away + Math.PI / 2);
+      c.closePath();
     }
   };
-  c.beginPath();
-  for (const p of places) {
-    if (!p.w || p.kind === 'field' || p.stage !== 2) continue;
-    const tall = p.kind === 'hall' || p.kind === 'mill' ? 1.25 : 0.9, foot = rectPoly(p);
-    ring(hull([...foot, ...foot.map(([x, y]) => [x + 0.8 * tall, y + 0.95 * tall])]));
+  if (shady) {
+    c.beginPath();
+    for (const p of places) {
+      if (!p.w || p.kind === 'field' || p.stage !== 2) continue;
+      const tall = p.kind === 'hall' || p.kind === 'mill' ? 1.25 : 0.9, foot = rectPoly(p);
+      ring(hull([...foot, ...foot.map(([x, y]) => [x + castX * tall, y + castY * tall])]));
+    }
+    treeShade();
+    c.fillStyle = shade; c.fill();
   }
-  treeShade();
-  c.fillStyle = shade; c.fill();
   for (const p of places) {
     if (p.kind === 'well') {
       if (p.stage < 2) { c.setLineDash([0.25, 0.22]); disc(c, p.x, p.y, 0.6, p.stage ? '#cbbf9c' : null, '#7b6d50', line); c.setLineDash([]); continue; }
-      disc(c, p.x + 0.14, p.y + 0.17, 0.62, '#5a53392e'); disc(c, p.x, p.y, 0.58, '#beb294', ink, line * 1.2); disc(c, p.x, p.y, 0.32, '#6f7f7a', ink, line * 0.8);
+      disc(c, p.x + castX * 0.18, p.y + castY * 0.18, 0.62, small); disc(c, p.x, p.y, 0.58, '#beb294', ink, line * 1.2); disc(c, p.x, p.y, 0.32, '#6f7f7a', ink, line * 0.8);
       c.strokeStyle = '#6d6049'; c.lineWidth = line * 2; c.beginPath(); c.moveTo(p.x - 0.62, p.y); c.lineTo(p.x + 0.62, p.y); c.stroke();
     } else if (p.kind === 'oven' && p.stage === 2) {
       const house = { ...p, w: p.w * 0.6, x: p.x - Math.cos(p.a) * p.w * 0.2, y: p.y - Math.sin(p.a) * p.w * 0.2 };
-      building(c, house, line, false, snowed); roofed.push(rectPoly(house));
+      building(c, house, line, false, snowed, sun.toward); roofed.push(rectPoly(house));
       const ox = p.x + Math.cos(p.a) * p.w * 0.27, oy = p.y + Math.sin(p.a) * p.w * 0.27;
-      disc(c, ox + 0.12, oy + 0.15, 0.62, '#5a53392e'); disc(c, ox, oy, 0.6, '#c2946e', ink, line * 1.2); disc(c, ox - 0.15, oy - 0.15, 0.2, '#d8b08a'); disc(c, ox, oy, 0.14, '#5f5142');
-    } else if (p.w && p.kind !== 'field') { building(c, p, line, look.lodgers, snowed); if (p.stage === 2) roofed.push(rectPoly(p)); }
+      disc(c, ox + castX * 0.16, oy + castY * 0.16, 0.62, small); disc(c, ox, oy, 0.6, '#c2946e', ink, line * 1.2); disc(c, ox - 0.15, oy - 0.15, 0.2, '#d8b08a'); disc(c, ox, oy, 0.14, '#5f5142');
+    } else if (p.w && p.kind !== 'field') { building(c, p, line, look.lodgers, snowed, sun.toward); if (p.stage === 2) roofed.push(rectPoly(p)); }
   }
   // A roof covers the shade beneath it, so the trees' shade is laid again over the roofs alone.
-  if (roofed.length) {
+  if (roofed.length && shady) {
     c.save();
     c.beginPath(); roofed.forEach(ring); c.clip();
     c.beginPath(); treeShade(); c.fillStyle = shade; c.fill();
@@ -318,8 +328,8 @@ function paintPaper(c, map, look, scale) {
       const star = (cx, cy, size) => { c.beginPath(); for (let i = 0; i < 16; i++) { const a = i * TAU / 16 + k, rr = i % 2 ? size * 0.72 : size; c.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); } c.closePath(); };
       const tone = needle[Math.floor(k * 3)];
       star(x, y, r); c.fillStyle = snowed(blend(tone, '#22382e', 0.4), 0.45); c.fill(); c.strokeStyle = '#2f4638'; c.lineWidth = line; c.stroke();
-      star(x - r * 0.1, y - r * 0.12, r * 0.68); c.fillStyle = snowed(tone, 0.6); c.fill();
-      disc(c, x - r * 0.1, y - r * 0.12, r * 0.13, '#3a5544');
+      star(x + lx * r * 0.156, y + ly * r * 0.156, r * 0.68); c.fillStyle = snowed(tone, 0.6); c.fill();
+      disc(c, x + lx * r * 0.156, y + ly * r * 0.156, r * 0.13, '#3a5544');
     } else {
       // Out of leaf, a broadleaved tree is its trunk and branches. The crown thickens over them in
       // spring, turns in autumn and thins again as it falls.
@@ -350,8 +360,8 @@ function paintPaper(c, map, look, scale) {
       // The shaded skirt of the crown, then its lit top, set toward the light.
       crown(x, y, r); c.fillStyle = snowed(blend(tone, turned > 0.5 ? '#6b4a2a' : '#2b4a3a', 0.38), 0.4); c.fill();
       c.strokeStyle = blend('#2f4638', '#6d5230', turned); c.lineWidth = line; c.stroke();
-      crown(x - r * 0.12, y - r * 0.14, r * 0.74); c.fillStyle = snowed(tone, 0.55); c.fill();
-      crown(x - r * 0.2, y - r * 0.23, r * 0.42); c.fillStyle = snowed(blend(tone, '#e9f0b8', 0.22), 0.6); c.fill();
+      crown(x + lx * r * 0.184, y + ly * r * 0.184, r * 0.74); c.fillStyle = snowed(tone, 0.55); c.fill();
+      crown(x + lx * r * 0.305, y + ly * r * 0.305, r * 0.42); c.fillStyle = snowed(blend(tone, '#e9f0b8', 0.22), 0.6); c.fill();
       // A few scallops give the foliage its grain.
       c.strokeStyle = blend('#2f463866', '#6d523066', turned); c.lineWidth = line * 0.8; c.setLineDash([0.16, 0.14]);
       for (let i = 0; i < 3; i++) {
@@ -501,10 +511,13 @@ export function createMap(canvas, onSelect, cards) {
   // The weather over the village now, and the houses that got no firewood this morning.
   let wx = null, cold = [], world = null, cattle = [];
   const view = { x: 80, y: 60, scale: 6 };
-  // The sheet is repainted when the day changes or snow settles or goes.
+  // The sheet is repainted when the day changes, when snow settles or goes, and as the sun moves.
   function seasonal() {
     if (!map || !look) return;
     wx = skyOver(clock, map.seed);
+    // Shadows move with the sun, a few minutes at a time, and soften as cloud comes over.
+    const sunKey = Math.floor(clock / 5) + ':' + Math.round(wx.cloud * 6);
+    if (sunKey !== look.sunKey) { look.sunKey = sunKey; look.sun = sunOver(clock, wx.cloud); stale = true; }
     const key = Math.floor(clock / 1440) + ':' + Math.round(wx.lying * 4);
     if (key === look.key) return;
     look.key = key; look.year = yearLook(clock); look.snow = Math.round(wx.lying * 4) / 4; stale = true;
@@ -622,6 +635,18 @@ export function createMap(canvas, onSelect, cards) {
         const [x, y] = toScreen(wx + Math.sin(i * 5.1) * rw * 0.3, wy), r = k * 0.2 * (blink - 0.45) * 2;
         c.strokeStyle = 'rgba(255,255,246,' + ((blink - 0.5) * 1.6).toFixed(3) + ')'; c.lineWidth = 1;
         c.beginPath(); c.moveTo(x - r, y); c.lineTo(x + r, y); c.moveTo(x, y - r); c.lineTo(x, y + r); c.stroke();
+      }
+    }
+    // Mist lies along the river as the light comes up, and the sun burns it off through the morning.
+    const mist = wx?.rain || wx?.snow ? 0 : smooth(0, 0.05, sky.p) * (1 - smooth(0.1, 0.2, sky.p));
+    if (mist > 0.02) {
+      for (let i = 0; i < 16; i++) {
+        const [mx, my] = alongRiver((i + 0.5) / 16 + Math.sin(time * 0.00003 + i) * 0.012);
+        const [x, y] = toScreen(mx + Math.sin(i * 3.7) * rw * 0.5, my), r = k * rw * (1.3 + hash2(map.seed, i, 31) * 1.2);
+        if (x < -r || y < -r || x > w + r || y > h + r) continue;
+        const g = c.createRadialGradient(x, y, 0, x, y, r);
+        g.addColorStop(0, 'rgba(246,247,240,' + (0.4 * mist).toFixed(3) + ')'); g.addColorStop(1, 'rgba(246,247,240,0)');
+        c.fillStyle = g; c.fillRect(x - r, y - r, r * 2, r * 2);
       }
     }
     // White water below the mill wheel.
@@ -775,8 +800,11 @@ export function createMap(canvas, onSelect, cards) {
     c.setTransform(dpr, 0, 0, dpr, 0, 0);
     c.drawImage(paper, 0, 0, w, h);
     for (const pile of look.parish.piles) drawWoodpile(c, pile, world, look.snow, toScreen, view.scale);
-    for (const animal of look.parish.sheep) drawAnimal(c, animal, still, toScreen, view.scale);
-    for (const animal of cattle) drawAnimal(c, animal, still, toScreen, view.scale);
+    for (const animal of look.parish.sheep) drawAnimal(c, animal, still, toScreen, view.scale, look.sun);
+    for (const animal of cattle) drawAnimal(c, animal, still, toScreen, view.scale, look.sun);
+    const walkers = actors.filter(a => !indoors(a)).map(a => motion.at(a.id, time)).filter(Boolean);
+    for (const animal of look.wild.game) drawGame(c, animal, still, toScreen, view.scale, look, walkers);
+    drawFish(c, look.wild.fish, still, toScreen, view.scale, sky, wx);
     ambient(still, sky, lit);
     c.textAlign = 'center'; c.textBaseline = 'middle';
     if (view.scale > 6.5) {
@@ -1035,6 +1063,9 @@ export function createMap(canvas, onSelect, cards) {
       map = next; locations = names;
       look.chains = chains(map);
       look.parish = parishLayout(map);
+      // Game and fish keep their places until the map itself changes under them.
+      const wildKey = [map.seed, map.places.length, map.edges.length, map.trees.length].join(':');
+      if (wildKey !== look.wildKey) { look.wildKey = wildKey; look.wild = wildlife(map); }
       cattle = strayCattle(map, world);
       // Trees are drawn north to south, so each crown overlaps the ones behind it.
       look.woods = [...map.trees].sort((a, b) => a[1] - b[1]);
