@@ -49,8 +49,12 @@ function chart(id, rows, series, { format = count, axis = compact, stacked = fal
     animation: false,
     color: ['#287364', '#a4542d'],
     aria: { enabled: true },
-    grid: { top: 48, left: 50, right: 20, bottom: 35 },
-    legend: { data: names, textStyle: { color: '#455b54' } },
+    grid: { left: 50, right: 20, bottom: 35 },
+    legend: { top: 4, left: 'center', data: names, textStyle: { color: '#455b54' } },
+    media: [
+      { query: { maxWidth: 270 }, option: { grid: { top: 62 } } },
+      { option: { grid: { top: 44 } } },
+    ],
     tooltip: { trigger: 'axis', renderMode: 'richText', confine: true,
       valueFormatter: n => n == null ? '—' : format.format(n) },
     xAxis: {
