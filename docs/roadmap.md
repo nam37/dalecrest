@@ -25,7 +25,8 @@
 | 7. Taking part | Groundwork only | 0 | 1 | 4 |
 | 8. A wider world | Not begun | 0 | 0 | 1 |
 | 9. A living village culture (A–C) | Proposed, not begun | 0 | 0 | 10 |
-| All stages | | 50 | 6 | 18 |
+| 10. The world comes to Dalecrest (A–C) | Proposed, not begun | 0 | 0 | 9 |
+| All stages | | 50 | 6 | 27 |
 
 **Reading the live village.** `readout.mjs` reads every "Done when" measure the database can answer, stage by stage, and marks it met, not met, no data or needing a viewer. On the server: `docker exec dalecrest-app node readout.mjs`, for the last 168 real hours by default. It does not replace `tools/pilot-report.mjs`, which breaks Stage 0 down further.
 
@@ -490,6 +491,30 @@ More than one village with a road between them. This multiplies everything above
 - [ ] **Proposed.** Compare seeded villages over 30–60 simulated days: can observers trace a custom or shared belief from an event through transmission to later choices, and do villages develop different practices without scripted outcomes?
 
 **Done when:** A timed pilot demonstrates continuous clock progression at both rates, unchanged event ordering and no viewer-dependent time changes; the observatory identifies the active multiplier; token usage and wait time remain within a documented budget; and at least one seeded 30–60-day run shows an evidence-linked cultural practice forming, spreading or fading through resident choices without being pre-scripted. Treat a quiet run with no emergent custom as valid evidence, not a reason to fabricate one.
+
+### Stage 10. The world comes to Dalecrest (A–C, proposed)
+
+**Status · 24 November 2026: not begun.** This stage extends Stage 7's visitor participation and Stage 8's wider-world direction without requiring a second fully simulated settlement. Preserve the communal economy inside Dalecrest: no wages, individual currency accounts or general price system. External trade exchanges finite physical goods. The river is an optional, plausible source of *placer gold*, not river silver; its yield is intentionally uncertain and scarce, and no new mountain or mine is required.
+
+#### 10A. Travelers, couriers and letters
+
+- [ ] **Proposed.** Travelers arrive by a village road, stay briefly and depart; their presence and actions obey the same physical clock and location rules as residents.
+- [ ] **Proposed.** An opt-in visitor can send a bounded letter through a courier to a named resident or the moot; delivery is an event, and the recipient may read, ignore, discuss or reply. Treat submitted text as untrusted claims, never engine instructions.
+- [ ] **Proposed.** Record delivery, source, recipient, consent/moderation limits and subsequent choices so an observer can trace outside influence without inventing causality.
+
+#### 10B. Barter and river gold
+
+- [ ] **Proposed.** Keep internal food, tools and household provisions in communal stores, with no wages or personal accounts. A communal trading post can exchange actual surplus goods with visiting merchants.
+- [ ] **Proposed.** Pilot small-scale gold panning in the existing river, not a new mine. Model recoverable placer deposits as finite, seed-dependent and rare, with time spent panning competing against food and winter preparation; some river reaches may yield nothing.
+- [ ] **Proposed.** Track recovered gold by physical weight in the communal store and as carried merchant inventory, not abstract currency or minted coins. Allow direct barter first, with gold as an optional high-value external trade good.
+- [ ] **Proposed.** Merchants bring finite goods and needs; negotiate offers and validate available stock, agreed quantities and actual transfers. A moot can contest trading away essential reserves.
+
+#### 10C. Outside news and cultural effects
+
+- [ ] **Proposed.** Travelers may bring goods, stories and unfamiliar practices; residents learn them through witnessed encounters or reported accounts, not instant omniscience.
+- [ ] **Proposed.** Track whether external events change beliefs, customs or policy over time. Robin may report verified village encounters but should not convert a visitor's unsupported claims into facts.
+
+**Done when:** A courier delivers a visitor letter without granting it authority over the simulation; a merchant arrives, negotiates and completes or declines a validated physical exchange; a river-panning trial produces bounded, reproducible yields including empty attempts; communal reserves remain consistent across restarts; and residents can accept, dispute or ignore outside accounts without automatic cultural change.
 
 ## Order and dependencies
 
