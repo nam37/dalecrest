@@ -913,6 +913,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
     </ul>
     <p><b>Verification and rollout.</b> Replay the same choices at both rates and compare event order across 22:00, midnight and dawn. Run fixed 2× for one real day before testing 4× overnight. Compare village minutes spent waiting, replies that arrive too late to apply, and action tokens per real day. Inspect the dawn queue separately from the quiet part of the night.</p>
     <p><b>Clock settings.</b> Use <code>VILLAGE_CLOCK_MODE=fixed</code> with <code>VILLAGE_SECONDS_PER_MINUTE=15</code> for the first trial. Use <code>VILLAGE_CLOCK_MODE=day-night</code> for the variable rate. The live comparison remains fixed at 30 seconds. Run <code>docker exec dalecrest-app node tools/pilot-report.mjs 24</code> to compare daytime, night and the hour around dawn.</p>
+    <p><b>On the server.</b> Use <a href="../deploy/dalecrest-set-clock"><code>deploy/dalecrest-set-clock</code></a> with <code>1x</code>, <code>2x</code> or <code>day-night</code>. The helper takes the deploy lock, checks the installed Compose settings, and verifies the running pace after restarting the app on its current release. It restores the previous environment if the change fails.</p>
     <h4>7B. Culture that emerges from shared experience</h4>
     <ul class="checks">
       <li data-s="todo"><div class="what">Record consequential events as verifiable world history, distinct from each resident's sourced memories and interpretations; nobody automatically knows or agrees on an event.</div></li>

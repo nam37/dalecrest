@@ -1,0 +1,126 @@
+#!/usr/bin/env bash
+# Change the live clock on the installed release and verify the pace served by the app.
+set -euo pipefail
+umask 077
+
+case "${1:-}" in
+  1x) mode=fixed; seconds=30; expected=fixed:1:30000 ;;
+  2x) mode=fixed; seconds=15; expected=fixed:1:15000 ;;
+  day-night) mode=day-night; seconds=30; expected=day-night ;;
+  *) echo 'Usage: dalecrest-set-clock {1x|2x|day-night}' >&2; exit 2 ;;
+esac
+[[ $# -eq 1 ]] || { echo 'Pass exactly one clock mode.' >&2; exit 2; }
+
+stack=/opt/stacks/dalecrest
+state=/opt/git-deploy/dalecrest
+cd "$stack"
+exec 9>"$state/deploy.lock"
+flock 9
+
+export DALECREST_RELEASE
+DALECREST_RELEASE=$(cat "$state/deployed-sha")
+[[ "$DALECREST_RELEASE" =~ ^[0-9a-f]{40}$ ]] || { echo 'The deployed release SHA is unavailable or invalid.' >&2; exit 1; }
+# Compose gives the caller's environment precedence over .env.
+unset VILLAGE_CLOCK_MODE VILLAGE_SECONDS_PER_MINUTE
+compose=(docker compose --project-directory "$stack" -f "$stack/compose.yaml")
+
+clock_profile() {
+  "${compose[@]}" exec -T app node -e '
+    (async () => {
+      const response = await fetch("http://127.0.0.1:4173/api/village", { signal: AbortSignal.timeout(5000) });
+      if (!response.ok) throw new Error();
+      const { world, tickMinutes, tickMs, clockPeriod } = await response.json();
+      if (clockPeriod === null && Number.isSafeInteger(tickMinutes) && tickMinutes > 0 && Number.isFinite(tickMs) && tickMs > 0) {
+        console.log("fixed:" + tickMinutes + ":" + tickMs);
+        return;
+      }
+      if (!Number.isSafeInteger(world?.minute)) throw new Error();
+      const minute = ((world.minute % 1440) + 1440) % 1440;
+      const day = minute >= 360 && minute < 1320;
+      if (tickMinutes !== 1 || tickMs !== (day ? 15000 : 7500) || clockPeriod !== (day ? "day" : "night")) throw new Error();
+      console.log("day-night");
+    })().catch(() => { console.error("The running clock could not be verified."); process.exitCode = 1; });
+  '
+}
+
+verify_clock() {
+  local actual
+  actual=$(clock_profile) || return 1
+  if [[ "$actual" != "$1" ]]; then
+    echo "Expected clock $1, received $actual." >&2
+    return 1
+  fi
+}
+
+restart_app() {
+  "${compose[@]}" up -d --no-deps --wait --wait-timeout 90 app
+}
+
+previous=$(clock_profile)
+work=$(mktemp -d "$stack/.clock.XXXXXX")
+backup="$work/original.env"
+candidate="$work/next.env"
+changed=false
+cleanup() {
+  local status=$?
+  trap - EXIT
+  trap '' HUP INT TERM
+  if [[ "$changed" == true ]]; then
+    echo 'Clock change failed. Restoring the previous environment.' >&2
+    if ! mv -f -- "$backup" .env; then
+      echo "Could not restore .env. The private backup is at $backup." >&2
+      rm -f -- "$candidate"
+      exit 1
+    fi
+    if restart_app && verify_clock "$previous"; then
+      echo 'Verified the previous clock pace after rollback.' >&2
+    else
+      echo 'Restored .env, but could not verify the previous clock pace.' >&2
+    fi
+    status=1
+  fi
+  rm -f -- "$candidate" "$backup"
+  rmdir -- "$work"
+  exit "$status"
+}
+trap cleanup EXIT
+trap 'exit 1' HUP INT TERM
+
+cp -p -- .env "$backup"
+cp -p -- .env "$candidate"
+awk '!/^[[:space:]]*(export[[:space:]]+)?VILLAGE_(CLOCK_MODE|SECONDS_PER_MINUTE)[[:space:]]*=/' "$backup" > "$candidate"
+printf 'VILLAGE_CLOCK_MODE=%s\nVILLAGE_SECONDS_PER_MINUTE=%s\n' "$mode" "$seconds" >> "$candidate"
+
+# Validate the resolved settings without printing the config, which contains secrets.
+python3 - "$candidate" "$mode" "$seconds" "${compose[@]}" <<'PY'
+import json
+import subprocess
+import sys
+
+candidate, mode, seconds, *compose = sys.argv[1:]
+
+def resolved(path):
+    result = subprocess.run([*compose, "--env-file", path, "config", "--format", "json"], capture_output=True, check=True)
+    return json.loads(result.stdout)
+
+try:
+    before, after = resolved(".env"), resolved(candidate)
+    current = before["services"]["app"]["environment"]
+    proposed = after["services"]["app"]["environment"]
+except (KeyError, OSError, TypeError, ValueError, subprocess.CalledProcessError):
+    sys.exit("Could not resolve the installed Compose configuration.")
+
+if proposed.get("VILLAGE_CLOCK_MODE") != mode or str(proposed.get("VILLAGE_SECONDS_PER_MINUTE")) != seconds:
+    sys.exit("The installed Compose app must pass both clock settings from .env. Check deploy/compose.yaml before retrying.")
+for key in ("VILLAGE_CLOCK_MODE", "VILLAGE_SECONDS_PER_MINUTE"):
+    current.pop(key, None)
+    proposed.pop(key, None)
+if before != after:
+    sys.exit("A setting outside the app clock would change. The current environment has been kept.")
+PY
+
+changed=true
+mv -f -- "$candidate" .env
+restart_app && verify_clock "$expected" || exit 1
+changed=false
+echo "Verified clock $1 on release ${DALECREST_RELEASE:0:12}."

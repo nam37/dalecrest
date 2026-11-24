@@ -485,6 +485,8 @@ Done when: in a small pilot, people voluntarily return to check on a resident, a
 
 **Clock settings.** Use `VILLAGE_CLOCK_MODE=fixed` with `VILLAGE_SECONDS_PER_MINUTE=15` for the first trial. Use `VILLAGE_CLOCK_MODE=day-night` for the variable rate. The live comparison remains fixed at 30 seconds. Run `docker exec dalecrest-app node tools/pilot-report.mjs 24` to compare daytime, night and the hour around dawn.
 
+**On the server.** Use [`deploy/dalecrest-set-clock`](../deploy/dalecrest-set-clock) with `1x`, `2x` or `day-night`. The helper takes the deploy lock, checks the installed Compose settings, and verifies the running pace after restarting the app on its current release. It restores the previous environment if the change fails.
+
 #### 7B. Culture that emerges from shared experience
 
 - [ ] **Proposed.** Record consequential events as verifiable world history, distinct from each resident's sourced memories and interpretations; nobody automatically knows or agrees on an event.
