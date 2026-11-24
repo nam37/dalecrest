@@ -11,6 +11,7 @@
     "@fontsource/alegreya": "^5.3.0",
     "@fontsource/im-fell-english": "^5.3.0",
     "@fontsource/im-fell-english-sc": "^5.3.0",
+    "echarts": "6.1.0",
     "pg": "^8.16.3",
     "three": "^0.180.0"
   }

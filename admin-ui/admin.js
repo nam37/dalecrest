@@ -121,9 +121,9 @@ async function refreshCharts() {
   try {
     const data = await api('metrics');
     if (started !== generation) return;
+    show('charts', true);
     renderCharts(data);
     say('charts-message', '');
-    show('charts', true);
   } catch {
     if (started === generation) say('charts-message', 'Village trends could not be refreshed.');
   } finally {

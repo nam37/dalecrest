@@ -17,6 +17,7 @@ const assets = new Map([
   ['/', ['index.html', 'text/html']],
   ['/admin.js', ['admin.js', 'text/javascript']],
   ['/charts.js', ['charts.js', 'text/javascript']],
+  ['/echarts.js', ['../node_modules/echarts/dist/echarts.min.js', 'text/javascript']],
   ['/admin.css', ['admin.css', 'text/css']],
 ]);
 

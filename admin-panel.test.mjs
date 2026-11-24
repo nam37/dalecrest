@@ -149,6 +149,9 @@ test('the admin prefix scopes the page, browser session and agent API', async ()
     assert.match(await page.text(), /src="\.\/admin\.js"/);
     assert.equal((await request('/admin/admin.js')).status, 200);
     assert.equal((await request('/admin/charts.js')).status, 200);
+    const chartLibrary = await request('/admin/echarts.js');
+    assert.equal(chartLibrary.status, 200);
+    assert.ok((await chartLibrary.arrayBuffer()).byteLength > 1000);
     assert.equal((await request('/admin/admin.css')).status, 200);
     assert.equal((await request('/')).status, 404);
     assert.equal((await request('/api/agent')).status, 404);

@@ -11,6 +11,7 @@ The host service uses Node.js 22 and runs as the unprivileged `dalecrest-admin` 
 | Release files | Host location |
 | --- | --- |
 | `admin.mjs`, `admin-auth.mjs`, `admin-audit.mjs` and `admin-ui/` | `/opt/dalecrest-admin/` |
+| ECharts browser build, license and notice from the deployed image's pinned npm dependency | `/opt/dalecrest-admin/node_modules/echarts/` |
 | `deploy/dalecrest-set-clock` | `/usr/local/sbin/dalecrest-set-clock`, executable and owned by root |
 | `deploy/dalecrest-admin.sudoers` | `/etc/sudoers.d/dalecrest-admin`, validated with `visudo` and mode `0440` |
 | `deploy/dalecrest-admin.service` | `/etc/systemd/system/dalecrest-admin.service` |
@@ -58,7 +59,7 @@ Send `GET /admin/api/agent` with the issued key in the header `Authorization: Be
 - **Daily activities by resident** uses village dates and logged starts from fresh choices and standing instructions. Select a resident to see the last 14 village dates.
 - **Daily decision waits** shows the median and 95th percentile in real seconds by the Eastern date the wait began. Only waits with a recorded next activity are included.
 
-The current dates are marked in progress. Each chart has a table of exact values. The panel refreshes charts about once a minute through `GET /admin/api/metrics`, which requires a browser account. The host's `dalecrest-set-clock metrics` command reads the same aggregates from the deployed village container in a read-only transaction.
+The current dates are marked in progress. ECharts runs from the panel's own static assets. The chart legend toggles series and each chart has a table of exact values. The panel refreshes charts about once a minute through `GET /admin/api/metrics`, which requires a browser account. The host's `dalecrest-set-clock metrics` command reads the same aggregates from the deployed village container in a read-only transaction.
 
 ## Change or restore the pace
 
