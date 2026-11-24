@@ -2,6 +2,7 @@ import { createMap } from './map.js';
 import { bindMapFullscreen } from './map-fullscreen.js';
 import { dateOf, formatDate } from '/engine/calendar.mjs';
 import { light, skyOver } from '/ambient.js';
+import { createDial } from './clock-dial.js';
 import { residentCard, eventCard, kinds, portrait as likeness, whyText, residentCaption, choiceExplanation, doing as doingAt } from '/card.js';
 import { createDirector } from '/director.js';
 import { ageOf } from '/engine/lives.mjs';
@@ -24,6 +25,7 @@ const names = { village: 'Village observatory', residents: 'Village residents', 
 const stores = { grain:'Barley', flour:'Flour', bread:'Loaves · storehouse', wood:'Firewood', cloth:'Linen · storehouse', water:'Water', repair:'Building repairs' };
 const hallStores = { game:'Undressed game', meat:'Game meat', hide:'Raw hides', fish:'Fresh fish', cooked:'Cooked meals', preserved:'Salt fish and smoked game · storehouse', leather:'Leather · storehouse' };
 const clockPeriods = { day: 'Day pace', night: 'Night pace' };
+let dial = null;
 let state, latest, frozen=false, selected='agnes', tab='life', route='village', rosterSignature='', directorySignature='';
 let villagePeople = [];
 let ground=null, viewMode='plan', walk=null, loadingWalk=false;
@@ -506,9 +508,9 @@ function render() {
     paceLabel.title = speed ? 'Speed relative to 30 real seconds per village minute' : '';
   }
   $('clock').title='Day '+dateOf(world.minute).villageDay+' since Dalecrest was founded';
-  // The season and the weather sit under the hour, and the mark beside them follows the sky.
+  // The season and the weather sit under the date, and the dial beside them follows the sun and the sky.
   const night=light(world.minute).night, sky=state.map?skyOver(world.minute,state.map.seed):null;
-  $('clock').classList.toggle('night',night); $('orb').textContent=sky?.snow?'❄':sky?.rain?'☂':night?'☾':sky?.sky==='overcast'?'☁':'☼';
+  $('clock').classList.toggle('night',night); (dial ??= createDial($('dial')))(world.minute, sky);
   $('weather').textContent=sky?sky.label:'';
   $('weather').title=sky?'About '+Math.round(sky.temp)+'°C as we would measure it':'';
   // What happened in the last hour and a half is pinned to the map where it happened.

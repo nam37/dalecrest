@@ -108,6 +108,23 @@ h1 { font-size: clamp(2.2rem, 3.6vw, 3.5rem); line-height: 1.02; }
 .clock .pace { font: .84rem/1.2 var(--caps); color: var(--ink-soft); }
 .clock .weather { font-style: italic; font-size: .95rem; line-height: 1.25; color: var(--ink-soft); }
 .clock .pace:empty, .clock .weather:empty { display: none; }
+/* The village clock: a dial with the pace beneath it, then the hour, the date and the weather. */
+#clock { gap: 12px; }
+#clock strong { font-size: 1.72rem; }
+#clock #day { margin-top: 2px; }
+.dial-side { display: grid; justify-items: center; gap: 0; }
+#clock .pace { font-size: .7rem; letter-spacing: .09em; text-transform: lowercase; color: var(--muted); }
+.dial { display: block; overflow: visible; }
+.dial-arc { fill: none; stroke: #a99a72; stroke-width: 1; stroke-dasharray: 1.5 3; stroke-linecap: round; transition: stroke 2s; }
+.dial-ground, .dial-foot { stroke: #7a6c4a; stroke-width: 1; stroke-linecap: round; }
+.dial-sun circle { fill: #e2b656; stroke: #9a7a2e; stroke-width: 1; }
+.dial-sun line { stroke: #9a7a2e; stroke-width: 1.1; stroke-linecap: round; }
+.dial-moon { fill: #e3e8f6; stroke: #6f7ea8; stroke-width: 1; stroke-linejoin: round; }
+.dial-cloud path { fill: #f6f1e2; stroke: #8a8672; stroke-width: 1; stroke-linejoin: round; }
+.dial-rain line { stroke: #5a7896; stroke-width: 1.1; stroke-linecap: round; }
+.dial-snow circle { fill: #f8f8f4; stroke: #8fa0b8; stroke-width: .7; }
+.dial.moonlit .dial-arc { stroke: #8792b4; }
+.dial.dimmed .dial-sun, .dial.dimmed .dial-moon { opacity: .55; }
 .sun { font: 1.9rem/1 var(--display); color: var(--ochre); transition: color 2s; }
 .clock.night .sun { color: #7d8cb5; }
 
@@ -135,7 +152,7 @@ html:has(.map-area.map-expanded) { overflow: hidden; }
 
 /* Controls laid over the plate */
 .plate-clock, .plate-tools, .map-zoom, .map-key, .scene-caption { position: absolute; z-index: 3; }
-.plate-clock { left: 18px; top: 16px; padding: 9px 16px 8px 12px; background: #f9f2dce8; border: 1px solid #a99a72; box-shadow: 0 0 0 3px #f9f2dc99, 0 0 0 4px #a99a7266, 0 8px 18px -10px #2b271d88; backdrop-filter: blur(2px); }
+.plate-clock { left: 18px; top: 16px; padding: 8px 16px 7px 11px; background: #f9f2dce8; border: 1px solid #a99a72; box-shadow: 0 6px 14px -10px #2b271d88; backdrop-filter: blur(2px); }
 .plate-tools { right: 18px; top: 16px; display: flex; gap: 8px; }
 .view-switch { display: flex; border: 1px solid #a99a72; background: #f9f2dce8; box-shadow: 0 6px 14px -10px #2b271d88; }
 .view-switch button, .view-toggle, .record-button, .map-zoom button {
@@ -385,6 +402,15 @@ footer { display: flex; justify-content: space-between; gap: 14px; flex-wrap: wr
   .growth-plate { height: clamp(260px, 43vh, 370px); }
   .plate-clock { left: 10px; top: 10px; padding: 6px 10px 5px 8px; }
   .clock strong { font-size: 1.2rem; }
+  /* On a narrow plate the card stands beside the view buttons, so it is stacked to stay slim: the dial
+     with the hour and the pace beside it, then the date and the weather across the full width. */
+  #clock { display: grid; grid-template-columns: auto 1fr; gap: 0 8px; align-items: center; }
+  #clock .dial-side, #clock > div { display: contents; }
+  #clock .dial { grid-area: 1 / 1 / 3 / 2; width: 52px; height: 28px; }
+  #clock strong { grid-area: 1 / 2; font-size: 1.3rem; }
+  #clock .pace { grid-area: 2 / 2; justify-self: start; }
+  #clock #day { grid-area: 3 / 1 / 4 / 3; margin-top: 3px; }
+  #clock .weather { grid-area: 4 / 1 / 5 / 3; }
   .sun { font-size: 1.4rem; }
   .plate-tools { right: 10px; top: 10px; flex-direction: column; align-items: end; gap: 6px; }
   .map-zoom { right: 10px; top: auto; bottom: 10px; }
