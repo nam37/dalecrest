@@ -11,6 +11,10 @@ export const dailySchema = `
     day integer PRIMARY KEY CHECK (day > 0), edition jsonb, model text, published_at timestamptz,
     attempts integer NOT NULL DEFAULT 0, retry_at timestamptz NOT NULL DEFAULT now()
   );
+  CREATE TABLE IF NOT EXISTS dalecrest.daily_model_usage (
+    day integer NOT NULL, attempt integer NOT NULL, requested_at timestamptz NOT NULL,
+    token_charge integer NOT NULL CHECK (token_charge > 0), PRIMARY KEY (day, attempt, requested_at)
+  );
   CREATE INDEX IF NOT EXISTS events_by_village_minute ON dalecrest.events (minute, id);
 `;
 
@@ -92,7 +96,7 @@ record. Leave sinceYesterday empty if there is no previous edition or no thread 
 Give each paragraph the string event IDs that support its facts. Lead and briefs must cite records from this
 coverage day. If the day has no records, return a headline saying so and leave lead and briefs empty.`;
 
-async function writeCopy({ day, records, prior }, model, key, request) {
+async function writeCopy({ day, records, prior }, model, key, request, recordUsage) {
   const dated = ({ minute, ...source }) => ({ ...source, when: formatDate(minute, 'day') + ', ' + partOfDay(minute) });
   const input = { coverageDate: formatDate((day - 1) * dayLength, 'long'),
     robinsNotebook: records.filter(r => r.kind === 'fieldnote').map(dated),
@@ -107,6 +111,10 @@ async function writeCopy({ day, records, prior }, model, key, request) {
   });
   if (!response.ok) throw new Error('Daily editor HTTP ' + response.status);
   const result = await response.json();
+  const usage = result.usage || {};
+  const tokens = (usage.input_tokens || 0) + (usage.output_tokens || 0)
+    + (usage.cache_creation_input_tokens || 0) + (usage.cache_read_input_tokens || 0);
+  if (recordUsage && Number.isSafeInteger(tokens) && tokens > 0) await recordUsage(tokens);
   if (result.stop_reason !== 'end_turn') throw new Error('Daily editor did not finish the edition');
   return JSON.parse(result.content.find(block => block.type === 'text')?.text);
 }
@@ -139,9 +147,9 @@ function assembleEdition(copy, { records, prior }) {
 }
 
 // Writes one edition from a day's records and the edition before it.
-export async function composeEdition(sources, { key, model = dailyModel, request = fetch }) {
+export async function composeEdition(sources, { key, model = dailyModel, request = fetch, recordUsage }) {
   const input = { ...sources, records: sources.records.filter(r => !housekeeping(r)), prior: coverable(sources.prior) };
-  return assembleEdition(await writeCopy(input, model, key, request), input);
+  return assembleEdition(await writeCopy(input, model, key, request, recordUsage), input);
 }
 
 // A lease survives process restarts. Only the oldest unpublished edition can be
@@ -151,11 +159,14 @@ export async function publishNextDaily(db, { key = process.env.CLAUDE_KEY?.trim(
   const { rows: [claim] } = await db.query(`UPDATE dalecrest.daily_editions
     SET attempts=attempts+1, retry_at=now()+interval '5 minutes'
     WHERE day=(SELECT min(day) FROM dalecrest.daily_editions WHERE edition IS NULL)
-      AND edition IS NULL AND retry_at <= now() RETURNING day, attempts`);
+      AND edition IS NULL AND retry_at <= now() RETURNING day, attempts, clock_timestamp() AS requested_at`);
   if (!claim) return;
   const { day, attempts } = claim;
   try {
-    const edition = await composeEdition(await readSources(db, day), { key, model, request });
+    const edition = await composeEdition(await readSources(db, day), { key, model, request,
+      recordUsage: tokens => db.query(`INSERT INTO dalecrest.daily_model_usage(day,attempt,requested_at,token_charge)
+        VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING`, [day, attempts, claim.requested_at, tokens]),
+    });
     await db.query(`UPDATE dalecrest.daily_editions SET edition=$3, model=$4, published_at=now()
       WHERE day=$1 AND attempts=$2 AND edition IS NULL`, [day, attempts, edition, model]);
   } catch (error) {

@@ -35,7 +35,7 @@
       </section>
       <section class="card clock-panel" id="operator-controls" aria-labelledby="clock-heading" hidden>
         <h2 id="clock-heading">Change clock pace</h2>
-        <form id="clock-form" method="post" action="/api/clock">
+        <form id="clock-form" method="post" action="./api/clock">
           <div class="form-fields">
             <label>Requested pace
               <select name="mode">
@@ -50,6 +50,28 @@
           <button id="apply" class="primary" type="submit">Apply clock pace</button>
           <p id="clock-message" role="status"></p>
         </form>
+      </section>
+      <section aria-labelledby="charts-heading">
+        <div class="heading"><h2 id="charts-heading">Village trends</h2></div>
+        <p id="charts-message" role="status"></p>
+        <div id="charts" class="charts-grid" hidden>
+          <article class="card chart-card">
+            <h3>Daily model tokens</h3>
+            <p class="chart-note">Real dates in Eastern time. Includes recorded token charges and estimates. Daily editor usage is recorded from this release onward.</p>
+            <div id="token-chart"></div>
+          </article>
+          <article class="card chart-card">
+            <h3>Daily activities by resident</h3>
+            <label class="resident-filter">Resident<select id="chart-resident"></select></label>
+            <p class="chart-note">Activity starts by village date.</p>
+            <div id="activity-chart"></div>
+          </article>
+          <article class="card chart-card">
+            <h3>Daily decision waits</h3>
+            <p class="chart-note">Real seconds from entering a wait to starting the next activity. The median and 95th percentile use completed waits.</p>
+            <div id="wait-chart"></div>
+          </article>
+        </div>
       </section>
       <section class="card history" aria-labelledby="history-heading">
         <h2 id="history-heading">Clock change history</h2>

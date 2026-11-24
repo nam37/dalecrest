@@ -136,7 +136,7 @@ test('the admin prefix scopes the page, browser session and agent API', async ()
         accounts: [{ name: 'operator', role: 'operator', password: await passwordHash(password) }],
         agentKeys: [{ name: 'fixture', digest: keyDigest(agentKey) }],
       },
-      clock: { health: async () => ({ clock: { mode: '1x' } }) },
+      clock: { health: async () => ({ clock: { mode: '1x' } }), metrics: async () => ({ tokens: [{ openai: 20 }] }) },
     });
     server.listen(port, '127.0.0.1');
     await once(server, 'listening');
@@ -148,6 +148,7 @@ test('the admin prefix scopes the page, browser session and agent API', async ()
     assert.equal(page.status, 200);
     assert.match(await page.text(), /src="\.\/admin\.js"/);
     assert.equal((await request('/admin/admin.js')).status, 200);
+    assert.equal((await request('/admin/charts.js')).status, 200);
     assert.equal((await request('/admin/admin.css')).status, 200);
     assert.equal((await request('/')).status, 404);
     assert.equal((await request('/api/agent')).status, 404);
@@ -160,12 +161,17 @@ test('the admin prefix scopes the page, browser session and agent API', async ()
     assert.equal(login.status, 200);
     const cookie = login.headers.get('set-cookie');
     assert.match(cookie, /^__Secure-dalecrest-admin=[^;]+; Path=\/admin\/; HttpOnly; SameSite=Strict; .*; Secure$/);
-    assert.equal((await request('/admin/api/status', { headers: { Cookie: cookie.split(';')[0] } })).status, 200);
+    const session = { Cookie: cookie.split(';')[0] };
+    assert.equal((await request('/admin/api/status', { headers: session })).status, 200);
+    const metrics = await request('/admin/api/metrics', { headers: session });
+    assert.equal(metrics.status, 200);
+    assert.deepEqual(await metrics.json(), { tokens: [{ openai: 20 }] });
 
     const headers = { Authorization: 'Bearer fixture.' + agentKey };
     assert.equal((await request('/admin/api/agent', { headers })).status, 200);
     assert.equal((await request('/admin/api/agent', { headers, method: 'POST' })).status, 405);
     assert.equal((await request('/admin/api/status', { headers })).status, 401);
+    assert.equal((await request('/admin/api/metrics', { headers })).status, 401);
   } finally {
     if (server?.listening) await new Promise(resolve => server.close(resolve));
     await rm(directory, { recursive: true, force: true });

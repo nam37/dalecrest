@@ -15,7 +15,7 @@ The host service uses Node.js 22 and runs as the unprivileged `dalecrest-admin` 
 | `deploy/dalecrest-admin.sudoers` | `/etc/sudoers.d/dalecrest-admin`, validated with `visudo` and mode `0440` |
 | `deploy/dalecrest-admin.service` | `/etc/systemd/system/dalecrest-admin.service` |
 
-The deployed village image must contain `admin-health.mjs`. The installed village Compose file must pass both clock settings. Use a root-owned working directory and keep credentials in `/etc/dalecrest-admin`, readable only by the service account and host administrators.
+The deployed village image must contain `admin-health.mjs` and `admin-metrics.mjs`. The installed village Compose file must pass both clock settings. Use a root-owned working directory and keep credentials in `/etc/dalecrest-admin`, readable only by the service account and host administrators.
 
 ```dotenv
 ADMIN_ORIGIN=https://dalecrest.trinsicstudios.com
@@ -51,6 +51,14 @@ Restart the admin service after adding or revoking credentials. The audit journa
 ## Agent URL
 
 Send `GET /admin/api/agent` with the issued key in the header `Authorization: Bearer <name>.<key>`. The response contains village health, the active change if any, and the last 30 clock changes. Agent keys are read-only. Operator sign-in is required for clock changes. [Live agent endpoint](https://dalecrest.trinsicstudios.com/admin/api/agent)
+
+## Village trends
+
+- **Daily model tokens** uses real dates in America/New_York. OpenAI totals come from decision traces. Anthropic totals combine goal reviews, civic accounts, and provider-reported Daily editor usage from the charts release onward. Decision traces, goal reviews and civic accounts can retain estimates where a call did not report usage.
+- **Daily activities by resident** uses village dates and logged starts from fresh choices and standing instructions. Select a resident to see the last 14 village dates.
+- **Daily decision waits** shows the median and 95th percentile in real seconds by the Eastern date the wait began. Only waits with a recorded next activity are included.
+
+The current dates are marked in progress. Each chart has a table of exact values. The panel refreshes charts about once a minute through `GET /admin/api/metrics`, which requires a browser account. The host's `dalecrest-set-clock metrics` command reads the same aggregates from the deployed village container in a read-only transaction.
 
 ## Change or restore the pace
 

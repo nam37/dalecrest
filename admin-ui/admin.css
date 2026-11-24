@@ -57,3 +57,31 @@ td:nth-child(5) { min-width: 11rem; }
 tbody tr:last-child td { border-bottom: 0; }
 .verified { color: #23544a; font-weight: 650; }
 .failed, .unverified, .interrupted { color: #743b2a; font-weight: 650; }
+
+.charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 31rem), 1fr)); gap: .75rem; }
+.chart-card { min-width: 0; }
+.chart-card h3 { color: #213331; font-size: 1.05rem; }
+.chart-note, #charts-message { margin: .45rem 0 .75rem; color: var(--muted); font-size: .9rem; line-height: 1.45; }
+.resident-filter { margin-top: .7rem; max-width: 16rem; }
+.resident-filter select { padding: .4rem .6rem; }
+.chart-legend { display: flex; flex-wrap: wrap; gap: .35rem .9rem; list-style: none; padding: 0; margin: .75rem 0; font-size: .8rem; color: var(--muted); }
+.chart-legend li { display: flex; align-items: center; gap: .35rem; }
+.chart-legend li[data-series]::before { content: ''; width: .7rem; height: .7rem; border-radius: .12rem; background: var(--series); }
+[data-series="0"] { --series: #287364; }
+[data-series="1"] { --series: #a4542d; }
+.chart-scroll { overflow-x: auto; padding: .25rem 0 .5rem; }
+.chart-plot { display: grid; grid-template-columns: 2.7rem minmax(22rem, 1fr); }
+.chart-ticks { display: flex; flex-direction: column; justify-content: space-between; height: 8rem; color: var(--muted); font-size: .75rem; }
+.chart-grid { display: grid; grid-template-columns: repeat(var(--days), minmax(0, 1fr)); }
+.chart-day { min-width: 0; }
+.chart-bars { height: 8rem; display: flex; align-items: flex-end; justify-content: center; gap: 2px; padding: 0 10%;
+  border-block: 1px solid var(--border); background: linear-gradient(transparent calc(50% - .5px), #d8dfd6 calc(50% - .5px), #d8dfd6 calc(50% + .5px), transparent calc(50% + .5px)); }
+.chart-bars span { width: min(41%, .8rem); background: var(--series); border-radius: 2px 2px 0 0; }
+.chart-bars.stacked { flex-direction: column-reverse; align-items: center; justify-content: flex-start; gap: 0; }
+.chart-bars.stacked span { width: min(72%, 1.25rem); border-radius: 0; }
+.chart-day.partial .chart-bars { background-color: #eef3eb; }
+.chart-date { display: flex; justify-content: center; white-space: nowrap; padding-top: .35rem; color: var(--muted); font-size: .68rem; }
+.chart-values { margin-top: .15rem; font-size: .86rem; }
+.chart-values summary { width: max-content; color: var(--green); cursor: pointer; }
+.chart-values th, .chart-values td { min-width: 0; padding: .39rem .35rem; font-weight: normal; }
+.chart-values thead th { font-weight: 650; }

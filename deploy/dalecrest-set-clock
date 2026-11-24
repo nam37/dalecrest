@@ -4,13 +4,13 @@ set -euo pipefail
 umask 077
 
 case "${1:-}" in
-  status) expected= ;;
+  status|metrics) expected= ;;
   1x) mode=fixed; seconds=30; expected=fixed:1:30000 ;;
   2x) mode=fixed; seconds=15; expected=fixed:1:15000 ;;
   day-night) mode=day-night; seconds=30; expected=day-night ;;
-  *) echo 'Usage: dalecrest-set-clock {status|1x|2x|day-night} [expected pace]' >&2; exit 2 ;;
+  *) echo 'Usage: dalecrest-set-clock {status|metrics|1x|2x|day-night} [expected pace]' >&2; exit 2 ;;
 esac
-if [[ "$1" == status ]]; then
+if [[ "$1" == status || "$1" == metrics ]]; then
   [[ $# -eq 1 ]] || exit 2
 else
   [[ $# -le 2 ]] || exit 2
@@ -26,7 +26,7 @@ fi
 stack=/opt/stacks/dalecrest
 state=/opt/git-deploy/dalecrest
 cd "$stack"
-if [[ "$1" != status ]]; then
+if [[ "$1" != status && "$1" != metrics ]]; then
   exec 9>"$state/deploy.lock"
   flock -w 120 9 || { echo 'The deploy lock is busy.' >&2; exit 1; }
 fi
@@ -37,6 +37,11 @@ DALECREST_RELEASE=$(cat "$state/deployed-sha")
 # Compose gives the caller's environment precedence over .env.
 unset VILLAGE_CLOCK_MODE VILLAGE_SECONDS_PER_MINUTE
 compose=(docker compose --project-directory "$stack" -f "$stack/compose.yaml")
+
+if [[ "$1" == metrics ]]; then
+  "${compose[@]}" exec -T app node admin-metrics.mjs
+  exit
+fi
 
 if [[ "$1" == status ]]; then
   last_backup=

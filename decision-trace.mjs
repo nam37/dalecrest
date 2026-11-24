@@ -35,6 +35,9 @@ export async function initializeTraces(db) {
       waited_minutes integer, action jsonb, recorded_at timestamptz NOT NULL DEFAULT clock_timestamp()
     );
     CREATE INDEX IF NOT EXISTS activity_log_actor ON dalecrest.activity_log (actor_id,id DESC);
+    CREATE INDEX IF NOT EXISTS activity_log_by_time ON dalecrest.activity_log (recorded_at)
+      WHERE basis IN ('fresh','standing','waiting');
+    CREATE INDEX IF NOT EXISTS activity_starts_by_minute ON dalecrest.activity_log (minute) WHERE basis IN ('fresh','standing');
     -- The goal versions and memories each action request was given, by key.
     ALTER TABLE dalecrest.decision_traces ADD COLUMN IF NOT EXISTS goal_keys text[],
       ADD COLUMN IF NOT EXISTS observation_keys text[],

@@ -16,6 +16,7 @@ const helper = '/usr/local/sbin/dalecrest-set-clock';
 const assets = new Map([
   ['/', ['index.html', 'text/html']],
   ['/admin.js', ['admin.js', 'text/javascript']],
+  ['/charts.js', ['charts.js', 'text/javascript']],
   ['/admin.css', ['admin.css', 'text/css']],
 ]);
 
@@ -47,9 +48,10 @@ function json(res, status, body) {
 }
 
 export function hostClockCommands() {
-  const run = (args, timeout) => execute('/usr/bin/sudo', ['-n', '--', helper, ...args], { timeout, maxBuffer: 64 * 1024 });
+  const run = (args, timeout) => execute('/usr/bin/sudo', ['-n', '--', helper, ...args], { timeout, maxBuffer: 128 * 1024 });
   return {
     async health() { return JSON.parse((await run(['status'], 9000)).stdout); },
+    async metrics() { return JSON.parse((await run(['metrics'], 12000)).stdout); },
     async set(mode, expected) { await run([mode, expected], 330000); },
   };
 }
@@ -67,6 +69,7 @@ export async function createAdminServer({ publicOrigin, basePath = '', preview =
   const audit = await openClockAudit(auditFile);
   const validOrigin = req => req.headers.origin === origin.origin;
   let active = null, busy = false, cached, checked = 0, check;
+  let metrics, metricsAt = 0, pendingMetrics;
 
   async function health(fresh = false) {
     if (fresh && check) await check;
@@ -79,6 +82,18 @@ export async function createAdminServer({ publicOrigin, basePath = '', preview =
       }).finally(() => { check = null; });
     }
     return check;
+  }
+
+  async function recentMetrics() {
+    if (!pendingMetrics && Date.now() - metricsAt >= 60000) {
+      pendingMetrics = Promise.resolve().then(() => clock.metrics()).then(result => {
+        metrics = result;
+        metricsAt = Date.now();
+      }).catch(() => {}).finally(() => { pendingMetrics = null; });
+    }
+    if (pendingMetrics) await pendingMetrics;
+    if (Date.now() - metricsAt >= 60000) throw new RequestError(503, 'Village chart data is temporarily unavailable.');
+    return metrics;
   }
 
   async function apply(entry) {
@@ -178,6 +193,7 @@ export async function createAdminServer({ publicOrigin, basePath = '', preview =
       if (req.method === 'GET' && path === '/api/status') {
         return json(res, 200, { viewer, villageName, preview, health: await health(), active });
       }
+      if (req.method === 'GET' && path === '/api/metrics') return json(res, 200, await recentMetrics());
       if (req.method === 'GET' && path === '/api/changes') return json(res, 200, { changes: audit.recent() });
       if (req.method === 'POST' && path === '/api/clock') {
         if (viewer.role !== 'operator') throw new RequestError(403, 'Clock changes require an operator account.');

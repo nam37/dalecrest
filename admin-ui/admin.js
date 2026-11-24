@@ -1,3 +1,5 @@
+import { clearCharts, renderCharts } from './charts.js';
+
 const $ = id => document.getElementById(id);
 const show = (id, enabled) => { $(id).hidden = !enabled; };
 const say = (id, content) => { $(id).textContent = content ?? ''; };
@@ -9,6 +11,7 @@ const number = value => Number.isFinite(value) ? value.toLocaleString() : '—';
 const date = value => value ? new Date(value).toLocaleString() : '—';
 let current = null, user = null, restoring, active = null, sending = false, refreshing = false, generation = 0;
 let historySignature = '';
+let chartsChecked = 0, chartsLoading = false;
 
 async function api(path, body) {
   const response = await fetch(new URL('./api/' + path, import.meta.url), body === undefined ? {} : {
@@ -35,6 +38,10 @@ function auth(viewer) {
     restoring = undefined;
     historySignature = '';
     $('changes').replaceChildren();
+    chartsChecked = 0;
+    clearCharts();
+    show('charts', false);
+    say('charts-message', '');
     say('clock-message', '');
   }
 }
@@ -105,6 +112,25 @@ function renderHistory(changes) {
   }));
 }
 
+async function refreshCharts() {
+  if (chartsLoading || Date.now() - chartsChecked < 60000) return;
+  const started = generation;
+  chartsLoading = true;
+  chartsChecked = Date.now();
+  if ($('charts').hidden) say('charts-message', 'Loading village trends…');
+  try {
+    const data = await api('metrics');
+    if (started !== generation) return;
+    renderCharts(data);
+    say('charts-message', '');
+    show('charts', true);
+  } catch {
+    if (started === generation) say('charts-message', 'Village trends could not be refreshed.');
+  } finally {
+    chartsLoading = false;
+  }
+}
+
 async function refresh() {
   if (refreshing) return;
   refreshing = true;
@@ -114,6 +140,7 @@ async function refresh() {
     if (started !== generation) return;
     auth(status.viewer);
     renderHealth(status);
+    void refreshCharts();
     const { changes } = await api('changes');
     if (started === generation) renderHistory(changes);
   } catch (error) {

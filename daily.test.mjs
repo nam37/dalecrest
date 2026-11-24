@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { availableActions, createVillage, stepVillage } from './sim.mjs';
 import { composeEdition, dailyArchive, publishNextDaily, queueEditions } from './daily.mjs';
+import { readAdminMetrics } from './admin-metrics.mjs';
 
 test('Robin takes the reporting job in a saved village and writes only about people at his beat', () => {
   const village = createVillage(), robin = village.actors.find(a => a.id === 'robin');
@@ -112,7 +113,8 @@ test('the morning press persists one sourced edition per day and follows yesterd
       const meeting = input.villageRecords.find(r => r.kind === 'civic');
       const copy = { headline: follow ? 'Work on the well' : 'Mabel at the oven', lead, sinceYesterday,
         briefs: meeting ? [{ text: meeting.text, sources: [meeting.id] }] : [] };
-      return Response.json({ stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(copy) }] });
+      return Response.json({ stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(copy) }],
+        usage: { input_tokens: 100, output_tokens: 25, cache_read_input_tokens: 50 } });
     };
     await assert.rejects(publishNextDaily(pool, { key: 'fixture', request: editor(false) }), /unsourced/);
     assert.equal((await dailyArchive(pool, null)).body.issue, null);
@@ -130,6 +132,22 @@ test('the morning press persists one sourced edition per day and follows yesterd
     assert.equal((await dailyArchive(pool, '1')).body.issue.newer, 2);
     assert.equal((await dailyArchive(pool, '3')).status, 404);
     assert.equal((await dailyArchive(pool, 'oops')).status, 400);
+    assert.deepEqual((await pool.query('SELECT day, attempt, token_charge FROM dalecrest.daily_model_usage ORDER BY day,attempt')).rows,
+      [{ day: 1, attempt: 1, token_charge: 175 }, { day: 1, attempt: 2, token_charge: 175 }, { day: 2, attempt: 1, token_charge: 175 }]);
+    const { rows: [bucket] } = await pool.query(`SELECT ((now() AT TIME ZONE 'America/New_York')::date - 1)::text AS date,
+      ((now() AT TIME ZONE 'America/New_York')::date - 1 + time '12:00') AT TIME ZONE 'America/New_York' AS start`);
+    await pool.query(`INSERT INTO dalecrest.activity_log(actor_id, minute, basis, recorded_at)
+      VALUES ('chart-fixture',1700,'waiting',$1::timestamptz),
+             ('chart-fixture',1701,'fresh',$1::timestamptz + interval '20 seconds'),
+             ('chart-fixture',1702,'standing',$1::timestamptz + interval '30 seconds')`, [bucket.start]);
+    await pool.query(`INSERT INTO dalecrest.decision_traces(actor_id,model,endpoint,request_body,observed_minute,requested_at,token_charge)
+      VALUES ('chart-fixture','model','https://example.test','{}',1701,$1,70)`, [bucket.start]);
+    const metrics = await readAdminMetrics(pool);
+    assert.equal(metrics.tokens.length, 14);
+    assert.equal(metrics.tokens.find(row => row.date === bucket.date).openai, 70);
+    assert.equal(metrics.tokens.reduce((sum, row) => sum + row.anthropic, 0), 525);
+    assert.equal(metrics.waits.find(row => row.date === bucket.date).p95, 20);
+    assert.deepEqual(metrics.activities.actors.find(actor => actor.id === 'chart-fixture').starts.at(-1), { fresh: 1, standing: 1 });
   } finally {
     if (db) await db.pool.end();
     if (created) await admin.query('DROP DATABASE ' + name);
