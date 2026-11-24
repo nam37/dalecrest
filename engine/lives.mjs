@@ -10,6 +10,9 @@ import { remember } from './memory.mjs';
 import { warm, warmthOf, trustOf } from './bonds.mjs';
 import { canContact } from './exchanges.mjs';
 import { vacantCottages, waitingLodgers } from './households.mjs';
+import { eatsFromLarder } from './storehouse.mjs';
+import { cottageBatches, larderFoods, produceFoods, takeFoodBatches } from './fresh-food.mjs';
+import { CHILD_NEED, HUNGER, HUNGRY_AT_DAWN, mealRecord } from './nutrition.mjs';
 
 const DAY = 1440;
 export const YEAR = 365.25 * DAY;
@@ -51,7 +54,7 @@ export const tooIll = actor => actor.illness?.severity >= 2;
 function dawnHealth(actor, state, emit, rand) {
   const { world } = state, minute = world.minute, n = actor.needs, age = ageOf(actor, minute);
   const h = actor.hardship ??= { hungry: 0, cold: 0, worn: 0 };
-  h.hungry = n.hunger >= 85 ? h.hungry + 1 : 0;
+  h.hungry = n.hunger >= HUNGRY_AT_DAWN ? h.hungry + 1 : 0;
   h.cold = n.cold >= 70 ? h.cold + 1 : 0;
   h.worn = n.fatigue >= 92 ? h.worn + 1 : 0;
   if (!actor.illness) {
@@ -284,6 +287,14 @@ function shareHouse({ world, map, actors }, a, b) {
     home.children = [...(home.children || []), ...(theirs.children || [])];
     home.woodpile = (home.woodpile || 0) + (theirs.woodpile || 0);
     home.larder = Math.min(8, (home.larder || 0) + (theirs.larder || 0));
+    if (theirs.preservedFood?.length) {
+      home.preservedFood = [...(home.preservedFood || []), ...theirs.preservedFood];
+      delete theirs.preservedFood;
+    }
+    for (const [item, batches] of Object.entries(theirs.produce || {})) {
+      cottageBatches(home, item, true).push(...batches);
+    }
+    delete theirs.produce;
     theirs.children = [];
     theirs.woodpile = 0;
     theirs.larder = 0;
@@ -329,17 +340,41 @@ function dawnFamily(state, emit, rand, comeOfAge) {
       emit('life', text, [mother.id, father.id], { life: 'expecting' });
     }
   }
-  // Children old enough eat a loaf a day from the larder at home. An empty larder means a hungry morning.
+  let missedBreakfasts = 0;
+  // A child's breakfast comes from their own larder. Give credit to children who ate even when it ran out.
   for (const [home, cottage] of Object.entries(world.cottages || {})) {
-    const eating = (cottage.children || []).filter(c => minute - c.born >= YEAR);
+    const eating = (cottage.children || []).filter(c => eatsFromLarder(c, minute));
     if (!eating.length) continue;
+    let missed = 0;
+    for (const child of eating) {
+      let food, amounts;
+      const fresh = larderFoods.find(item => item !== 'preserved' && cottageBatches(cottage, item)?.length);
+      if (fresh) {
+        amounts = takeFoodBatches(cottageBatches(cottage, fresh), 1);
+        food = fresh;
+      } else if (cottage.larder >= 1) {
+        cottage.larder--;
+        food = 'bread';
+      } else if (cottage.preservedFood?.length) {
+        amounts = takeFoodBatches(cottage.preservedFood, 1);
+        food = 'preserved';
+      } else {
+        missed++;
+        continue;
+      }
+      const name = [child.name, child.surname].filter(Boolean).join(' ');
+      const meal = produceFoods[food] ?? (food === 'bread' ? 'bread' : 'preserved food');
+      emit('meal', name + ' ate ' + meal + ' for breakfast at home.',
+        child.id ? [child.id] : [], { meal: mealRecord(home, food, Math.min(CHILD_NEED, HUNGER[food]), amounts, name) }, home);
+    }
+    if (!missed) { cottage.hungry = 0; continue; }
+    missedBreakfasts += missed;
     const parents = actors.filter(a => a.home === home);
-    if (cottage.larder >= eating.length) { cottage.larder -= eating.length; cottage.hungry = 0; continue; }
-    cottage.larder = 0;
     cottage.hungry = (cottage.hungry || 0) + 1;
-    const text = 'The larder was empty at ' + (parents.length ? parents.map(first).join(' and ') + '’s' : 'the') + ' cottage, and the children went without bread this morning.';
+    const without = missed === eating.length && missed > 1 ? 'the children missed breakfast' : missed === 1 ? 'one child missed breakfast' : missed + ' children missed breakfast';
+    const text = 'The larder ran out at ' + (parents.length ? parents.map(first).join(' and ') + '’s' : 'the') + ' cottage, and ' + without + ' this morning.';
     for (const p of parents) remember(p, minute, text, parents.map(a => a.id), 'observation', { shortage: 'larder', importance: 8 });
-    emit('village', text, parents.map(a => a.id), { hungry: eating.length }, home);
+    emit('village', text, parents.map(a => a.id), { hungry: missed }, home);
   }
   // A child of fourteen takes their place among the residents.
   for (const [home, cottage] of Object.entries(world.cottages || {})) {
@@ -349,6 +384,7 @@ function dawnFamily(state, emit, rand, comeOfAge) {
       comeOfAge(child, home);
     }
   }
+  return missedBreakfasts;
 }
 
 // Lodgers move into a finished cottage that stands empty, whoever's turn it is by longest waiting.
@@ -379,8 +415,9 @@ export function dawnLives(state, emit, rand, comeOfAge) {
     if (dawnHealth(actor, state, emit, rand)) continue;
     if (state.actors.includes(actor)) dawnStaying(actor, state, emit, rand);
   }
-  dawnFamily(state, emit, rand, comeOfAge);
+  const missedBreakfasts = dawnFamily(state, emit, rand, comeOfAge);
   dawnHouses(state, emit);
+  return missedBreakfasts;
 }
 
 // What a resident's own life looks like to them, for the action model.

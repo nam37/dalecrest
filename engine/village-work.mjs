@@ -7,6 +7,7 @@ import { finishHousehold, householdChoices, householdContext, householdJobs, hou
 import { normalizeFreshFood } from './fresh-food.mjs';
 import { shoeJob, shoeRepair, wornShoes } from './footwear.mjs';
 import { seeShelves, storehouseOf } from './storehouse.mjs';
+import { farmChoices, farmJobs, farmObstacle, farmStock, finishFarmWork } from './smallholding.mjs';
 
 export const bedJob = 'repairBed';
 
@@ -14,6 +15,7 @@ export const villageJobs = {
   ...forageJobs,
   ...householdJobs,
   ...visitorJobs,
+  ...farmJobs,
   [shoeJob]: shoeRepair,
   weed: { label: 'Weeding the barley strip', task: 'weeding', duration: 35, makes: {} },
   waterBarley: { label: 'Watering the barley strip', task: 'watering', duration: 29, takes: { water: 2 }, makes: {} },
@@ -34,7 +36,7 @@ export function prepareCottage(world, owner, site) {
 }
 
 export function normalizeVillageWork({ world, actors, map }) {
-  for (const [item, capacity] of Object.entries(provisions)) {
+  for (const [item, capacity] of Object.entries({ ...provisions, ...farmStock })) {
     world.capacity[item] ??= capacity;
     world.supplies[item] ??= 0;
   }
@@ -99,6 +101,7 @@ export function ownWorkChoices(actor, state, offer, weary) {
     offer(shoeJob, storehouse.id, 54 - weary, 'One piece of leather would re-sole my shoes and make long walks less tiring.');
   }
   offerForaging(actor, state, offer, sky, daylight, weary);
+  farmChoices(actor, state, offer, weary, daylight);
   householdChoices(actor, { world, map }, offer, weary, world.hearthRate || 0);
   visitorChoices(actor, { world, map }, offer, weary);
 }
@@ -107,6 +110,7 @@ export function villageWorkObstacle(actor, world, sky) {
   const { job, target, commitmentId } = actor.action;
   if (Object.hasOwn(householdJobs, job)) return householdObstacle(actor, world);
   if (Object.hasOwn(visitorJobs, job)) return visitorObstacle(actor, world);
+  if (Object.hasOwn(farmJobs, job)) return farmObstacle(world, job);
   if (job === shoeJob && !wornShoes(actor)) return 'the shoes did not need mending';
   if (job === 'weed' && !(world.barleyStrip?.weeds >= 2)) return 'the strip had already been weeded';
   if (job === 'waterBarley' && (!(world.barleyStrip?.moisture <= 1) || sky.rain || sky.snow)) return 'the strip no longer needed watering';
@@ -120,10 +124,11 @@ export function villageWorkObstacle(actor, world, sky) {
   return null;
 }
 
-export function finishVillageWork(actor, { world, map }) {
+export function finishVillageWork(actor, { world, map }, spec) {
   const { job, target } = actor.action;
-  if (Object.hasOwn(householdJobs, job)) return finishHousehold(actor, world);
+  if (Object.hasOwn(householdJobs, job)) return finishHousehold(actor, world, spec.takes);
   if (Object.hasOwn(visitorJobs, job)) return finishVisitor(actor, { world, map });
+  if (Object.hasOwn(farmJobs, job)) return finishFarmWork(world, job, spec.makes);
   if (job === shoeJob) {
     actor.shoeWear = 0;
     seeShelves(actor, world, 'mending shoes');

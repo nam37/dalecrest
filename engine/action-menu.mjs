@@ -22,7 +22,7 @@ export function restockingPreference(actor, world, feasible) {
   const choiceFor = (...jobs) => jobs.map(job => [...feasible].find(([, action]) => action.job === job)?.[0]).find(Boolean);
   const preserveGoal = goalFor('preserved');
   if (preserveGoal || countedEmpty('preserved')) {
-    const choice = choiceFor('cureFish', 'smokeMeat', 'dressGame');
+    const choice = choiceFor('cureFish', 'smokeMeat', 'smokeMutton', 'dressGame');
     if (choice) return { choice, reason: preserveGoal ? 'My goal is to put preserved food on the storehouse shelves.'
       : 'The last storehouse count I know of found no preserved food.' };
   }
@@ -106,6 +106,8 @@ export function shapeActionMenu(actor, state, feasible, ownTrade) {
     if (action.kind === 'meeting' || action.feast) protect(id, 'village_event');
     if (action.kind === 'teach') protect(id, 'lesson');
     if (action.kind === 'food' && actor.needs.hunger >= PILOT.mealAt) protect(id, 'due_meal');
+    if (action.job === 'fetchPreserved' || action.householdBreakfast) protect(id, 'household_breakfast');
+    if (action.seasonalFood) protect(id, 'seasonal_food');
     if (action.kind === 'rest' && (isNight(minute) || tooIll(actor) ||
         Math.max(actor.needs.fatigue, actor.needs.cold ?? 0) >= PILOT.urgent)) protect(id, 'rest');
   }

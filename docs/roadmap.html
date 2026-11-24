@@ -301,14 +301,14 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
       <li><a href="#stage-3a"><span class="n">3a</span> The common store <i class="pip built"></i></a></li>
       <li><a href="#stage-3b"><span class="n">3b</span> A menu worth choosing from <i class="pip built"></i></a></li>
       <li><a href="#stage-3c"><span class="n">3c</span> Families and village lessons <i class="pip built"></i></a></li>
-      <li><a href="#stage-3d"><span class="n">3d</span> What feeds the village <i class="pip"></i></a></li>
+      <li><a href="#stage-3d"><span class="n">3d</span> What feeds the village <i class="pip built"></i></a></li>
       <li><a href="#stage-4"><span class="n">4</span> Voices and the moot <i class="pip built"></i></a></li>
       <li><a href="#stage-5"><span class="n">5</span> Worth watching <i class="pip hand"></i></a></li>
       <li><a href="#stage-6"><span class="n">6</span> Worth following <i class="pip hand"></i></a></li>
-      <li><a href="#stage-7"><span class="n">7</span> Taking part <i class="pip"></i></a></li>
-      <li><a href="#stage-8"><span class="n">8</span> A wider world <i class="pip"></i></a></li>
-      <li><a href="#stage-9"><span class="n">9</span> Living culture <i class="pip hand"></i></a></li>
-      <li><a href="#stage-10"><span class="n">10</span> Visitors and trade <i class="pip"></i></a></li>
+      <li><a href="#stage-7"><span class="n">7</span> Living culture <i class="pip hand"></i></a></li>
+      <li><a href="#stage-8"><span class="n">8</span> Visitors and trade <i class="pip"></i></a></li>
+      <li><a href="#stage-9"><span class="n">9</span> Taking part <i class="pip"></i></a></li>
+      <li><a href="#stage-10"><span class="n">10</span> A wider world <i class="pip"></i></a></li>
     </ol>
     <h2>The reckoning</h2>
     <ol>
@@ -351,14 +351,14 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
     <li class="built"><a href="#stage-3a"><span class="stone">3a</span><b>Common store</b><small>Built · measuring</small></a></li>
     <li class="built"><a href="#stage-3b"><span class="stone">3b</span><b>The menu</b><small>Built · measuring</small></a></li>
     <li class="built"><a href="#stage-3c"><span class="stone">3c</span><b>Families</b><small>Built · previewing</small></a></li>
-    <li><a href="#stage-3d"><span class="stone">3d</span><b>Food supply</b><small>Planned</small></a></li>
+    <li class="built"><a href="#stage-3d"><span class="stone">3d</span><b>Food supply</b><small>Built · measuring</small></a></li>
     <li class="built"><a href="#stage-4"><span class="stone">4</span><b>Voices</b><small>Built · measuring</small></a></li>
     <li class="hand"><a href="#stage-5"><span class="stone">5</span><b>Watching</b><small>In hand</small></a></li>
     <li class="hand"><a href="#stage-6"><span class="stone">6</span><b>Following</b><small>In hand</small></a></li>
-    <li><a href="#stage-7"><span class="stone">7</span><b>Taking part</b><small>Groundwork</small></a></li>
-    <li><a href="#stage-8"><span class="stone">8</span><b>Wider world</b><small>Later</small></a></li>
-    <li class="hand"><a href="#stage-9"><span class="stone">9</span><b>Living culture</b><small>Clock built</small></a></li>
-    <li><a href="#stage-10"><span class="stone">10</span><b>Visitors, trade</b><small>Proposed</small></a></li>
+    <li class="hand"><a href="#stage-7"><span class="stone">7</span><b>Living culture</b><small>Clock built</small></a></li>
+    <li><a href="#stage-8"><span class="stone">8</span><b>Visitors, trade</b><small>Proposed</small></a></li>
+    <li><a href="#stage-9"><span class="stone">9</span><b>Taking part</b><small>Groundwork</small></a></li>
+    <li><a href="#stage-10"><span class="stone">10</span><b>Wider world</b><small>Later</small></a></li>
   </ol>
   <p class="milestone">Stages 0 and 1 together are the first milestone, the promise pilot.</p>
   <div class="key" role="group" aria-label="Show items by status">
@@ -824,17 +824,18 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
       <span class="numeral">3d</span>
       <h3>What feeds the village</h3>
       <span class="meta">Size L · Needs Stages 3 and 3a</span>
-      <span class="stamp">Not begun</span>
+      <span class="stamp built">Built<br>Measuring</span>
     </header>
     <div class="meter"><span class="bar"><i class="d"></i><i class="p"></i></span><span class="count"></span></div>
-    <p><b>Proposed · 24 November 2026.</b> Today a resident can eat bread at home or a cooked or preserved portion at the hall. Fish and game both relieve hunger, but once prepared they share the same two stock entries. The village estimates days of food by converting grain, flour, loaves and prepared portions into loaves. Bread draws tell us what left the Storehouse. A meal record should also tell us what reached the table.</p>
+    <p><b>Built · 24 November 2026.</b> The Storehouse allowance measures bread drawn. The meal records show what reached the table, including seasonal produce and mutton. A parent can bring produce or preserved portions home for the children’s breakfast.</p>
     <ol class="checks">
-      <li data-s="todo"><div class="what"><strong>Count food where it can be eaten.</strong> Give each edible portion a hunger value in the simulation. At each dawn, show how many days the ready food in the hall, Storehouse and cottage larders would feed the village, using the needs of adults and children. Report separately what grain, flour or raw meat could yield with enough labour and fuel. Milling, baking and carrying a loaf home must never count the same food twice.</div></li>
-      <li data-s="todo"><div class="what"><strong>Record what each household eats.</strong> Record the food and quantity at each meal, including children’s meals at dawn. Credit hunger relief when someone eats and divide that credit among the ingredients of a mixed dish. For each village week show how much hunger was relieved by bread, other farm produce, fish, hunted game and livestock products, alongside the number of residents who went hungry at dawn. Keep loaves drawn as a measure of the bread allowance. Mark older portions of unknown origin as such.</div></li>
-      <li data-s="todo"><div class="what"><strong>Follow fish and game to the table.</strong> Carry the river catch and woodland game through storage, spoilage, cooking and preserving. Credit fishing or hunting for the portions people actually eat. Record salt fish bought from the peddler as fish from trade so the village can tell how much its own fishers supplied.</div></li>
-      <li data-s="todo"><div class="what"><strong>Grow vegetables and fruit.</strong> Start with a vegetable plot and a small orchard. Peas and apples are example crops. Give each a planting season, time to maturity, work to tend and harvest it, and a storage life. Let families draw or grow produce, eat it at home or bring it to the hall. A bowl of peas or a stored apple should feed someone even on a day when the oven stands idle.</div></li>
-      <li data-s="todo"><div class="what"><strong>Raise sheep for food.</strong> Begin herding with a small flock. Give it pasture, a shepherd’s time, lambing and a winter fodder supply. Taking a sheep for mutton reduces the flock and yields meat that can be cooked or preserved. Count the portions eaten as food from herding. Cattle and goats can follow once the village can carry a flock through winter.</div></li>
+      <li data-s="done"><div class="what"><strong>Count food where it can be eaten.</strong> The dawn count shows how long the ready food in the hall, Storehouse and cottage larders could feed the village, given adult appetites in the weather and the breakfasts of children old enough to eat. Grain, flour, raw fish, game and mutton are shown as potential food with enough labour and fuel. Drawing food changes where it is counted.</div></li>
+      <li data-s="done"><div class="what"><strong>Record what each household eats.</strong> The meal record includes children’s breakfasts and feast portions, the food eaten and the hunger it relieved. A mixed portion divides the credit among its ingredients. The Stage 3d section of <code>readout.mjs</code> reports the last seven completed village days by food source, including hungry adults at dawn and missed child breakfasts. The Stage 3a bread-draw measure remains available.</div></li>
+      <li data-s="done"><div class="what"><strong>Follow fish and game to the table.</strong> River fish, hunted game and salt fish from trade keep their origins through preparation, delivery, spoilage and serving. Older stock without a recorded origin contributes to the unknown category.</div></li>
+      <li data-s="done"><div class="what"><strong>Grow vegetables and fruit.</strong> The kitchen garden can be sown from March to June. Peas ripen after 56 days, and a tended plot yields more. Established apple trees bear after spring blossom, pruning improves the yield, and saplings take two years to join the crop. Harvests go to the hall, where residents can eat them or draw them for home. Peas keep three days and apples 45, including time in a larder.</div></li>
+      <li data-s="done"><div class="what"><strong>Raise sheep for food.</strong> The flock grazes in its pasture, needs tending for spring lambing, and eats stored hay from December through February. Shepherding and haymaking take work time. Taking a grown surplus sheep reduces the flock and yields mutton for the hall, where it can be cooked or smoked. The meal readout credits livestock when someone eats it.</div></li>
     </ol>
+    <p><b>Seeded verification.</b> In a breadless village, one family ate the preserved food it drew while a child in a cottage without food missed breakfast. A seasonal test followed peas, apples and mutton to meals, carried four sheep through winter on gathered hay and recorded three lambs in spring. In a separate 370-day run under local choice rules, seed 26111 recorded 20 pea portions, nine apples and four mutton portions eaten, and finished with seven sheep. The PostgreSQL readout reconciles portions and hunger relief across seven village days. Live measurements are pending.</p>
     <p class="donewhen"><b>Done when</b> the following checks pass. In a seeded village with no bread for a day, a family with other food can feed its adults and children while a household with no access to a meal still goes hungry. A seven-day report reconciles portions eaten and hunger relieved by source with the meal records. A seasonal run shows a vegetable harvest, a fruit harvest and a flock carried through winter, with food from each reaching a table.</p>
   </article>
 
@@ -870,7 +871,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
     <p>Presentation. The pilot delivers the first of it: links, the promise thread and readable work at the oven and woodpile.</p>
     <ul class="checks">
       <li data-s="done"><div class="what"><strong>Show events where they happen</strong>, on the map and in the walking view. A chronicle entry takes you to its place and time.</div><span class="st">A note marks the spot on the map, and a staff with a pennant and a note marks it in the walking view. A chronicle entry turns either view to its place and gives its time. Seeing the village as it stood at that minute waits for Stage 6’s archive, and entries for a resident’s own decisions carry no place.</span></li>
-      <li data-s="done"><div class="what"><strong>A director.</strong> A watch mode that follows whoever is in the middle of something and holds on the scene. It is what a first-time visitor sees.</div><span class="st">A bare address opens on the watch. It follows whoever is in the middle of something, goes to a place when news arrives there, and shows the whole parish when everyone is indoors. A caption says what is in view and gives the recorded reason. Choosing a resident or moving the map ends it, and Watch brings it back. Scenes are ranked by fixed rules in <code>public/director.js</code>, tested in <code>director.test.mjs</code>. Visitors’ marks from Stage 7 do not inform it yet, and it has not been tried on first-time viewers.</span></li>
+      <li data-s="done"><div class="what"><strong>A director.</strong> A watch mode that follows whoever is in the middle of something and holds on the scene. It is what a first-time visitor sees.</div><span class="st">A bare address opens on the watch. It follows whoever is in the middle of something, goes to a place when news arrives there, and shows the whole parish when everyone is indoors. A caption says what is in view and gives the recorded reason. Choosing a resident or moving the map ends it, and Watch brings it back. Scenes are ranked by fixed rules in <code>public/director.js</code>, tested in <code>director.test.mjs</code>. Visitors’ marks from Stage 9 do not inform it yet, and it has not been tried on first-time viewers.</span></li>
       <li data-s="done"><div class="what"><strong>Show the basis.</strong> A resident who is waiting on a decision looks like someone making up their mind. A resident following routine looks like routine.</div><span class="st">The resident panel and the map card show the recorded reason for an activity or a wait. A deciding resident carries a question mark on the map and a hand on the chin in the walking view.</span></li>
       <li data-s="done"><div class="what"><strong>Dalecrest Daily.</strong> Robin reports from around the village. The morning editor uses his notes and the public records to cover the previous day and follow earlier stories. Each passage links to supporting events.</div></li>
       <li data-s="done"><div class="what"><strong>Seasons, weather and the hour</strong> in both views. Tools in hand, a movement for each trade, residents who go indoors.</div><span class="st">Both views show seasonal change, weather, daylight and night, residents going indoors, and the tools and movements of their work.</span></li>
@@ -901,8 +902,62 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
 
   <!-- ============ Stage 7 ============ -->
   <article class="stage" id="stage-7">
+    <header><span class="numeral">7</span><h3>A living village culture</h3><span class="meta">Parts A–C</span><span class="stamp hand">Clock built<br>Trial pending</span></header>
+    <div class="meter"><span class="bar"><i class="d"></i><i class="p"></i></span><span class="count"></span></div>
+    <p><b>Status · 24 November 2026.</b> The variable-speed clock is built and the live trial is pending. The other parts remain proposals. Models form goals and select consequential choices, and the simulation validates those actions and establishes facts. Culture grows from what residents do and share.</p>
+    <h4>7A. A continuous, variable-speed clock</h4>
+    <ul class="checks">
+      <li data-s="done"><div class="what"><strong>Clock rates.</strong> Run 06:00–22:00 at 15 real seconds per village minute and 22:00–06:00 at 7.5 seconds per minute. Keep 30 seconds as the live comparison rate and support a fixed 15-second trial. A village day takes twelve real hours at the comparison rate, six at fixed 2× and five at the day and night rates.</div></li>
+      <li data-s="done"><div class="what"><strong>One minute at a time.</strong> The rate changes on the committed minute at 06:00 and 22:00. Schedule from the tick deadline so each half-second survives. If the server misses a whole interval, resume from the current village minute. The clock runs independently of audience presence and the decision queue.</div></li>
+      <li data-s="done"><div class="what"><strong>One clock in both views.</strong> Commit the upcoming interval and its rate with village time. Show the active multiplier in the observatory and use the same interval for movement in Map and Walk.</div></li>
+    </ul>
+    <p><b>Verification and rollout.</b> Replay the same choices at both rates and compare event order across 22:00, midnight and dawn. Run fixed 2× for one real day before testing 4× overnight. Compare village minutes spent waiting, replies that arrive too late to apply, and action tokens per real day. Inspect the dawn queue separately from the quiet part of the night.</p>
+    <p><b>Clock settings.</b> Use <code>VILLAGE_CLOCK_MODE=fixed</code> with <code>VILLAGE_SECONDS_PER_MINUTE=15</code> for the first trial. Use <code>VILLAGE_CLOCK_MODE=day-night</code> for the variable rate. The live comparison remains fixed at 30 seconds. Run <code>docker exec dalecrest-app node tools/pilot-report.mjs 24</code> to compare daytime, night and the hour around dawn.</p>
+    <h4>7B. Culture that emerges from shared experience</h4>
+    <ul class="checks">
+      <li data-s="todo"><div class="what">Record consequential events as verifiable world history, distinct from each resident's sourced memories and interpretations; nobody automatically knows or agrees on an event.</div></li>
+      <li data-s="todo"><div class="what">Let accounts travel through encounters and the Dalecrest Daily; readers may react, disagree, forget or pass stories along. Robin's reporting must remain grounded in recorded events, not create facts.</div></li>
+      <li data-s="todo"><div class="what">Allow repeated social practices and proposed recurring gatherings to become customs or institutions only through residents' choices, participation and reinforcement; permit customs to fade or be contested.</div></li>
+      <li data-s="todo"><div class="what">Carry cultural knowledge through newcomers, children and deaths via observed practices, conversation and records, rather than a single village-wide AI mind.</div></li>
+    </ul>
+    <h4>7C. Cost-bounded growth and evidence</h4>
+    <ul class="checks">
+      <li data-s="todo"><div class="what">Measure real-time decision waits, meaningful choices per village day, token spending by role, and whether faster days increase the fraction of time residents spend waiting.</div></li>
+      <li data-s="todo"><div class="what">Pilot roughly 30–50 residents only after profiling; use standing instructions, household routines and event-triggered reflection to decouple routine activity from model calls, while preserving individual agency for consequential decisions.</div></li>
+      <li data-s="todo"><div class="what">Compare seeded villages over 30–60 simulated days: can observers trace a custom or shared belief from an event through transmission to later choices, and do villages develop different practices without scripted outcomes?</div></li>
+    </ul>
+    <p class="donewhen"><b>Done when</b> Replays with the same choices preserve event order at both rates. A timed live pilot demonstrates continuous progression independent of viewers, shows the active multiplier, and measures waits and token use against the comparison rate. At least one seeded 30–60-day run shows an evidence-linked cultural practice forming, spreading or fading through resident choices. A quiet run is valid evidence.</p>
+  </article>
+
+  <!-- ============ Stage 8 ============ -->
+  <article class="stage" id="stage-8">
+    <header><span class="numeral">8</span><h3>The world comes to Dalecrest</h3><span class="meta">Proposed · Parts A–C</span><span class="stamp">Not begun</span></header>
+    <div class="meter"><span class="bar"><i class="d"></i><i class="p"></i></span><span class="count"></span></div>
+    <p>This stage introduces travelers, couriers, physical barter and scarce river gold within one village.</p>
+    <h4>8A. Travelers, couriers and letters</h4>
+    <ul class="checks">
+      <li data-s="todo"><div class="what">Travelers arrive by a village road, stay briefly and depart; their presence and actions obey the same physical clock and location rules as residents.</div></li>
+      <li data-s="todo"><div class="what">An opt-in visitor can send a bounded letter through a courier to a named resident or the moot; delivery is an event, and the recipient may read, ignore, discuss or reply. Treat submitted text as untrusted claims, never engine instructions.</div></li>
+      <li data-s="todo"><div class="what">Record delivery, source, recipient, consent/moderation limits and subsequent choices so an observer can trace outside influence without inventing causality.</div></li>
+    </ul>
+    <h4>8B. Barter and river gold</h4>
+    <ul class="checks">
+      <li data-s="todo"><div class="what">Keep internal food, tools and household provisions in communal stores, with no wages or personal accounts. A communal trading post can exchange actual surplus goods with visiting merchants.</div></li>
+      <li data-s="todo"><div class="what">Pilot small-scale gold panning in the existing river, not a new mine. Model recoverable placer deposits as finite, seed-dependent and rare, with time spent panning competing against food and winter preparation; some river reaches may yield nothing.</div></li>
+      <li data-s="todo"><div class="what">Track recovered gold by physical weight in the communal store and as carried merchant inventory, not abstract currency or minted coins. Allow direct barter first, with gold as an optional high-value external trade good.</div></li>
+      <li data-s="todo"><div class="what">Merchants bring finite goods and needs; negotiate offers and validate available stock, agreed quantities and actual transfers. A moot can contest trading away essential reserves.</div></li>
+    </ul>
+    <h4>8C. Outside news and cultural effects</h4>
+    <ul class="checks">
+      <li data-s="todo"><div class="what">Travelers may bring goods, stories and unfamiliar practices; residents learn them through witnessed encounters or reported accounts, not instant omniscience.</div></li>
+      <li data-s="todo"><div class="what">Track whether external events change beliefs, customs or policy over time. Robin may report verified village encounters but should not convert a visitor's unsupported claims into facts.</div></li>
+    </ul>
+    <p class="donewhen"><b>Done when</b> Courier letters cannot command the engine; a merchant completes or declines a validated physical trade; reproducible panning includes empty attempts; stock remains consistent across restarts; and villagers may dispute outside stories.</p>
+  </article>
+  <!-- ============ Stage 9 ============ -->
+  <article class="stage" id="stage-9">
     <header>
-      <span class="numeral">7</span>
+      <span class="numeral">9</span>
       <h3>Taking part</h3>
       <span class="meta">Size L · Needs Stage 4</span>
       <span class="stamp">Groundwork<br>only</span>
@@ -919,10 +974,10 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
     <p class="donewhen"><b>Done when</b> a repeat submission creates one petition; a petition can lapse unheard or lose a vote; every resident response links to a real choice; and the original village carried on independently throughout.</p>
   </article>
 
-  <!-- ============ Stage 8 ============ -->
-  <article class="stage" id="stage-8">
+  <!-- ============ Stage 10 ============ -->
+  <article class="stage" id="stage-10">
     <header>
-      <span class="numeral">8</span>
+      <span class="numeral">10</span>
       <h3>A wider world</h3>
       <span class="meta">Later</span>
       <span class="stamp">Not begun</span>
@@ -933,60 +988,6 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
     </ul>
   </article>
 
-  <!-- ============ Stage 9 ============ -->
-  <article class="stage" id="stage-9">
-    <header><span class="numeral">9</span><h3>A living village culture</h3><span class="meta">Parts A–C</span><span class="stamp hand">Clock built<br>Trial pending</span></header>
-    <div class="meter"><span class="bar"><i class="d"></i><i class="p"></i></span><span class="count"></span></div>
-    <p><b>Status · 24 November 2026.</b> The variable-speed clock is built and the live trial is pending. The other parts remain proposals. Models form goals and select consequential choices, and the simulation validates those actions and establishes facts. Culture grows from what residents do and share.</p>
-    <h4>9A. A continuous, variable-speed clock</h4>
-    <ul class="checks">
-      <li data-s="done"><div class="what"><strong>Clock rates.</strong> Run 06:00–22:00 at 15 real seconds per village minute and 22:00–06:00 at 7.5 seconds per minute. Keep 30 seconds as the live comparison rate and support a fixed 15-second trial. A village day takes twelve real hours at the comparison rate, six at fixed 2× and five at the day and night rates.</div></li>
-      <li data-s="done"><div class="what"><strong>One minute at a time.</strong> The rate changes on the committed minute at 06:00 and 22:00. Schedule from the tick deadline so each half-second survives. If the server misses a whole interval, resume from the current village minute. The clock runs independently of audience presence and the decision queue.</div></li>
-      <li data-s="done"><div class="what"><strong>One clock in both views.</strong> Commit the upcoming interval and its rate with village time. Show the active multiplier in the observatory and use the same interval for movement in Map and Walk.</div></li>
-    </ul>
-    <p><b>Verification and rollout.</b> Replay the same choices at both rates and compare event order across 22:00, midnight and dawn. Run fixed 2× for one real day before testing 4× overnight. Compare village minutes spent waiting, replies that arrive too late to apply, and action tokens per real day. Inspect the dawn queue separately from the quiet part of the night.</p>
-    <p><b>Clock settings.</b> Use <code>VILLAGE_CLOCK_MODE=fixed</code> with <code>VILLAGE_SECONDS_PER_MINUTE=15</code> for the first trial. Use <code>VILLAGE_CLOCK_MODE=day-night</code> for the variable rate. The live comparison remains fixed at 30 seconds. Run <code>docker exec dalecrest-app node tools/pilot-report.mjs 24</code> to compare daytime, night and the hour around dawn.</p>
-    <h4>9B. Culture that emerges from shared experience</h4>
-    <ul class="checks">
-      <li data-s="todo"><div class="what">Record consequential events as verifiable world history, distinct from each resident's sourced memories and interpretations; nobody automatically knows or agrees on an event.</div></li>
-      <li data-s="todo"><div class="what">Let accounts travel through encounters and the Dalecrest Daily; readers may react, disagree, forget or pass stories along. Robin's reporting must remain grounded in recorded events, not create facts.</div></li>
-      <li data-s="todo"><div class="what">Allow repeated social practices and proposed recurring gatherings to become customs or institutions only through residents' choices, participation and reinforcement; permit customs to fade or be contested.</div></li>
-      <li data-s="todo"><div class="what">Carry cultural knowledge through newcomers, children and deaths via observed practices, conversation and records, rather than a single village-wide AI mind.</div></li>
-    </ul>
-    <h4>9C. Cost-bounded growth and evidence</h4>
-    <ul class="checks">
-      <li data-s="todo"><div class="what">Measure real-time decision waits, meaningful choices per village day, token spending by role, and whether faster days increase the fraction of time residents spend waiting.</div></li>
-      <li data-s="todo"><div class="what">Pilot roughly 30–50 residents only after profiling; use standing instructions, household routines and event-triggered reflection to decouple routine activity from model calls, while preserving individual agency for consequential decisions.</div></li>
-      <li data-s="todo"><div class="what">Compare seeded villages over 30–60 simulated days: can observers trace a custom or shared belief from an event through transmission to later choices, and do villages develop different practices without scripted outcomes?</div></li>
-    </ul>
-    <p class="donewhen"><b>Done when</b> Replays with the same choices preserve event order at both rates. A timed live pilot demonstrates continuous progression independent of viewers, shows the active multiplier, and measures waits and token use against the comparison rate. At least one seeded 30–60-day run shows an evidence-linked cultural practice forming, spreading or fading through resident choices. A quiet run is valid evidence.</p>
-  </article>
-
-  <!-- ============ Stage 10 ============ -->
-  <article class="stage" id="stage-10">
-    <header><span class="numeral">10</span><h3>The world comes to Dalecrest</h3><span class="meta">Proposed · Parts A–C</span><span class="stamp">Not begun</span></header>
-    <div class="meter"><span class="bar"><i class="d"></i><i class="p"></i></span><span class="count"></span></div>
-    <p>Travelers and couriers, physical barter, and scarce river gold at the boundary of a communal village. This extends existing visitor and wider-world plans without adding a mine or an internal money economy.</p>
-    <h4>10A. Travelers, couriers and letters</h4>
-    <ul class="checks">
-      <li data-s="todo"><div class="what">Travelers arrive by a village road, stay briefly and depart; their presence and actions obey the same physical clock and location rules as residents.</div></li>
-      <li data-s="todo"><div class="what">An opt-in visitor can send a bounded letter through a courier to a named resident or the moot; delivery is an event, and the recipient may read, ignore, discuss or reply. Treat submitted text as untrusted claims, never engine instructions.</div></li>
-      <li data-s="todo"><div class="what">Record delivery, source, recipient, consent/moderation limits and subsequent choices so an observer can trace outside influence without inventing causality.</div></li>
-    </ul>
-    <h4>10B. Barter and river gold</h4>
-    <ul class="checks">
-      <li data-s="todo"><div class="what">Keep internal food, tools and household provisions in communal stores, with no wages or personal accounts. A communal trading post can exchange actual surplus goods with visiting merchants.</div></li>
-      <li data-s="todo"><div class="what">Pilot small-scale gold panning in the existing river, not a new mine. Model recoverable placer deposits as finite, seed-dependent and rare, with time spent panning competing against food and winter preparation; some river reaches may yield nothing.</div></li>
-      <li data-s="todo"><div class="what">Track recovered gold by physical weight in the communal store and as carried merchant inventory, not abstract currency or minted coins. Allow direct barter first, with gold as an optional high-value external trade good.</div></li>
-      <li data-s="todo"><div class="what">Merchants bring finite goods and needs; negotiate offers and validate available stock, agreed quantities and actual transfers. A moot can contest trading away essential reserves.</div></li>
-    </ul>
-    <h4>10C. Outside news and cultural effects</h4>
-    <ul class="checks">
-      <li data-s="todo"><div class="what">Travelers may bring goods, stories and unfamiliar practices; residents learn them through witnessed encounters or reported accounts, not instant omniscience.</div></li>
-      <li data-s="todo"><div class="what">Track whether external events change beliefs, customs or policy over time. Robin may report verified village encounters but should not convert a visitor's unsupported claims into facts.</div></li>
-    </ul>
-    <p class="donewhen"><b>Done when</b> Courier letters cannot command the engine; a merchant completes or declines a validated physical trade; reproducible panning includes empty attempts; stock remains consistent across restarts; and villagers may dispute outside stories.</p>
-  </article>
 </section>
 
 <section id="order">
@@ -998,10 +999,12 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
     <li>Stage 3a needs Stage 3's households and working day. Its floor under meals needs nothing and can go first. The allowance is a natural first bylaw for Stage 4's wider agenda.</li>
     <li>Stage 3b needs nothing beyond the stages already built. Measure its menus with <code>tools/menu-coverage.sql</code> and its activity starts with <code>readout.mjs</code> and <code>tools/standing-coverage.sql</code>. It comes before Stage 4, which adds positions and ballots to the menu.</li>
     <li>Stage 3c builds on the households and lives in Stage 3 and the Storehouse allowance in Stage 3a. Begin with family arrivals, then add children's routines and lessons before opening the live rollout.</li>
-    <li>Stage 3d starts with the meals and larders from Stages 3 and 3a. Measure bread, fish and game first, add gardens and orchards next, then use the seasonal farm calendar for sheep and winter fodder.</li>
+    <li>Stage 3d builds on the meals and larders from Stages 3 and 3a. Harvests, hay and lambing use Stage 3’s seasonal calendar.</li>
     <li>Stage 4 needs Stage 2's goals and observations.</li>
     <li>Stage 6 needs the records from Stages 1 and 2 and reads best after Stage 5's daily account.</li>
-    <li>Stage 7 needs Stage 4's ballots and positions, which are what make a visitor's petition something residents can answer.</li>
+    <li>Stage 7 measures how clock speed affects decision waits and costs in a single village.</li>
+    <li>Stage 8 pilots travelers, courier letters and trade within one village before broader visitor participation in Stage 9 and multiple villages in Stage 10.</li>
+    <li>Stage 9 needs Stage 4's ballots and positions, which are what make a visitor's petition something residents can answer.</li>
   </ul>
 </section>
 
@@ -1106,7 +1109,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
     <li><strong>How the action and goal budgets are divided</strong>, and whether the daily account in Stage 5 has a third.</li>
     <li><strong>When the pilot reaches the live village.</strong> It is proved in a test village. Moving it to the live one changes what residents know about the stores. <span class="st" style="display:block">Note, 21 November 2026: oven observations and requests for help are already on <code>main</code>, which the live village deploys, so this has in effect been settled by deployment. It should be recorded as decided or reopened.</span></li>
     <li><strong>Whether residents die</strong>, and whether the live village is migrated or a new one is founded when Stage 3 changes the economy.</li>
-    <li><strong>How far visitors may reach.</strong> Stage 7 can stop at any step. Letters are the first with real moderation work.</li>
+    <li><strong>How far visitors may reach.</strong> Stage 9 can stop at any step. The courier trial in Stage 8 is the first to require moderation.</li>
     <li><strong>How long a year is.</strong> Stage 3 proposes a year of about 48 village days. The calendar and the weather now keep the real year of 365, which at two village days to a real day takes six real months. One of the two has to give.</li>
     <li><strong>Whether the wood store grows with the village.</strong> It holds 32 bundles at any size. With winter fuel that is about a day's burning for thirty hearths in frost, so a large village cannot lay in wood for a cold spell.</li>
     <li><strong>What the common store's building is called.</strong> It was proposed as a commissary. “Storehouse” is the working name here, because the word fits 1312 and the plan already speaks of the common store. <span class="st" style="display:block">Decided, 22 November 2026: the Storehouse.</span></li>

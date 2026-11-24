@@ -1,5 +1,5 @@
 // The Storehouse. Dalecrest holds its goods in common, and the finished goods residents take for
-// themselves are kept in one building: loaves, linen, salt fish and smoked game, and leather. Whoever
+// themselves are kept in one building: loaves, linen, salt fish and smoked meat, and leather. Whoever
 // makes them carries them there at the end of the shift. Each day every household is allowed its
 // bread, and draws it into the larder at home. A storekeeper counts the shelves. Anyone who goes there
 // sees what is on them, and can pass the count on.
@@ -27,8 +27,9 @@ const KEEPS = 2;
 // The count below which a storekeeper calls the bread short.
 export const BREAD_LOW = 6;
 
-const YEAR = 365 * 1440;
-export const eatingChildren = (cottage, minute) => (cottage?.children || []).filter(c => minute - c.born >= YEAR).length;
+const YEAR = 365.25 * 1440;
+export const eatsFromLarder = (child, minute) => minute - child.born >= YEAR;
+export const eatingChildren = (cottage, minute) => (cottage?.children || []).filter(c => eatsFromLarder(c, minute)).length;
 
 export const storehouseOf = map => {
   const p = place(map, STOREHOUSE);
@@ -102,7 +103,7 @@ export const shelves = world => Object.fromEntries(STORED.map(item => [item, wor
 export function shelfWords(stock) {
   const n = (count, one, many) => count === 0 ? 'no ' + many : count === 1 ? 'one ' + one : count + ' ' + many;
   return n(stock.bread, 'loaf', 'loaves') + ', ' + n(stock.cloth, 'length of linen', 'lengths of linen') + ', '
-    + n(stock.preserved, 'portion of salt fish or smoked game', 'portions of salt fish and smoked game') + ' and '
+    + n(stock.preserved, 'portion of salt fish or smoked meat', 'portions of salt fish and smoked meat') + ' and '
     + n(stock.leather, 'piece of leather', 'pieces of leather');
 }
 

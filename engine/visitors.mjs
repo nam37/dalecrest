@@ -14,7 +14,7 @@ const DROVERS = ['Thornwick', 'Elmstead', 'Barrowby', 'Coldharbour'];
 
 export const visitorJobs = {
   driveHerd: { label: 'Driving the stray cattle out', task: 'driving out the cattle', duration: 30, makes: {} },
-  trade: { label: 'Trading linen with the peddler', task: 'trading with the peddler', duration: 20, takes: { cloth: 1 }, makes: { preserved: 3 } },
+  trade: { label: 'Trading linen with the peddler', task: 'trading with the peddler', duration: 20, takes: { cloth: 1 }, makes: { preserved: 3 }, foodSource: 'tradedFish' },
 };
 
 // Decided at dawn. random() is the village's seeded random state.

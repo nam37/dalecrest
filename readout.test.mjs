@@ -92,6 +92,28 @@ test('PostgreSQL gives each stage’s measures from the village’s own records'
     assert.equal(find('Days a household ran short while the storehouse did not').value, '1');
     assert.equal(find('A viewer can tell').verdict, 'needs a viewer');
     assert.match(readoutText(report), /Stage 3a · The common store/);
+    assert.equal(find('Meals in the last seven village days').verdict, 'no data');
+
+    const dawn = 360 + 7 * 1440;
+    const reserve = { minute: dawn, readyDays: 0.4, hallDays: 0.1, storehouseDays: 0.2, larderDays: 0.1, unpreparedDays: 3 };
+    const portion = { meal: { food: 'cooked', household: 'cottage-1', portions: 1, hungerRelieved: 40, sources: [
+      { source: 'game', portions: 0.75, hungerRelieved: 30 }, { source: 'unknown', portions: 0.25, hungerRelieved: 10 },
+    ] } };
+    await event(360, 'meal', [a], 'Ate before the window.', portion);
+    await event(m + 100, 'meal', [a], 'Ate a cooked meal.', portion);
+    await event(dawn + 1, 'meal', [b], 'Ate after the window.', portion);
+    for (let minute = 360 + 1440; minute <= dawn; minute += 1440) {
+      await event(minute, 'village', [], 'Dawn food count.', { foodReserve: { ...reserve, minute }, hungryAdults: 1, missedBreakfasts: 2 });
+    }
+    await q(`UPDATE dalecrest.world SET state = jsonb_set(jsonb_set(state, '{minute}', to_jsonb($1::bigint)), '{foodReserve}', $2)`,
+      [dawn + 120, reserve]);
+    const withFood = await readout(db.pool, { hours: 24, tick: 3 });
+    assert.equal(withFood.food.portions, 1);
+    assert.equal(withFood.food.hungerRelieved, 40);
+    assert.equal(withFood.food.dawns.length, 7);
+    assert.deepEqual(withFood.food.bySource, { game: { portions: 0.75, hungerRelieved: 30 }, unknown: { portions: 0.25, hungerRelieved: 10 } });
+    assert.match(readoutText(withFood), /Ready food at the latest dawn: 0\.40 village days/);
+    assert.match(readoutText(withFood), /7 adult mornings, 14 missed child breakfasts/);
   } finally {
     await db?.pool.end();
     if (created) await admin.query('DROP DATABASE ' + name + ' WITH (FORCE)');

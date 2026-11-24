@@ -2,20 +2,39 @@
 // from the common woodpile and drawing the household's bread at the storehouse. A cottage hearth burns
 // only from its own pile, so one household can wake to a cold house while the village's woodpile still
 // stands. The hall, where lodgers sleep, is kept by the village and draws on the common store directly.
-import { LARDER_HOLDS, drawable, stockLarder, storehouseOf, STOREHOUSE } from './storehouse.mjs';
+import { LARDER_HOLDS, drawable, eatingChildren, stockLarder, storehouseOf, STOREHOUSE } from './storehouse.mjs';
+import { batchTotal, cottageBatches, larderFoods } from './fresh-food.mjs';
 import { place } from './roads.mjs';
 
 export { LARDER_HOLDS };
 export const WOODPILE_HOLDS = 9;
-const YEAR = 365 * 1440;
 
 // How many loaves a bread draw takes is settled when the shift ends, by what is due to the household.
 export const householdJobs = {
   fetchWood: { label: 'Carrying firewood home', task: 'carrying firewood', duration: 26, takes: { wood: 3 }, makes: {} },
   fetchBread: { label: 'Drawing the household’s bread', task: 'drawing bread', duration: 12, takes: {}, makes: {} },
+  fetchPreserved: { label: 'Bringing preserved food home', task: 'bringing food home', duration: 12, takes: { preserved: 1 }, makes: {} },
+  fetchPeas: { label: 'Fetching peas for the larder', task: 'fetching peas', duration: 12, takes: { peas: 1 }, makes: {} },
+  fetchApples: { label: 'Fetching apples for the larder', task: 'fetching apples', duration: 12, takes: { apples: 1 }, makes: {} },
 };
+export const foodDrawJobs = { fetchPreserved: 'preserved', fetchPeas: 'peas', fetchApples: 'apples' };
 // The loaves a bread draw would take now.
 export const breadDraw = (actor, world) => ({ bread: Math.max(1, drawable(actor, world)) });
+
+const storedPortions = cottage => larderFoods.reduce((sum, item) => sum + batchTotal(cottageBatches(cottage, item)), 0);
+
+export function foodDraw(actor, world, item) {
+  const cottage = world.cottages?.[actor.home];
+  if (!cottage) return 0;
+  const children = eatingChildren(cottage, world.minute);
+  const need = item === 'preserved' ? children - cottage.larder : Math.min(8, Math.max(2, children + 1));
+  return Math.max(0, Math.min(need - storedPortions(cottage), world.supplies[item]));
+}
+
+export function spareFood(cottage, item, minute) {
+  const breakfast = Math.max(0, eatingChildren(cottage, minute) - (cottage?.larder || 0));
+  return Math.min(batchTotal(cottageBatches(cottage, item)), Math.max(0, storedPortions(cottage) - breakfast));
+}
 
 export function prepareHousehold(cottage) {
   cottage.woodpile ??= 2;
@@ -54,10 +73,22 @@ export function householdChoices(actor, { world, map }, offer, weary, rate) {
         : 'The woodpile at home holds ' + count(cottage.woodpile) + '. A pile laid in now will see the house into the cold.');
   }
   // A household with children lays in their bread before morning. Anyone else draws it when they eat.
-  const kids = (cottage.children || []).filter(c => world.minute - c.born >= YEAR).length;
+  const kids = eatingChildren(cottage, world.minute);
   if (map && storehouseOf(map) && cottage.larder < kids + 1 && drawable(actor, world) >= 1) {
     offer('fetchBread', STOREHOUSE, 30 + kids * 8 - weary, 'There ' + (cottage.larder === 1 ? 'is one loaf' : 'are ' + cottage.larder + ' loaves')
       + ' in the larder at home, and the household’s bread is due at the storehouse.');
+  }
+  if (map && storehouseOf(map) && drawable(actor, world) < 1 && foodDraw(actor, world, 'preserved') >= 1) {
+    offer('fetchPreserved', STOREHOUSE, 34 + kids * 8 - weary, 'The children need breakfast, and there is preserved food at the storehouse.');
+  }
+  if (place(map, 'hall')?.stage === 2) {
+    for (const job of ['fetchPeas', 'fetchApples']) {
+      const item = foodDrawJobs[job];
+      if (foodDraw(actor, world, item) < 1) continue;
+      const needed = kids > cottage.larder + storedPortions(cottage) && drawable(actor, world) < 1;
+      offer(job, 'hall', (needed ? 39 + kids * 8 : 34) - weary, 'There are ' + item + ' at the hall that I can take home to eat.',
+        { householdBreakfast: needed });
+    }
   }
 }
 
@@ -71,10 +102,14 @@ export function householdObstacle(actor, world) {
     if (cottage.larder >= LARDER_HOLDS) return 'the larder at home was already full';
     if (drawable(actor, world) < 1) return world.supplies.bread < 1 ? 'the shelves at the storehouse were bare' : 'nothing more was due to the household today';
   }
+  const food = foodDrawJobs[job];
+  if (food && foodDraw(actor, world, food) < 1) {
+    return world.supplies[food] < 1 ? 'there was no food of that kind left' : 'the household already had enough for the larder';
+  }
   return null;
 }
 
-export function finishHousehold(actor, world) {
+export function finishHousehold(actor, world, taken) {
   const { job } = actor.action, cottage = world.cottages[actor.home];
   if (job === 'fetchWood') {
     cottage.woodpile += 3;
@@ -85,6 +120,11 @@ export function finishHousehold(actor, world) {
     const n = actor.action.drawn || 0;
     stockLarder(actor, world, n);
     return 'drew ' + (n === 1 ? 'the household’s loaf' : n + ' loaves') + ' at the storehouse for the larder at home';
+  }
+  const food = foodDrawJobs[job];
+  if (food) {
+    const portion = food === 'preserved' ? 'preserved food' : food;
+    return 'brought ' + taken[food] + (taken[food] === 1 ? ' portion of ' : ' portions of ') + portion + ' home for the larder';
   }
 }
 

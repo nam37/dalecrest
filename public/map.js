@@ -9,7 +9,8 @@ import { drawMapFigure } from './map-figure.js';
 import { drawAnimal, drawGarden, drawWoodpile } from './map-parish.js';
 import { drawGame, drawFish } from './map-wildlife.js';
 import { wildlife } from './wildlife.js';
-import { parishLayout, strayCattle, workHeading } from './parish.js';
+import { parishLayout, strayCattle, visibleSheep, workHeading } from './parish.js';
+import { isFarmSite } from '../engine/smallholding.mjs';
 import { residentActivity, residentScale } from './resident-pose.js';
 
 export { villageColors } from './resident-pose.js';
@@ -273,6 +274,11 @@ function paintPaper(c, map, look, scale) {
     }
     c.restore();
   });
+  for (const grass of [look.parish.orchard, look.parish.pasture].filter(Boolean)) {
+    trace(c, rectPoly(grass), true);
+    c.fillStyle = snowed('#a9b584'); c.fill();
+    c.strokeStyle = '#7d865b88'; c.lineWidth = line; c.stroke();
+  }
   for (const garden of look.parish.gardens) drawGarden(c, garden, year, snow, line);
   // Ways. Every edge line is laid first and every surface after it, so where a lane meets the road the
   // two run together with no line across the mouth. Surfaces go down narrowest first.
@@ -349,7 +355,7 @@ function paintPaper(c, map, look, scale) {
   if (shady) {
     c.beginPath();
     for (const p of places) {
-      if (!p.w || p.kind === 'field' || p.stage !== 2) continue;
+      if (!p.w || p.kind === 'field' || isFarmSite(p.kind) || p.stage !== 2) continue;
       const tall = p.kind === 'hall' || p.kind === 'mill' ? 1.25 : 0.9, foot = rectPoly(p);
       ring(hull([...foot, ...foot.map(([x, y]) => [x + castX * tall, y + castY * tall])]));
     }
@@ -366,7 +372,7 @@ function paintPaper(c, map, look, scale) {
       building(c, house, line, false, snowed, sun.toward); roofed.push(rectPoly(house));
       const ox = p.x + Math.cos(p.a) * p.w * 0.27, oy = p.y + Math.sin(p.a) * p.w * 0.27;
       disc(c, ox + castX * 0.16, oy + castY * 0.16, 0.62, small); disc(c, ox, oy, 0.6, '#c2946e', ink, line * 1.2); disc(c, ox - 0.15, oy - 0.15, 0.2, '#d8b08a'); disc(c, ox, oy, 0.14, '#5f5142');
-    } else if (p.w && p.kind !== 'field') { building(c, p, line, look.lodgers, snowed, sun.toward); if (p.stage === 2) roofed.push(rectPoly(p)); }
+    } else if (p.w && p.kind !== 'field' && !isFarmSite(p.kind)) { building(c, p, line, look.lodgers, snowed, sun.toward); if (p.stage === 2) roofed.push(rectPoly(p)); }
   }
   // A roof covers the shade beneath it, so the trees' shade is laid again over the roofs alone.
   if (roofed.length && shady) {
@@ -501,7 +507,7 @@ export function createSurvey(canvas) {
     if (map !== lastMap) {
       look.chains = chains(map);
       look.parish = parishLayout(map);
-      look.woods = [...map.trees].sort((a, b) => a[1] - b[1]);
+      look.woods = [...map.trees, ...look.parish.appleTrees].sort((a, b) => a[1] - b[1]);
       lastMap = map;
     }
     look.year = yearLook(minute);
@@ -874,7 +880,7 @@ export function createMap(canvas, onSelect, cards) {
     c.setTransform(dpr, 0, 0, dpr, 0, 0);
     c.drawImage(paper, 0, 0, w, h);
     for (const pile of look.parish.piles) drawWoodpile(c, pile, world, look.snow, toScreen, view.scale);
-    for (const animal of look.parish.sheep) drawAnimal(c, animal, still, toScreen, view.scale, look.sun);
+    for (const animal of visibleSheep(look.parish, world)) drawAnimal(c, animal, still, toScreen, view.scale, look.sun);
     for (const animal of cattle) drawAnimal(c, animal, still, toScreen, view.scale, look.sun);
     const walkers = actors.filter(a => !indoors(a)).map(a => motion.at(a.id, time)).filter(Boolean);
     for (const animal of look.wild.game) drawGame(c, animal, still, toScreen, view.scale, look, walkers);
@@ -1145,7 +1151,7 @@ export function createMap(canvas, onSelect, cards) {
       if (wildKey !== look.wildKey) { look.wildKey = wildKey; look.wild = wildlife(map); }
       cattle = strayCattle(map, world);
       // Trees are drawn north to south, so each crown overlaps the ones behind it.
-      look.woods = [...map.trees].sort((a, b) => a[1] - b[1]);
+      look.woods = [...map.trees, ...look.parish.appleTrees].sort((a, b) => a[1] - b[1]);
       seasonal();
       if (grew && !moved) fit();
       redraw();
@@ -1181,7 +1187,7 @@ export function createMap(canvas, onSelect, cards) {
     soundScene(now) {
       if (!map || !wx || !w || !h) return null;
       const radius = Math.max(8, Math.min(47, Math.min(w, h) / view.scale * 0.47));
-      return { map, weather: wx, actors, cattle, sheep: look.parish.sheep,
+      return { map, weather: wx, actors, cattle, sheep: visibleSheep(look.parish, world),
         listener: { x: view.x, y: view.y, rightX: 1, rightY: 0, radius }, moving: id => motion.at(id, now)?.moving };
     },
     // Keeps a resident ({ id }), a spot ({ x, y }) or the whole village ({ whole: true }) in view until

@@ -4,6 +4,7 @@ import { place } from '../engine/roads.mjs';
 import { freeGround } from '../engine/sites.mjs';
 import { herdLoose } from '../engine/visitors.mjs';
 import { WOODPILE_HOLDS } from '../engine/households.mjs';
+import { farmSites, sheepCount } from '../engine/smallholding.mjs';
 
 function besideBuilding(p, u, v, w, d) {
   const c = Math.cos(p.a), s = Math.sin(p.a);
@@ -48,8 +49,13 @@ export function parishLayout(map) {
     if (pile) piles.push({ ...pile, id: p.id, columns: 3, rows: 3 });
   }
 
-  const green = place(map, 'green'), meadowOptions = [];
-  if (green) {
+  const kitchen = place(map, farmSites.garden.id), orchard = place(map, farmSites.orchard.id);
+  const pasture = place(map, farmSites.pasture.id), green = place(map, 'green'), meadowOptions = [];
+  if (kitchen) {
+    const door = Math.sign((kitchen.at[0] - kitchen.x) * -Math.sin(kitchen.a) + (kitchen.at[1] - kitchen.y) * Math.cos(kitchen.a)) || 1;
+    gardens.push({ ...kitchen, door });
+  }
+  if (!pasture && green) {
     for (const radius of [7, 10, 13, 17]) {
       for (let i = 0; i < 16; i++) {
         const a = i * TAU / 16;
@@ -57,12 +63,23 @@ export function parishLayout(map) {
       }
     }
   }
-  const meadow = reserve(meadowOptions, 0.6);
-  const sheep = meadow ? [[-1.35, 0.1], [-0.48, -1.05], [0.1, 0.82], [0.76, -0.25], [1.42, 0.89]].map(([u, v], i) => ({
-    kind: 'sheep', x: meadow.x + u, y: meadow.y + v, phase: (map.seed % 17 + i * 5) * 0.6, coat: i % 3,
-  })) : [];
+  const meadow = pasture ?? reserve(meadowOptions, 0.6);
+  const sheep = meadow ? [[-1.35, 0.1], [-0.48, -1.05], [0.1, 0.82], [0.76, -0.25], [1.42, 0.89], [-1.68, -0.88], [0.57, -1.27], [-0.91, 1.26]]
+    .map(([u, v], i) => {
+      const { x, y } = besideBuilding(meadow, u, v, 0, 0);
+      return { kind: 'sheep', x, y, phase: (map.seed % 17 + i * 5) * 0.6, coat: i % 3 };
+    }) : [];
+  const appleTrees = orchard ? [-1.4, 0, 1.4].map(u => {
+    const { x, y } = besideBuilding(orchard, u, 0, 0, 0);
+    return [x, y, 0.66, 0];
+  }) : [];
   for (const pile of piles) pile.logs = woodLogs(pile);
-  return { gardens, piles, sheep, common: piles.find(p => p.common) };
+  return { gardens, piles, sheep, appleTrees, pasture, orchard, common: piles.find(p => p.common) };
+}
+
+export function visibleSheep(layout, world) {
+  const flock = world?.smallholding?.flock;
+  return layout.sheep.slice(0, layout.pasture && flock ? sheepCount(flock) : 5);
 }
 
 export function workHeading(position, activity, commonPile) {

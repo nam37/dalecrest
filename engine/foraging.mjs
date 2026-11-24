@@ -9,16 +9,20 @@ export const LINE_WEAR_LIMIT = 3;
 export const provisions = { game: 4, meat: 12, hide: 6, fish: 12, cooked: 16, preserved: 20, leather: 12 };
 
 export const forageJobs = {
-  hunt: { label: 'Looking for game', task: 'hunt', duration: 62, makes: { game: 1 } },
+  hunt: { label: 'Looking for game', task: 'hunt', duration: 62, makes: { game: 1 }, foodSource: 'game' },
   dressGame: { label: 'Skinning and dressing game', task: 'dressing', duration: 42, takes: { game: 1 }, makes: { meat: 3, hide: 1 },
     result: 'dressed the game and brought meat and a raw hide to the common stores' },
   cookMeat: { label: 'Cooking game for supper', task: 'cooking', duration: 36, takes: { meat: 2, wood: 1 }, makes: { cooked: 3 }, indoors: true,
     result: 'cooked three portions of game for the hall' },
   smokeMeat: { label: 'Smoking game for later', task: 'smoking', duration: 76, takes: { meat: 3, wood: 1 }, makes: { preserved: 3 }, indoors: true,
     result: 'smoked three portions of game to keep' },
+  cookMutton: { label: 'Cooking mutton for supper', task: 'cooking', duration: 36, takes: { mutton: 2, wood: 1 }, makes: { cooked: 3 }, indoors: true,
+    result: 'cooked three portions of mutton for the hall' },
+  smokeMutton: { label: 'Smoking mutton for later', task: 'smoking', duration: 76, takes: { mutton: 3, wood: 1 }, makes: { preserved: 3 }, indoors: true,
+    result: 'smoked three portions of mutton to keep' },
   tanHide: { label: 'Tanning a hide', task: 'tanning', duration: 92, takes: { hide: 1, water: 2 }, makes: { leather: 1 },
     result: 'finished a piece of leather from a game hide' },
-  fish: { label: 'Fishing for supper', task: 'fishing', duration: CAST_MINUTES, makes: { fish: 2 } },
+  fish: { label: 'Fishing for supper', task: 'fishing', duration: CAST_MINUTES, makes: { fish: 2 }, foodSource: 'fish' },
   mendPole: { label: 'Mending the fishing pole', task: 'pole repair', duration: 31, takes: { repair: 1 }, makes: {}, indoors: true,
     result: 'mended the fishing pole and can cast again' },
   cookFish: { label: 'Cooking the river catch', task: 'cooking', duration: 27, takes: { fish: 2, wood: 1 }, makes: { cooked: 3 }, indoors: true,
@@ -33,6 +37,8 @@ export const processing = {
   cureFish: { input: 'fish', effect: 'Curing uses two fish and one bundle of wood for two salt fish portions, then delivers them to the storehouse.' },
   cookMeat: { input: 'meat', effect: 'Cooking uses two portions of game meat and one bundle of wood for three fresh portions at the hall.' },
   smokeMeat: { input: 'meat', effect: 'Smoking uses three portions of game meat and one bundle of wood, then delivers three preserved portions to the storehouse.' },
+  cookMutton: { input: 'mutton', effect: 'Cooking uses two raw portions of mutton and one bundle of wood for three fresh portions at the hall.' },
+  smokeMutton: { input: 'mutton', effect: 'Smoking uses three raw portions of mutton and one bundle of wood for three preserved portions at the storehouse.' },
   tanHide: { input: 'hide', effect: 'Tanning uses a hide and two buckets of water, then delivers a piece of leather that can mend worn shoes.' },
 };
 
@@ -109,10 +115,10 @@ export function offerForaging(actor, state, offer, sky, daylight, weary) {
   process('dressGame', bareShelf ? 61 : 49, 'Dressing game gives us meat and a raw hide.');
   process('tanHide', 41, 'A tanned hide gives the village leather to mend shoes.');
   const roomForSupper = world.supplies.cooked < 5;
-  for (const job of ['cookMeat', 'cookFish']) {
+  for (const job of ['cookMeat', 'cookFish', 'cookMutton']) {
     process(job, roomForSupper ? 55 : 32, 'Cooking fresh food gives the village another supper.');
   }
-  for (const job of ['smokeMeat', 'cureFish']) {
+  for (const job of ['smokeMeat', 'cureFish', 'smokeMutton']) {
     process(job, bareShelf ? 58 : roomForSupper ? 40 : 53, 'Preserving the surplus will keep it for another day.');
   }
 }

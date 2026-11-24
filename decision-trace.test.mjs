@@ -91,8 +91,9 @@ test('PostgreSQL preserves the trace, resumes a received reply, and links actual
     await db.pool.query("UPDATE dalecrest.actors SET state=jsonb_set(state,'{action,remaining}','999')");
     // Hungry enough to be offered a meal, with bread due at the storehouse and nothing else to eat.
     await db.pool.query("UPDATE dalecrest.actors SET state=jsonb_set(jsonb_set(state,'{action}',$1),'{needs,hunger}','40') WHERE id='alice'",[sleep]);
-    await db.pool.query(`UPDATE dalecrest.world SET state=jsonb_set(jsonb_set(jsonb_set(jsonb_set(state,
-      ARRAY['cottages',$1,'larder'],'0'),ARRAY['cottages',$1,'ration'],'2'),'{supplies,cooked}','0'),'{supplies,preserved}','0')`,[alice.home]);
+    await db.pool.query(`UPDATE dalecrest.world SET state=jsonb_set(jsonb_set(state, ARRAY['cottages',$1],
+      ((state#>ARRAY['cottages',$1]) - 'produce' - 'preservedFood') || '{"larder":0,"ration":2}'),
+      '{supplies}', (state->'supplies') || '{"cooked":0,"preserved":0,"peas":0,"apples":0}')`,[alice.home]);
     await db.pool.query("UPDATE dalecrest.world SET state=jsonb_set(state,'{minute}','1320'),next_tick=now()");
     assert.equal(await db.claimAction(7000),undefined);
     await db.advance();

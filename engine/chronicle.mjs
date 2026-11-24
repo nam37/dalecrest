@@ -40,8 +40,10 @@ export function salienceOf(event) {
   if (Number.isFinite(event.salience)) return event.salience;
   const { type, outcome = {}, text = '' } = event;
   if (outcome.lesson && outcome.first) return 6;
+  if (outcome.flock) return 6;
   if (type === 'work') {
     if (outcome.commitmentId != null) return 5;
+    if (outcome.status === 'completed' && ['harvestPeas', 'harvestApples', 'takeMutton'].includes(outcome.job)) return 4;
     // A shift that could not be finished for want of stores says something about the village. A full bin does not.
     return outcome.status === 'blocked' && ['bake', 'mill', 'build'].includes(outcome.job) && /too little (flour|wood|grain) |out of use/.test(outcome.reason || '') ? 3 : 1;
   }

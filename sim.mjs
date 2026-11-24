@@ -17,7 +17,7 @@ import { weatherAt, dayTemp, nextOutdoorStart, chill, fuelPerHearth } from './en
 import { bedJob, finishVillageWork, normalizeVillageWork, ownWorkChoices, repairBedSpec, tickBarley, villageJobs, villageWorkObstacle } from './engine/village-work.mjs';
 import { advanceForageShift, finishForageShift, outingResult } from './engine/foraging.mjs';
 import { BARN, foodDays, mouths, normalizeStores } from './engine/stores.mjs';
-import { breadDraw, burnHearths } from './engine/households.mjs';
+import { breadDraw, burnHearths, foodDraw, foodDrawJobs, spareFood } from './engine/households.mjs';
 import { MEAL_FLOOR, STORED, STOREHOUSE, addStorehouse, drawAndEat, drawable, issueAllowance, keepShelves, normalizeAllowance, storehouseOf } from './engine/storehouse.mjs';
 import { FEAST_HOURS, feastOf, feastOn, isOwnTrade, normalizeBuildings, repairLoss, restDay, tradeOpen, waitTurn, waitedTooLong, wear } from './engine/workday.mjs';
 import { dawnVisitors, tickVisitors } from './engine/visitors.mjs';
@@ -25,7 +25,9 @@ import { forgetTold, judge } from './engine/chronicle.mjs';
 import { normalizeMemories } from './engine/memory.mjs';
 import { noteShift, normalizeGoals, settleGoals, watchGoals } from './engine/goals.mjs';
 import { familiar, fade, warm } from './engine/bonds.mjs';
-import { spoilFreshFood, trackFreshChange } from './engine/fresh-food.mjs';
+import { addStock, cottageBatches, foodMix, nextFreshExpiry, produceFoods, spoilCottageProduce, spoilFreshFood, takeFoodBatches, takeStock } from './engine/fresh-food.mjs';
+import { HUNGER, HUNGRY_AT_DAWN, foodReserve, hungerPerMinute, mealRecord, relieveHunger } from './engine/nutrition.mjs';
+import { dawnSmallholding, farmJobs, farmOutput, normalizeSmallholding } from './engine/smallholding.mjs';
 import { walkingFatigue } from './engine/footwear.mjs';
 
 export const FOCUSES = ['work', 'social', 'rest', 'food'];
@@ -133,6 +135,7 @@ function normalize({ world, actors, map }) {
   addStorehouse(map);
   spreadWood(map);
   raiseFell(map);
+  normalizeSmallholding({ world, map });
   normalizeAllowance({ world, actors });
   normalizeBuildings({ world, map });
   prepareChildren({ world, actors, map });
@@ -346,10 +349,26 @@ function choose(actor, state, menu, diagnostics) {
       STOREHOUSE, 17, hunger * 1.35 - 16 - (cottage?.larder >= 1 ? 8 : 0), 'The day’s bread is due at the storehouse and my hunger is ' + Math.round(hunger) + ' out of 100.', { meal: 'draw' });
     if (cottage?.larder >= 1) offer('food', 'Eating bread at home', actor.home, 15, hunger * 1.35 - 12,
       'There is bread in the larder at home.', { meal: 'larder', indoors: true });
+    if (spareFood(cottage, 'preserved', world.minute) >= 1) {
+      offer('food', 'Eating preserved food at home', actor.home, 15, hunger * 1.35 - 12,
+        'There is a preserved portion in the larder beyond what the children need for breakfast.', { meal: 'homePreserved', indoors: true });
+    }
     if (world.supplies.cooked > 0) offer('food', 'Eating a cooked meal', 'hall', 21, hunger * 1.35 - 11,
       'A cooked portion is ready at the hall.', { meal: 'cooked', indoors: true });
-    if (world.supplies.preserved > 0) offer('food', 'Eating preserved fish or game', 'hall', 20, hunger * 1.35 - 21,
-      'Salt fish and smoked game from the storehouse are served at the hall.', { meal: 'preserved', indoors: true });
+    if (world.supplies.preserved > 0) offer('food', 'Eating preserved food at the hall', 'hall', 20, hunger * 1.35 - 21,
+      'Salt fish and smoked meat from the storehouse are served at the hall.', { meal: 'preserved', indoors: true });
+    for (const [food, portion] of Object.entries(produceFoods)) {
+      const lightMeal = hunger <= HUNGER[food] + 12;
+      if (spareFood(cottage, food, world.minute) >= 1) offer('food', 'Eating ' + portion + ' at home', actor.home, 12,
+        hunger * 1.35 - (lightMeal ? 8 : 17), 'There is ' + portion + ' in the larder at home.', { meal: food, mealAtHome: true, indoors: true });
+      if (world.supplies[food] > 0) {
+        const useSoon = nextFreshExpiry(world, food) - world.minute <= 2 * 1440;
+        offer('food', 'Eating ' + portion + (useSoon ? ' before it spoils' : ''), 'hall', 14,
+          hunger * 1.35 - 18 + (lightMeal ? 9 : 0) + (useSoon ? 12 : 0),
+          'There is ' + portion + ' ready to eat at the hall' + (useSoon ? ' that will spoil soon.' : '.'),
+          { meal: food, indoors: true });
+      }
+    }
   }
   const lodging = civic.isLodger(actor, map);
   // Someone chilled through goes home to the fire, if there is one.
@@ -537,7 +556,7 @@ function recordWork(actor, minute, emit, text, status, stockDelta, reason) {
   emit('work', text, [actor.id], outcome);
 }
 
-// A shift cut short. Someone already carrying the shift's goods sets them down at the storehouse.
+// A shift cut short. Keep the active shift's delivery bookkeeping if it already produced goods.
 function endShiftEarly(actor, state, emit, status, reason) {
   const minute = state.world.minute;
   if (actor.action.carrying) return deliver(actor, state, emit);
@@ -603,6 +622,8 @@ function finishShift(actor, state, emit, sky) {
   let spec = key === bedJob ? repairBedSpec(actor) : jobs[key];
   // A bread draw takes what is due to the household, settled now.
   if (key === 'fetchBread') spec = { ...spec, takes: breadDraw(actor, world) };
+  const drawnFood = foodDrawJobs[key];
+  if (drawnFood) spec = { ...spec, takes: { [drawnFood]: foodDraw(actor, world, drawnFood) } };
   const changes = dry < 3 ? snowedWood[dry] : outingResult(actor, state, sky);
   let job = changes ? { ...spec, ...changes } : spec;
   // A mill, oven or well in poor repair turns out less, and one out of use turns out nothing.
@@ -613,7 +634,9 @@ function finishShift(actor, state, emit, sky) {
   }
   if (worn) job = { ...job, makes: Object.fromEntries(Object.entries(job.makes).map(([k, v]) => [k, v - worn])),
     result: job.result.replace(/\b(five|four|three)\b(?= (loaves|of flour|buckets))/, w => ({ five: 'four', four: 'three', three: 'two' })[w]) + ', the ' + what + ' being in poor repair' };
-  const obstacle = villageWorkObstacle(actor, world, sky) || stockObstacle(world, job);
+  const localObstacle = villageWorkObstacle(actor, world, sky);
+  if (!localObstacle && Object.hasOwn(farmJobs, key)) job = { ...job, makes: farmOutput(world, key, job) };
+  const obstacle = localObstacle || stockObstacle(world, job);
   if (obstacle) {
     if (key === 'hunt' || key === 'fish') finishForageShift(actor, world, job.result);
     endShiftEarly(actor, state, emit, 'blocked', obstacle);
@@ -623,27 +646,33 @@ function finishShift(actor, state, emit, sky) {
     if (!(world.fields[target] >= 3)) return;
     world.fields[target] -= 3;
   }
-  const stockDelta = {};
-  for (const [item, quantity] of Object.entries(job.takes || {})) stockDelta[item] = -quantity;
-  for (const [item, quantity] of Object.entries(job.makes)) stockDelta[item] = (stockDelta[item] || 0) + quantity;
-  // Finished goods for the storehouse count once they are on its shelves. Everything else counts now.
-  const store = storehouseOf(state.map), carried = {};
-  if (store) for (const [item, quantity] of Object.entries(job.makes)) if (STORED.includes(item) && quantity > 0) carried[item] = quantity;
-  for (const [item, change] of Object.entries(stockDelta)) {
-    const immediate = change - (carried[item] || 0);
-    world.supplies[item] += immediate;
-    trackFreshChange(world, item, immediate);
+  const stockDelta = {}, ingredients = {};
+  const larder = drawnFood ? cottageBatches(world.cottages[actor.home], drawnFood, true) : undefined;
+  for (const [item, quantity] of Object.entries(job.takes || {})) {
+    stockDelta[item] = -quantity;
+    for (const [source, amount] of Object.entries(takeStock(world, item, quantity, larder))) {
+      ingredients[source] = (ingredients[source] || 0) + amount;
+    }
+  }
+  const origins = job.foodSource ? { [job.foodSource]: 1 } : foodMix(ingredients);
+  // Stock carried to the hall or Storehouse is available there once the shift delivers it.
+  const store = job.delivery ? place(state.map, job.delivery) : storehouseOf(state.map), carried = {};
+  for (const [item, quantity] of Object.entries(job.makes)) {
+    stockDelta[item] = (stockDelta[item] || 0) + quantity;
+    if (store?.stage === 2 && (job.delivery || STORED.includes(item)) && quantity > 0) carried[item] = quantity;
+    else addStock(world, item, quantity, origins);
   }
   if (key === 'fetchBread') actor.action.drawn = job.takes.bread;
   actor.lastJob = minute;
   if (actor.lastWorkDay !== Math.floor(minute / 1440)) { actor.daysWorked++; actor.lastWorkDay = Math.floor(minute / 1440); }
-  const result = key === 'keep' ? keepShelves(actor, world, state.actors) : finishVillageWork(actor, state) || finishForageShift(actor, world, job.result);
+  const result = key === 'keep' ? keepShelves(actor, world, state.actors)
+    : finishVillageWork(actor, state, job) || finishForageShift(actor, world, job.result);
   if (Object.keys(carried).length) {
-    // The walk to the storehouse is the last leg of the same shift, so it needs no decision of its own. The
-    // activity is the same one, changed in place, so whatever follows the shift follows the carry too.
+    // Delivery is the last leg of the same shift and needs no choice of its own.
     const what = goodsWords(carried);
-    Object.assign(actor.action, { label: 'Carrying ' + what + ' to the storehouse', target: store.id, phase: 'travelling', remaining: 1,
-      carrying: carried, workedAt: actor.action.target, result, stockDelta, indoors: false });
+    Object.assign(actor.action, { label: 'Carrying ' + what + ' to the ' + (store.id === 'hall' ? 'hall' : 'storehouse'),
+      target: store.id, phase: 'travelling', remaining: 1, carrying: carried, ...(origins && { foodOrigins: origins }),
+      workedAt: actor.action.target, result, stockDelta, indoors: false });
     delete actor.action.path;
     return;
   }
@@ -661,7 +690,8 @@ function settleShift(actor, state, emit, text, stockDelta, key) {
   if (actor.action.commitmentId) settleHelp(actor, world, stockDelta, emit);
 }
 
-const GOODS = { bread: ['loaf', 'loaves'], cloth: ['length of linen', 'lengths of linen'], preserved: ['portion', 'portions'], leather: ['piece of leather', 'pieces of leather'] };
+const GOODS = { bread: ['loaf', 'loaves'], cloth: ['length of linen', 'lengths of linen'], preserved: ['portion', 'portions'], leather: ['piece of leather', 'pieces of leather'],
+  peas: ['portion of peas', 'portions of peas'], apples: ['apple', 'apples'], mutton: ['portion of mutton', 'portions of mutton'] };
 const NUMBERS = ['no', 'one', 'two', 'three', 'four', 'five', 'six'];
 function goodsWords(goods) {
   return Object.entries(goods).map(([item, n]) => (NUMBERS[n] || n) + ' ' + GOODS[item][n === 1 ? 0 : 1]).join(' and ');
@@ -673,14 +703,16 @@ function deliver(actor, state, emit) {
   const { world } = state, action = actor.action, stockDelta = { ...action.stockDelta };
   for (const [item, quantity] of Object.entries(action.carrying)) {
     const room = Math.max(0, (world.capacity[item] ?? Infinity) - world.supplies[item]), placed = Math.min(quantity, room);
-    world.supplies[item] += placed;
+    addStock(world, item, placed, action.foodOrigins);
     stockDelta[item] -= quantity - placed;
   }
   const at = place(state.map, action.target);
   const arrived = at && Math.hypot(actor.position.x - at.at[0], actor.position.y - at.at[1]) < 0.2;
   const them = Object.values(action.carrying).reduce((a, b) => a + b, 0) === 1 ? 'it' : 'them';
-  const text = actor.name + ' ' + action.result + (arrived ? (action.result.includes(',') ? ',' : '') + ' and took ' + them + ' to the storehouse' : '') + '.';
+  const destination = action.target === 'hall' ? 'hall' : 'storehouse';
+  const text = actor.name + ' ' + action.result + (arrived ? (action.result.includes(',') ? ',' : '') + ' and took ' + them + ' to the ' + destination : '') + '.';
   delete action.carrying;
+  delete action.foodOrigins;
   action.remaining = 0;
   settleShift(actor, state, emit, text, stockDelta, action.job);
 }
@@ -735,13 +767,18 @@ function stepMinute(state, events, externalActions, records, pilot) {
   const emit = (type, text, actorIds = [], outcome, site) => events.push({ type, minute, text, actorIds, ...(outcome && { outcome }), ...spotOf(state, actorIds, site) });
   expireHelp(state, emit);
   const sky = weatherAt(minute, map.seed), bite = chill(sky.temp);
-  if (minute % 1440 === 360) {
+  spoilCottageProduce(world);
+  const dawn = minute % 1440 === 360;
+  let hungryAdults, missedBreakfasts;
+  if (dawn) {
+    hungryAdults = actors.filter(actor => actor.needs.hunger >= HUNGRY_AT_DAWN).length;
     civic.dawn(state);
     forgetTold(world);
     for (const actor of actors) fade(actor, minute);
     for (const [key, used] of Object.entries({ cloth: 1, water: actors.length })) world.supplies[key] = Math.max(0, world.supplies[key] - used);
     wear(state, emit);
     dawnVisitors(state, emit, () => random(world), sky);
+    dawnSmallholding(state, emit);
     const burned = fuelHearths(state);
     issueAllowance(state);
     emit('village', 'Dawn breaks ' + sky.phrase + '. The households collect water and take what they need from the village stores'
@@ -758,9 +795,9 @@ function stepMinute(state, events, externalActions, records, pilot) {
       }
     }
     const spoiled = Math.ceil(world.supplies.cooked / 2);
-    world.supplies.cooked -= spoiled;
+    takeStock(world, 'cooked', spoiled);
     if (spoiled) emit('village', 'Some cooked food spoiled in the hall’s stores overnight.', [], { spoiled: { cooked: spoiled } }, 'hall');
-    dawnLives(state, emit, () => random(world), (child, home) => {
+    missedBreakfasts = dawnLives(state, emit, () => random(world), (child, home) => {
       const grown = grownChild(state, child, home, () => random(world));
       grown.desires = inferDesires(grown);
       normalizeGoals(grown, minute);
@@ -770,7 +807,12 @@ function stepMinute(state, events, externalActions, records, pilot) {
     recordFamilyBreakfasts(state);
   }
   const spoiled = spoilFreshFood(world);
-  if (Object.keys(spoiled).length) emit('village', 'Some raw fish or game spoiled in the hall’s stores.', [], { spoiled }, 'hall');
+  if (Object.keys(spoiled).length) emit('village', 'Some fresh supplies spoiled in the hall’s stores.', [], { spoiled }, 'hall');
+  if (dawn) {
+    const reserve = world.foodReserve = foodReserve(state, chill(dayTemp(minute, map.seed)));
+    emit('village', 'The dawn food count reckoned what was ready to eat and what still needed preparing.', [],
+      { foodReserve: reserve, hungryAdults, missedBreakfasts });
+  }
   tickLives(state, emit);
   tickVisitors(state, emit);
   if (minute % 1440 === FEAST_HOURS[0] && feastOf(minute)) emit('feast', 'Dalecrest keeps ' + feastOf(minute) + ' with a feast on the green this afternoon.', [], undefined, 'green');
@@ -798,7 +840,7 @@ function stepMinute(state, events, externalActions, records, pilot) {
     const poorRest = (bite && !warm && n.cold > 50) || cottage?.brokenBed || (bite && minute >= cottage?.floorDue);
     const recovery = poorRest ? -0.15 : minute >= cottage?.sweepDue ? -0.21 : -0.24;
     // Cold air sharpens the appetite.
-    n.hunger = clamp(n.hunger + 0.042 + 0.012 * bite);
+    n.hunger = clamp(n.hunger + hungerPerMinute(bite));
     // Nobody sleeps well in a house without a fire.
     n.fatigue = clamp(n.fatigue + (resting ? recovery * (actor.illness ? 0.7 : 1) : (action.kind === 'work' ? 0.074 : 0.043) * (actor.illness ? 1.5 : 1)));
     n.cold = clamp(n.cold + (!bite ? -0.25 : warm ? -0.4 : bite * (indoors(action) ? 0.07 : sky.rain || sky.snow ? 0.15 : 0.11)));
@@ -858,24 +900,42 @@ function stepMinute(state, events, externalActions, records, pilot) {
         actor.lastLowCount = { minute, item: 'bread' };
         continue;
       }
-      n.hunger = clamp(n.hunger - 53);
-      emit('meal', actor.name + ' ' + meal + '.', [actor.id], undefined, STOREHOUSE);
+      const relief = relieveHunger(actor, HUNGER.bread);
+      emit('meal', actor.name + ' ' + meal + '.', [actor.id], { meal: mealRecord(actor.home, 'bread', relief) }, STOREHOUSE);
     } else if (action.kind === 'food') {
       // A loaf taken at the oven is how a village before the storehouse ate. An activity begun then finishes so.
-      const item = action.meal ?? 'bread', larder = item === 'larder' ? world.cottages?.[actor.home] : null;
-      if (larder ? !(larder.larder >= 1) : world.supplies[item] < 1) continue;
-      if (larder) larder.larder--;
-      else world.supplies[item]--;
-      n.hunger = clamp(n.hunger - (item === 'cooked' ? 58 : item === 'preserved' ? 48 : 53));
-      const meal = larder ? 'ate bread from the larder at home' : item === 'bread' ? 'took a loaf from the ' + (action.target === 'oven' ? 'common oven' : 'bakehouse')
-        : 'ate ' + (item === 'cooked' ? 'a cooked meal' : 'a preserved portion of fish or game') + ' at the hall';
-      emit('meal', actor.name + ' ' + meal + '.', [actor.id]);
+      const atHome = action.meal === 'larder' || action.meal === 'homePreserved' || action.mealAtHome;
+      if (atHome && action.target !== actor.home) continue;
+      const item = action.meal === 'larder' ? 'bread' : action.meal === 'homePreserved' ? 'preserved' : action.meal ?? 'bread';
+      const larder = world.cottages?.[actor.home];
+      let amounts;
+      if (atHome && item === 'bread') {
+        if (!(larder?.larder >= 1)) continue;
+        larder.larder--;
+      } else if (atHome) {
+        if (spareFood(larder, item, minute) < 1) continue;
+        amounts = takeFoodBatches(cottageBatches(larder, item), 1);
+      } else {
+        if (!(world.supplies[item] >= 1)) continue;
+        amounts = takeStock(world, item, 1);
+      }
+      const relief = relieveHunger(actor, HUNGER[item]);
+      const meal = produceFoods[item] ? 'ate ' + produceFoods[item] + (atHome ? ' from the larder at home' : ' at the hall')
+        : atHome ? 'ate ' + (item === 'bread' ? 'bread' : 'preserved food') + ' from the larder at home'
+        : item === 'bread' ? 'took a loaf from the ' + (action.target === 'oven' ? 'common oven' : 'bakehouse')
+          : 'ate ' + (item === 'cooked' ? 'a cooked meal' : 'a preserved portion of fish or meat') + ' at the hall';
+      emit('meal', actor.name + ' ' + meal + '.', [actor.id], { meal: mealRecord(actor.home, item, relief, amounts) });
     } else if (action.kind === 'leisure') {
       n.fatigue = clamp(n.fatigue - 7);
       if (action.feast) {
         // Everyone at the feast eats from the common stores while there is bread or salt fish to share.
         const shared = world.supplies.bread > 0 ? 'bread' : world.supplies.preserved > 0 ? 'preserved' : null;
-        if (shared) { world.supplies[shared]--; n.hunger = clamp(n.hunger - 40); }
+        if (shared) {
+          const taken = takeStock(world, shared, 1);
+          const relief = relieveHunger(actor, 40);
+          emit('meal', actor.name + ' ate ' + (shared === 'bread' ? 'bread' : 'preserved food') + ' at the feast on the green.',
+            [actor.id], { meal: mealRecord(actor.home, shared, relief, taken) }, 'green');
+        }
         n.loneliness = clamp(n.loneliness - 35);
         memory(actor, minute, actor.name + ' kept ' + action.feast + ' at the feast on the green.', [actor.id], 'social', { importance: 4 });
       }

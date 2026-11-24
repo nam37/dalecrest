@@ -18,6 +18,9 @@ import { goalBudget } from './goal-reviews.mjs';
 // The village's hourly ceiling on action tokens, as action-turns.mjs sets it.
 export const ACTION_CEILING = 480000;
 const DAY = 1440;
+const DAWN = 360;
+const FOOD_NAMES = { bread: 'Bread', produce: 'Other farm produce', fish: 'River fish', game: 'Hunted game',
+  livestock: 'Livestock', tradedFish: 'Fish from trade', unknown: 'Unknown origin' };
 
 // A sentence with its names and numbers taken out, so "Mabel took a loaf" and "Hugh took a loaf" count
 // together. The same rule as tools/year.mjs.
@@ -41,6 +44,24 @@ const per = (n, d) => d > 0 ? n / d : null;
 const fixed = (v, places = 1) => v == null || !Number.isFinite(v) ? '—' : v.toFixed(places);
 const line = (what, value, target, verdict, note) => ({ what, value, target, verdict, ...(note && { note }) });
 
+function mealWeek(events, fromMinute, toMinute) {
+  const bySource = {}, dawns = [];
+  let portions = 0, hungerRelieved = 0;
+  for (const { minute, outcome } of events) {
+    const { meal, foodReserve, hungryAdults, missedBreakfasts } = outcome;
+    if (foodReserve) dawns.push({ minute: Number(minute), hungryAdults, missedBreakfasts });
+    if (!meal) continue;
+    portions += meal.portions;
+    hungerRelieved += meal.hungerRelieved;
+    for (const share of meal.sources) {
+      const source = bySource[share.source] ??= { portions: 0, hungerRelieved: 0 };
+      source.portions += share.portions;
+      source.hungerRelieved += share.hungerRelieved;
+    }
+  }
+  return { fromMinute, toMinute, dawns, portions, hungerRelieved, bySource };
+}
+
 export async function readout(db, { hours = 168, tick = tickSeconds() } = {}) {
   const one = async (sql, args = []) => (await db.query(sql, args)).rows[0];
   const all = async (sql, args = []) => (await db.query(sql, args)).rows;
@@ -52,6 +73,7 @@ export async function readout(db, { hours = 168, tick = tickSeconds() } = {}) {
   if (missing.length) throw new Error('This database predates the records the readout reads (' + missing.join(', ') + '). Start the current server on it once to bring it up to date.');
   const world = await one(`SELECT (state->>'minute')::bigint AS minute, (state->>'allowanceSince')::bigint AS allowance_since,
     (state#>>'{bylaws,allowance,adultBread}')::numeric AS adult_bread,
+    state->'foodReserve' AS food_reserve,
     ticks, late_ms_max, (SELECT count(*)::int FROM dalecrest.actors) AS residents FROM dalecrest.world WHERE id=1`);
   if (!world) throw new Error('This database holds no village.');
   const now = Number(world.minute), residents = world.residents;
@@ -225,6 +247,32 @@ export async function readout(db, { hours = 168, tick = tickSeconds() } = {}) {
       'known', beforeRate != null && afterRate != null ? 'met' : 'no data', 'Over the whole activity log, not only the window.'),
   ];
 
+  // Stage 3d uses the last seven completed village days, independent of the real-time reporting window.
+  const foodTo = Math.floor((now - DAWN) / DAY) * DAY + DAWN, foodFrom = foodTo - 7 * DAY;
+  const foodEvents = await all(`SELECT minute, outcome FROM dalecrest.events WHERE minute > $1 AND minute <= $2
+    AND ((kind='meal' AND outcome ? 'meal') OR (kind='village' AND outcome ? 'foodReserve')) ORDER BY minute, id`, [foodFrom, foodTo]);
+  const food = mealWeek(foodEvents, foodFrom, foodTo);
+  const reserve = world.food_reserve;
+  const hungryAdults = food.dawns.reduce((sum, dawn) => sum + dawn.hungryAdults, 0);
+  const missedBreakfasts = food.dawns.reduce((sum, dawn) => sum + dawn.missedBreakfasts, 0);
+  const foodCoverage = food.dawns.length + ' of 7 dawn counts recorded.';
+  const stage3d = [
+    line('Ready food at the latest dawn', reserve ? fixed(reserve.readyDays, 2) + ' village days' : '—', 'known',
+      reserve ? 'met' : 'no data', reserve && 'Hall ' + fixed(reserve.hallDays, 2) + ', Storehouse ' + fixed(reserve.storehouseDays, 2)
+      + ', larders ' + fixed(reserve.larderDays, 2) + ' days.'),
+    line('Potential food after preparation', reserve ? fixed(reserve.unpreparedDays, 2) + ' village days' : '—', 'known',
+      reserve ? 'met' : 'no data', reserve && 'Grain, flour, fish, game and mutton, before losses and limits on work and fuel.'),
+    line('Meals in the last seven village days', food.portions + ' portions, ' + fixed(food.hungerRelieved) + ' hunger points relieved',
+      'seven dawn counts', food.dawns.length === 7 ? 'met' : 'no data', foodCoverage),
+    ...Object.entries(FOOD_NAMES).map(([source, name]) => {
+      const share = food.bySource[source];
+      return line(name, fixed(share?.portions ?? 0) + ' portions, ' + fixed(share?.hungerRelieved ?? 0) + ' hunger points relieved',
+        'known', food.dawns.length === 7 ? 'met' : 'no data');
+    }),
+    line('Hungry at dawn', hungryAdults + ' adult mornings, ' + missedBreakfasts + ' missed child breakfasts', 'known',
+      food.dawns.length === 7 ? 'met' : 'no data', 'Adults at 85 hunger or higher. ' + foodCoverage),
+  ];
+
   const ballots = await one(`SELECT count(*)::int AS n,
       count(*) FILTER (WHERE t.status='applied' AND cardinality(t.goal_keys)>0 AND cardinality(t.observation_keys)>0)::int AS linked
     FROM dalecrest.events e LEFT JOIN dalecrest.decision_traces t
@@ -250,12 +298,14 @@ export async function readout(db, { hours = 168, tick = tickSeconds() } = {}) {
 
   return {
     window: { hours, fromMinute: from, toMinute: now, villageDays: days, logged, residents },
+    food: { reserve, ...food },
     stages: [
       { stage: '0', title: 'Liveness and meaningful choices', lines: stage0 },
       { stage: '1', title: 'The promise pilot, and what it cost', lines: stage1 },
       { stage: '2', title: 'Goals and memory', lines: stage2 },
       { stage: '3', title: 'A village with stakes', lines: stage3 },
       { stage: '3a', title: 'The common store', lines: stage3a },
+      { stage: '3d', title: 'What feeds the village', lines: stage3d },
       { stage: '4', title: 'Voices and the moot', lines: stage4 },
     ],
   };

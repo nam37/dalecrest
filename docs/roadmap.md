@@ -20,15 +20,15 @@
 | 3a. The common store | Built, awaiting the live measure | 6 | 1 | 0 |
 | 3b. A menu worth choosing from | Built, awaiting the live measure and wording pass | 5 | 0 | 1 |
 | 3c. Families and village lessons | Built, awaiting live arrivals | 4 | 1 | 0 |
-| 3d. What feeds the village | Planned | 0 | 0 | 5 |
+| 3d. What feeds the village | Built, awaiting live measures | 5 | 0 | 0 |
 | 4. Voices: competing interests and the moot | Built, awaiting a live moot | 5 | 0 | 0 |
 | 5. Worth watching | In hand | 8 | 0 | 0 |
 | 6. Worth following | In hand | 1 | 1 | 2 |
-| 7. Taking part | Groundwork only | 0 | 1 | 4 |
-| 8. A wider world | Not begun | 0 | 0 | 1 |
-| 9. A living village culture (A–C) | Clock built, live trial pending | 3 | 0 | 7 |
-| 10. The world comes to Dalecrest (A–C) | Proposed, not begun | 0 | 0 | 9 |
-| All stages | | 57 | 7 | 29 |
+| 7. A living village culture (A–C) | Clock built, live trial pending | 3 | 0 | 7 |
+| 8. The world comes to Dalecrest (A–C) | Proposed, not begun | 0 | 0 | 9 |
+| 9. Taking part | Groundwork only | 0 | 1 | 4 |
+| 10. A wider world | Not begun | 0 | 0 | 1 |
+| All stages | | 62 | 7 | 24 |
 
 **Reading the live village.** `readout.mjs` reads every "Done when" measure the database can answer, stage by stage, and marks it met, not met, no data or needing a viewer. On the server: `docker exec dalecrest-app node readout.mjs`, for the last 168 real hours by default. It does not replace `tools/pilot-report.mjs`, which breaks Stage 0 down further.
 
@@ -395,13 +395,15 @@ Done when both families arrive on separate days and keep their children fed, and
 
 ### Stage 3d. What feeds the village (L)
 
-**Proposed · 24 November 2026.** Today a resident can eat bread at home or a cooked or preserved portion at the hall. Fish and game both relieve hunger, but once prepared they share the same two stock entries. The village estimates days of food by converting grain, flour, loaves and prepared portions into loaves. Bread draws tell us what left the Storehouse. A meal record should also tell us what reached the table.
+**Built · 24 November 2026.** The Storehouse allowance measures bread drawn. The meal records show what reached the table, including seasonal produce and mutton. A parent can bring produce or preserved portions home for the children’s breakfast.
 
-- [ ] **Count food where it can be eaten.** Not begun. Give each edible portion a hunger value in the simulation. At each dawn, show how many days the ready food in the hall, Storehouse and cottage larders would feed the village, using the needs of adults and children. Report separately what grain, flour or raw meat could yield with enough labour and fuel. Milling, baking and carrying a loaf home must never count the same food twice.
-- [ ] **Record what each household eats.** Not begun. Record the food and quantity at each meal, including children’s meals at dawn. Credit hunger relief when someone eats and divide that credit among the ingredients of a mixed dish. For each village week show how much hunger was relieved by bread, other farm produce, fish, hunted game and livestock products, alongside the number of residents who went hungry at dawn. Keep loaves drawn as a measure of the bread allowance. Mark older portions of unknown origin as such.
-- [ ] **Follow fish and game to the table.** Not begun. Carry the river catch and woodland game through storage, spoilage, cooking and preserving. Credit fishing or hunting for the portions people actually eat. Record salt fish bought from the peddler as fish from trade so the village can tell how much its own fishers supplied.
-- [ ] **Grow vegetables and fruit.** Not begun. Start with a vegetable plot and a small orchard. Peas and apples are example crops. Give each a planting season, time to maturity, work to tend and harvest it, and a storage life. Let families draw or grow produce, eat it at home or bring it to the hall. A bowl of peas or a stored apple should feed someone even on a day when the oven stands idle.
-- [ ] **Raise sheep for food.** Not begun. Begin herding with a small flock. Give it pasture, a shepherd’s time, lambing and a winter fodder supply. Taking a sheep for mutton reduces the flock and yields meat that can be cooked or preserved. Count the portions eaten as food from herding. Cattle and goats can follow once the village can carry a flock through winter.
+- [x] **Count food where it can be eaten.** The dawn count shows how long the ready food in the hall, Storehouse and cottage larders could feed the village, given adult appetites in the weather and the breakfasts of children old enough to eat. Grain, flour, raw fish, game and mutton are shown as potential food with enough labour and fuel. Drawing food changes where it is counted.
+- [x] **Record what each household eats.** The meal record includes children’s breakfasts and feast portions, the food eaten and the hunger it relieved. A mixed portion divides the credit among its ingredients. The Stage 3d section of `readout.mjs` reports the last seven completed village days by food source, including hungry adults at dawn and missed child breakfasts. The Stage 3a bread-draw measure remains available.
+- [x] **Follow fish and game to the table.** River fish, hunted game and salt fish from trade keep their origins through preparation, delivery, spoilage and serving. Older stock without a recorded origin contributes to the unknown category.
+- [x] **Grow vegetables and fruit.** The kitchen garden can be sown from March to June. Peas ripen after 56 days, and a tended plot yields more. Established apple trees bear after spring blossom, pruning improves the yield, and saplings take two years to join the crop. Harvests go to the hall, where residents can eat them or draw them for home. Peas keep three days and apples 45, including time in a larder.
+- [x] **Raise sheep for food.** The flock grazes in its pasture, needs tending for spring lambing, and eats stored hay from December through February. Shepherding and haymaking take work time. Taking a grown surplus sheep reduces the flock and yields mutton for the hall, where it can be cooked or smoked. The meal readout credits livestock when someone eats it.
+
+**Seeded verification.** In a breadless village, one family ate the preserved food it drew while a child in a cottage without food missed breakfast. A seasonal test followed peas, apples and mutton to meals, carried four sheep through winter on gathered hay and recorded three lambs in spring. In a separate 370-day run under local choice rules, seed 26111 recorded 20 pea portions, nine apples and four mutton portions eaten, and finished with seven sheep. The PostgreSQL readout reconciles portions and hunger relief across seven village days. Live measurements are pending.
 
 Done when the following checks pass. In a seeded village with no bread for a day, a family with other food can feed its adults and children while a household with no access to a meal still goes hungry. A seven-day report reconciles portions eaten and hunger relieved by source with the meal records. A seasonal run shows a vegetable harvest, a fruit harvest and a flock carried through winter, with food from each reaching a table.
 
@@ -434,7 +436,7 @@ Presentation. The pilot delivers the first of it: links, the promise thread and 
 **Marked off · 21 November 2026.**
 
 - [x] **Show events where they happen.** Done. A note marks the spot on the map, and a staff with a pennant and a note marks it in the walking view. A chronicle entry turns either view to its place and gives its time. Seeing the village as it stood at that minute waits for Stage 6’s archive, and entries for a resident’s own decisions carry no place.
-- [x] **A director.** Done. A bare address opens on the watch. It follows whoever is in the middle of something, goes to a place when news arrives there, and shows the whole parish when everyone is indoors. A caption says what is in view and gives the recorded reason. Choosing a resident or moving the map ends it, and Watch brings it back. Scenes are ranked by fixed rules in `public/director.js`, tested in `director.test.mjs`. Visitors’ marks from Stage 7 do not inform it yet, and it has not been tried on first-time viewers.
+- [x] **A director.** Done. A bare address opens on the watch. It follows whoever is in the middle of something, goes to a place when news arrives there, and shows the whole parish when everyone is indoors. A caption says what is in view and gives the recorded reason. Choosing a resident or moving the map ends it, and Watch brings it back. Scenes are ranked by fixed rules in `public/director.js`, tested in `director.test.mjs`. Visitors’ marks from Stage 9 do not inform it yet, and it has not been tried on first-time viewers.
 - [x] **Show the basis.** Done. The resident panel and the map card show the recorded reason for an activity or a wait. A deciding resident carries a question mark on the map and a hand on the chin in the walking view.
 - [x] **Dalecrest Daily.** Robin reports from around the village. Each morning’s edition includes his notes, village records and follow-ups.
 - [x] **Seasons, weather and the hour.** Both views show seasonal change, weather, daylight and night, residents going indoors, and the tools and movements of their work.
@@ -469,7 +471,60 @@ Done when: someone who opens the site with no explanation stays more than two mi
 
 Done when: in a small pilot, people voluntarily return to check on a resident, and it is known which unresolved matter brought them back.
 
-### Stage 7. Taking part (L)
+### Stage 7. A living village culture (A–C, proposed)
+
+**Status · 24 November 2026.** The variable-speed clock is built and the live trial is pending. The other parts remain proposals. Models form goals and select consequential choices, and the simulation validates those actions and establishes facts. Culture grows from what residents do and share.
+
+#### 7A. A continuous, variable-speed clock
+
+- [x] **Clock rates.** Run 06:00–22:00 at 15 real seconds per village minute and 22:00–06:00 at 7.5 seconds per minute. Keep 30 seconds as the live comparison rate and support a fixed 15-second trial. A village day takes twelve real hours at the comparison rate, six at fixed 2× and five at the day and night rates.
+- [x] **One minute at a time.** The rate changes on the committed minute at 06:00 and 22:00. Schedule from the tick deadline so each half-second survives. If the server misses a whole interval, resume from the current village minute. The clock runs independently of audience presence and the decision queue.
+- [x] **One clock in both views.** Commit the upcoming interval and its rate with village time. Show the active multiplier in the observatory and use the same interval for movement in Map and Walk.
+
+**Verification and rollout.** Replay the same choices at both rates and compare event order across 22:00, midnight and dawn. Run fixed 2× for one real day before testing 4× overnight. Compare village minutes spent waiting, replies that arrive too late to apply, and action tokens per real day. Inspect the dawn queue separately from the quiet part of the night.
+
+**Clock settings.** Use `VILLAGE_CLOCK_MODE=fixed` with `VILLAGE_SECONDS_PER_MINUTE=15` for the first trial. Use `VILLAGE_CLOCK_MODE=day-night` for the variable rate. The live comparison remains fixed at 30 seconds. Run `docker exec dalecrest-app node tools/pilot-report.mjs 24` to compare daytime, night and the hour around dawn.
+
+#### 7B. Culture that emerges from shared experience
+
+- [ ] **Proposed.** Record consequential events as verifiable world history, distinct from each resident's sourced memories and interpretations; nobody automatically knows or agrees on an event.
+- [ ] **Proposed.** Let accounts travel through encounters and the Dalecrest Daily; readers may react, disagree, forget or pass stories along. Robin's reporting must remain grounded in recorded events, not create facts.
+- [ ] **Proposed.** Allow repeated social practices and proposed recurring gatherings to become customs or institutions only through residents' choices, participation and reinforcement; permit customs to fade or be contested.
+- [ ] **Proposed.** Carry cultural knowledge through newcomers, children and deaths via observed practices, conversation and records, rather than a single village-wide AI mind.
+
+#### 7C. Cost-bounded growth and evidence
+
+- [ ] **Proposed.** Measure real-time decision waits, meaningful choices per village day, token spending by role, and whether faster days increase the fraction of time residents spend waiting.
+- [ ] **Proposed.** Pilot roughly 30–50 residents only after profiling; use standing instructions, household routines and event-triggered reflection to decouple routine activity from model calls, while preserving individual agency for consequential decisions.
+- [ ] **Proposed.** Compare seeded villages over 30–60 simulated days: can observers trace a custom or shared belief from an event through transmission to later choices, and do villages develop different practices without scripted outcomes?
+
+**Done when:** Replays with the same choices preserve event order at both rates. A timed live pilot demonstrates continuous progression independent of viewers, shows the active multiplier, and measures waits and token use against the comparison rate. At least one seeded 30–60-day run shows an evidence-linked cultural practice forming, spreading or fading through resident choices. A quiet run is valid evidence.
+
+### Stage 8. The world comes to Dalecrest (A–C, proposed)
+
+**Status · 24 November 2026: not begun.** This stage introduces travelers, courier letters and trade within one village. Preserve the communal economy inside Dalecrest: no wages, individual currency accounts or general price system. External trade exchanges finite physical goods. The river is an optional, plausible source of *placer gold*, not river silver; its yield is intentionally uncertain and scarce, and no new mountain or mine is required.
+
+#### 8A. Travelers, couriers and letters
+
+- [ ] **Proposed.** Travelers arrive by a village road, stay briefly and depart; their presence and actions obey the same physical clock and location rules as residents.
+- [ ] **Proposed.** An opt-in visitor can send a bounded letter through a courier to a named resident or the moot; delivery is an event, and the recipient may read, ignore, discuss or reply. Treat submitted text as untrusted claims, never engine instructions.
+- [ ] **Proposed.** Record delivery, source, recipient, consent/moderation limits and subsequent choices so an observer can trace outside influence without inventing causality.
+
+#### 8B. Barter and river gold
+
+- [ ] **Proposed.** Keep internal food, tools and household provisions in communal stores, with no wages or personal accounts. A communal trading post can exchange actual surplus goods with visiting merchants.
+- [ ] **Proposed.** Pilot small-scale gold panning in the existing river, not a new mine. Model recoverable placer deposits as finite, seed-dependent and rare, with time spent panning competing against food and winter preparation; some river reaches may yield nothing.
+- [ ] **Proposed.** Track recovered gold by physical weight in the communal store and as carried merchant inventory, not abstract currency or minted coins. Allow direct barter first, with gold as an optional high-value external trade good.
+- [ ] **Proposed.** Merchants bring finite goods and needs; negotiate offers and validate available stock, agreed quantities and actual transfers. A moot can contest trading away essential reserves.
+
+#### 8C. Outside news and cultural effects
+
+- [ ] **Proposed.** Travelers may bring goods, stories and unfamiliar practices; residents learn them through witnessed encounters or reported accounts, not instant omniscience.
+- [ ] **Proposed.** Track whether external events change beliefs, customs or policy over time. Robin may report verified village encounters but should not convert a visitor's unsupported claims into facts.
+
+**Done when:** A courier delivers a visitor letter without granting it authority over the simulation; a merchant arrives, negotiates and completes or declines a validated physical exchange; a river-panning trial produces bounded, reproducible yields including empty attempts; communal reserves remain consistent across restarts; and residents can accept, dispute or ignore outside accounts without automatic cultural change.
+
+### Stage 9. Taking part (L)
 
 Let visitors introduce circumstances. Residents keep the final say over their own actions.
 
@@ -489,66 +544,13 @@ Let visitors introduce circumstances. Residents keep the final say over their ow
 
 Done when: a repeat submission creates one petition; a petition can lapse unheard or lose a vote; every resident response links to a real choice; and the original village carried on independently throughout.
 
-### Stage 8. A wider world (later)
+### Stage 10. A wider world (later)
 
 **Marked off · 21 November 2026.**
 
 - [ ] **More than one village.** Not begun.
 
 More than one village with a road between them. This multiplies everything above, including the cost, and waits until one village holds an audience.
-
-### Stage 9. A living village culture (A–C, proposed)
-
-**Status · 24 November 2026.** The variable-speed clock is built and the live trial is pending. The other parts remain proposals. Models form goals and select consequential choices, and the simulation validates those actions and establishes facts. Culture grows from what residents do and share.
-
-#### 9A. A continuous, variable-speed clock
-
-- [x] **Clock rates.** Run 06:00–22:00 at 15 real seconds per village minute and 22:00–06:00 at 7.5 seconds per minute. Keep 30 seconds as the live comparison rate and support a fixed 15-second trial. A village day takes twelve real hours at the comparison rate, six at fixed 2× and five at the day and night rates.
-- [x] **One minute at a time.** The rate changes on the committed minute at 06:00 and 22:00. Schedule from the tick deadline so each half-second survives. If the server misses a whole interval, resume from the current village minute. The clock runs independently of audience presence and the decision queue.
-- [x] **One clock in both views.** Commit the upcoming interval and its rate with village time. Show the active multiplier in the observatory and use the same interval for movement in Map and Walk.
-
-**Verification and rollout.** Replay the same choices at both rates and compare event order across 22:00, midnight and dawn. Run fixed 2× for one real day before testing 4× overnight. Compare village minutes spent waiting, replies that arrive too late to apply, and action tokens per real day. Inspect the dawn queue separately from the quiet part of the night.
-
-**Clock settings.** Use `VILLAGE_CLOCK_MODE=fixed` with `VILLAGE_SECONDS_PER_MINUTE=15` for the first trial. Use `VILLAGE_CLOCK_MODE=day-night` for the variable rate. The live comparison remains fixed at 30 seconds. Run `docker exec dalecrest-app node tools/pilot-report.mjs 24` to compare daytime, night and the hour around dawn.
-
-#### 9B. Culture that emerges from shared experience
-
-- [ ] **Proposed.** Record consequential events as verifiable world history, distinct from each resident's sourced memories and interpretations; nobody automatically knows or agrees on an event.
-- [ ] **Proposed.** Let accounts travel through encounters and the Dalecrest Daily; readers may react, disagree, forget or pass stories along. Robin's reporting must remain grounded in recorded events, not create facts.
-- [ ] **Proposed.** Allow repeated social practices and proposed recurring gatherings to become customs or institutions only through residents' choices, participation and reinforcement; permit customs to fade or be contested.
-- [ ] **Proposed.** Carry cultural knowledge through newcomers, children and deaths via observed practices, conversation and records, rather than a single village-wide AI mind.
-
-#### 9C. Cost-bounded growth and evidence
-
-- [ ] **Proposed.** Measure real-time decision waits, meaningful choices per village day, token spending by role, and whether faster days increase the fraction of time residents spend waiting.
-- [ ] **Proposed.** Pilot roughly 30–50 residents only after profiling; use standing instructions, household routines and event-triggered reflection to decouple routine activity from model calls, while preserving individual agency for consequential decisions.
-- [ ] **Proposed.** Compare seeded villages over 30–60 simulated days: can observers trace a custom or shared belief from an event through transmission to later choices, and do villages develop different practices without scripted outcomes?
-
-**Done when:** Replays with the same choices preserve event order at both rates. A timed live pilot demonstrates continuous progression independent of viewers, shows the active multiplier, and measures waits and token use against the comparison rate. At least one seeded 30–60-day run shows an evidence-linked cultural practice forming, spreading or fading through resident choices. A quiet run is valid evidence.
-
-### Stage 10. The world comes to Dalecrest (A–C, proposed)
-
-**Status · 24 November 2026: not begun.** This stage extends Stage 7's visitor participation and Stage 8's wider-world direction without requiring a second fully simulated settlement. Preserve the communal economy inside Dalecrest: no wages, individual currency accounts or general price system. External trade exchanges finite physical goods. The river is an optional, plausible source of *placer gold*, not river silver; its yield is intentionally uncertain and scarce, and no new mountain or mine is required.
-
-#### 10A. Travelers, couriers and letters
-
-- [ ] **Proposed.** Travelers arrive by a village road, stay briefly and depart; their presence and actions obey the same physical clock and location rules as residents.
-- [ ] **Proposed.** An opt-in visitor can send a bounded letter through a courier to a named resident or the moot; delivery is an event, and the recipient may read, ignore, discuss or reply. Treat submitted text as untrusted claims, never engine instructions.
-- [ ] **Proposed.** Record delivery, source, recipient, consent/moderation limits and subsequent choices so an observer can trace outside influence without inventing causality.
-
-#### 10B. Barter and river gold
-
-- [ ] **Proposed.** Keep internal food, tools and household provisions in communal stores, with no wages or personal accounts. A communal trading post can exchange actual surplus goods with visiting merchants.
-- [ ] **Proposed.** Pilot small-scale gold panning in the existing river, not a new mine. Model recoverable placer deposits as finite, seed-dependent and rare, with time spent panning competing against food and winter preparation; some river reaches may yield nothing.
-- [ ] **Proposed.** Track recovered gold by physical weight in the communal store and as carried merchant inventory, not abstract currency or minted coins. Allow direct barter first, with gold as an optional high-value external trade good.
-- [ ] **Proposed.** Merchants bring finite goods and needs; negotiate offers and validate available stock, agreed quantities and actual transfers. A moot can contest trading away essential reserves.
-
-#### 10C. Outside news and cultural effects
-
-- [ ] **Proposed.** Travelers may bring goods, stories and unfamiliar practices; residents learn them through witnessed encounters or reported accounts, not instant omniscience.
-- [ ] **Proposed.** Track whether external events change beliefs, customs or policy over time. Robin may report verified village encounters but should not convert a visitor's unsupported claims into facts.
-
-**Done when:** A courier delivers a visitor letter without granting it authority over the simulation; a merchant arrives, negotiates and completes or declines a validated physical exchange; a river-panning trial produces bounded, reproducible yields including empty attempts; communal reserves remain consistent across restarts; and residents can accept, dispute or ignore outside accounts without automatic cultural change.
 
 ## Order and dependencies
 
@@ -558,10 +560,12 @@ More than one village with a road between them. This multiplies everything above
 - Stage 3a needs Stage 3's households and working day. Its floor under meals needs nothing and can go first. The allowance is a natural first bylaw for Stage 4's wider agenda.
 - Stage 3b needs nothing beyond the stages already built. Measure its menus with `tools/menu-coverage.sql` and its activity starts with `readout.mjs` and `tools/standing-coverage.sql`. It comes before Stage 4, which adds positions and ballots to the menu.
 - Stage 3c builds on the households and lives in Stage 3 and the Storehouse allowance in Stage 3a. Begin with family arrivals, then add children's routines and lessons before opening the live rollout.
-- Stage 3d starts with the meals and larders from Stages 3 and 3a. Measure bread, fish and game first, add gardens and orchards next, then use the seasonal farm calendar for sheep and winter fodder.
+- Stage 3d builds on the meals and larders from Stages 3 and 3a. Harvests, hay and lambing use Stage 3’s seasonal calendar.
 - Stage 4 needs Stage 2's goals and observations.
 - Stage 6 needs the records from Stages 1 and 2 and reads best after Stage 5's daily account.
-- Stage 7 needs Stage 4's ballots and positions, which are what make a visitor's petition something residents can answer.
+- Stage 7 measures how clock speed affects decision waits and costs in a single village.
+- Stage 8 pilots travelers, courier letters and trade within one village before broader visitor participation in Stage 9 and multiple villages in Stage 10.
+- Stage 9 needs Stage 4's ballots and positions, which are what make a visitor's petition something residents can answer.
 
 ## Cost and pacing
 
@@ -648,7 +652,7 @@ The central test: **can someone follow Mabel, return the next day, and tell whet
 6. **How the action and goal budgets are divided**, and whether the daily account in Stage 5 has a third.
 7. **When the pilot reaches the live village.** It is proved in a test village. Moving it to the live one changes what residents know about the stores. *Note, 21 November 2026: oven observations and requests for help are already on `main`, which the live village deploys, so this has in effect been settled by deployment. It should be recorded as decided or reopened.*
 8. **Whether residents die**, and whether the live village is migrated or a new one is founded when Stage 3 changes the economy. *Decided, 22 November 2026: the engine knows death, but the live village has it switched off. A resident ill too long leaves to be nursed by kin instead. The Sandbox runs with death on. The live village is migrated in place.*
-9. **How far visitors may reach.** Stage 7 can stop at any step. Letters are the first with real moderation work.
+9. **How far visitors may reach.** Stage 9 can stop at any step. The courier trial in Stage 8 is the first to require moderation.
 10. **How long a year is.** Stage 3 proposes a year of about 48 village days. The calendar and the weather now keep the real year of 365, which at two village days to a real day takes six real months. One of the two has to give. *Decided, 22 November 2026: the real year. Stage 3 was built on it.*
 11. **Whether the wood store grows with the village.** It holds 32 bundles at any size. With winter fuel that is about a day's burning for thirty hearths in frost, so a large village cannot lay in wood for a cold spell.
 12. **What the common store's building is called.** It was proposed as a commissary. "Storehouse" is the working name here, because the word fits 1312 and the plan already speaks of the common store. *Decided, 22 November 2026: the Storehouse.*

@@ -63,10 +63,12 @@ test('food is counted in days, so a granary with room to spare is no shortage', 
 });
 
 test('a hard winter can outrun the stores', () => {
-  // Early December with three weeks of food in store and nothing in the fields until April.
+  // Early December with three weeks in store, inaccessible wild food and no surplus sheep.
   const village = createVillage(26113), { world } = village;
   world.minute = dayWhen(m => dateOf(m).month === 12) + 359;
   Object.assign(world.supplies, { grain: 30, flour: 8, bread: 10, cooked: 0, preserved: 0, fish: 0, meat: 0, game: 0 });
+  Object.assign(world.capacity, { fish: 0, game: 0 });
+  world.smallholding.flock.spare = 0;
   for (const id of Object.keys(world.fields)) world.fields[id] = 0;
   let empty = null;
   for (let d = 0; d < 60 && empty == null; d++) {
@@ -251,7 +253,7 @@ test('a married couple can have a child, who eats from the larder and comes of a
   world.minute = 4 * DAY + 359;
   cottage.larder = 0;
   const morning = tick(village, 2);
-  assert.ok(morning.some(e => /the children went without bread/.test(e.text)));
+  assert.ok(morning.some(e => /missed breakfast/.test(e.text) && e.outcome?.hungry === 1));
   assert.ok(mabel.memories.some(m => m.shortage === 'larder'));
   assert.ok(mouths(village) > village.actors.length);
   // At fourteen the child takes their place among the residents.
@@ -358,7 +360,10 @@ test('the reeve takes the rent, a peddler trades, and strays are seen and driven
   let traded;
   for (let i = 0; i < 200 && !traded; i++) traded = tick(village, 1, true).find(e => e.type === 'work' && e.actorIds.includes('edith') && /Hamon/.test(e.text));
   assert.match(traded.text, /traded a length of linen with Hamon of Ashby for three salted fish/);
-  assert.equal(world.supplies.preserved, 3);
+  assert.equal(traded.outcome.stockDelta.preserved, 3);
+  assert.deepEqual(world.freshFood.preserved.filter(batch => batch.origins?.tradedFish), [
+    { quantity: 3, origins: { tradedFish: 1 } },
+  ]);
   // Stray cattle in a ripe field: those who see them know, and can drive them out.
   const field = village.map.places.find(p => p.kind === 'field');
   world.fields[field.id] = 20;

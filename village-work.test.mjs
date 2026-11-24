@@ -176,6 +176,7 @@ test('game and fish become meals, leather and preserves, while cooked stock spoi
   assert.deepEqual(work('dressGame'), { game: -1, meat: 3, hide: 1 });
   assert.deepEqual(work('tanHide'), { hide: -1, water: -2, leather: 1 });
   assert.deepEqual(work('smokeMeat'), { meat: -3, wood: -1, preserved: 3 });
+  assert.deepEqual(world.freshFood.preserved, [{ quantity: 3, origins: { game: 1 } }]);
   world.supplies.fish = 4;
   assert.deepEqual(work('cookFish'), { fish: -2, wood: -1, cooked: 3 });
   assert.deepEqual(work('cureFish'), { fish: -2, wood: -1, preserved: 2 });
@@ -247,6 +248,7 @@ test('one catch can be claimed for curing, carried to the storehouse and counted
   assert.match(delivered.text, /cured two portions.*took them to the storehouse/);
   assert.deepEqual(delivered.outcome.stockDelta, { fish: -2, wood: -1, preserved: 2 });
   assert.equal(resumed.world.supplies.preserved, 2);
+  assert.deepEqual(resumed.world.freshFood.preserved, [{ quantity: 2, origins: { fish: 1 } }]);
 });
 
 test('processing takes the oldest fish and a new catch keeps its own expiry', () => {

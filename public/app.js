@@ -8,6 +8,8 @@ import { createDirector } from '/director.js';
 import { ageOf } from '/engine/lives.mjs';
 import { conditionWords } from '/engine/goals.mjs';
 import { childResidents } from '/engine/children.mjs';
+import { batchTotal, cottageBatches } from '/engine/fresh-food.mjs';
+import { farmSites, sheepCount } from '/engine/smallholding.mjs';
 import { bindVillageSound } from './village-audio.js';
 import { applyVillageChanges, sameGround } from './village-update.js';
 import { createResidentHeat } from './resident-heat.js';
@@ -23,7 +25,8 @@ const el = (tag, cls, value) => {
 const link = (text, href, cls) => Object.assign(el('a', cls, text), { href });
 const names = { village: 'Village observatory', residents: 'Village residents', chronicle: 'Village chronicle' };
 const stores = { grain:'Barley', flour:'Flour', bread:'Loaves · storehouse', wood:'Firewood', cloth:'Linen · storehouse', water:'Water', repair:'Building repairs' };
-const hallStores = { game:'Undressed game', meat:'Game meat', hide:'Raw hides', fish:'Fresh fish', cooked:'Cooked meals', preserved:'Salt fish and smoked game · storehouse', leather:'Leather · storehouse' };
+const hallStores = { game:'Undressed game', meat:'Game meat', mutton:'Raw mutton', hide:'Raw hides', fish:'Fresh fish', cooked:'Cooked meals',
+  peas:'Peas · hall', apples:'Apples · hall', preserved:'Salt fish and smoked meat · storehouse', leather:'Leather · storehouse', hay:'Hay · pasture' };
 const clockPeriods = { day: 'Day pace', night: 'Night pace' };
 let dial = null;
 let state, latest, frozen=false, selected='agnes', tab='life', route='village', rosterSignature='', directorySignature='';
@@ -311,7 +314,16 @@ function renderProfile(actor) {
   if (home && housing(home.kind)) household.append(link(home.name, householdLink(actor.home), 'where'));
   if(actor.illness) household.append(chip('ill','Ill', 'Unwell since '+date(actor.illness.since)), el('p','reason',{hungry:'A fever brought on by hunger',cold:'A chill on the chest',worn:'Exhaustion',age:'An ague of old age'}[actor.illness.cause]+(actor.illness.severity>=2?'. Too ill to work.':'.')));
   if(kids.length) household.append(el('p','goal','Children: '+kids.join(' · ')));
-  if(cottage && Number.isFinite(cottage.woodpile)) household.append(el('p','goal','Woodpile at home: '+Math.floor(cottage.woodpile)+' bundles · Larder: '+(cottage.larder||0)+' loaves'+(Number.isFinite(cottage.ration)?' · Bread due at the storehouse: '+Math.floor(cottage.ration):'')));
+  if(cottage && Number.isFinite(cottage.woodpile)) {
+    const preserved = batchTotal(cottage.preservedFood);
+    const food = [(cottage.larder||0)+' loaves'];
+    if (preserved) food.push(preserved+' preserved '+(preserved===1?'portion':'portions'));
+    const peas = batchTotal(cottageBatches(cottage, 'peas')), apples = batchTotal(cottageBatches(cottage, 'apples'));
+    if (peas) food.push(peas+(peas===1?' portion of peas':' portions of peas'));
+    if (apples) food.push(apples+(apples===1?' apple':' apples'));
+    household.append(el('p','goal','Woodpile at home: '+Math.floor(cottage.woodpile)+' bundles · Larder: '+food.join(', ')
+      +(Number.isFinite(cottage.ration)?' · Bread due at the storehouse: '+Math.floor(cottage.ration):'')));
+  }
   detail.append(household);
   detail.append(requests);
   // Goals: those the record can settle say how, and those on evidence say whom they concern. The latest
@@ -547,6 +559,15 @@ function render() {
       amount.append(el('small','',' / '+(world.capacity?.[key]??capacity[key])));
       row.append(el('span','',name),amount);return row;
     }));
+    const reserve = world.foodReserve;
+    if (Number.isFinite(reserve?.readyDays) && Number.isFinite(reserve.unpreparedDays)) {
+      $('supplies').append(el('p','affair-note','At dawn · '+reserve.readyDays.toFixed(2)+' days of food ready to eat · '
+        +reserve.unpreparedDays.toFixed(2)+' more days after preparation.'));
+    }
+    if (state.locations[farmSites.pasture.id] && world.smallholding?.flock) {
+      const count = sheepCount(world.smallholding.flock);
+      $('supplies').append(el('p','affair-note',count === 0 ? 'The sheep pasture is empty.' : count+' sheep in the pasture · '+world.supplies.hay+' bundles of hay.'));
+    }
     // A morning when the woodpile did not go round is worth saying where the firewood is counted.
     const without=extras.coldHearths.length;
     if(without) $('supplies').append(el('p','affair-note','No firewood reached '+without+(without===1?' hearth':' hearths')+' this morning.'));

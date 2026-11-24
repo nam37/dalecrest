@@ -8,7 +8,8 @@ import { chains } from '/map.js';
 import { makeFigure, poseFigure } from '/figure.js';
 import { light, hearths, indoors, yearLook, skyOver, blend } from '/ambient.js';
 import { kinds } from '/card.js';
-import { animalCoats, animalPose, fenceSpans, logsIn, parishLayout, strayCattle, workHeading } from './parish.js';
+import { animalCoats, animalPose, fenceSpans, logsIn, parishLayout, strayCattle, visibleSheep, workHeading } from './parish.js';
+import { isFarmSite } from '../engine/smallholding.mjs';
 import { residentActivity, residentScale } from './resident-pose.js';
 import { sameGround } from './village-update.js';
 
@@ -551,13 +552,15 @@ export function createWalk(container, onSelect, onNote) {
         entry.object = mesh;
         if (p.stage === 2) Object.assign(entry, { field: { mesh, tone }, materials: [mesh.material] });
       }
-    } else if (p.kind !== 'wood' && p.kind !== 'fishing') {
+    } else if (p.kind === 'orchard' || p.kind === 'pasture') {
+      entry.object = draped(p, '#a9b584', 0.016);
+    } else if (p.kind !== 'wood' && p.kind !== 'fishing' && !isFarmSite(p.kind)) {
       entry.object = buildPlace(p, map, glow);
       entry.wheel = entry.object.userData.wheel;
     }
     if (p.name && p.kind !== 'field' && p.kind !== 'wood' && p.kind !== 'green') {
       const sprite = textSprite(p.stage < 2 ? p.name + ' (building)' : p.name);
-      const labelHeight = p.kind === 'fishing' ? 0.8 : p.kind === 'well' ? 1.5 : 2.3;
+      const labelHeight = p.kind === 'fishing' || isFarmSite(p.kind) ? 0.8 : p.kind === 'well' ? 1.5 : 2.3;
       sprite.position.set(p.x, heightAt(map, p.x, p.y) + labelHeight, p.y);
       sprite.userData.reach = 46; sprite.userData.size = 0.34;
       entry.label = sprite;
@@ -581,7 +584,7 @@ export function createWalk(container, onSelect, onNote) {
     wheels.length = piles.length = 0;
     dressed.fields = []; dressed.green = null; seasonKey = '';
     parish = parishLayout(map);
-    solids = map.places.filter(p => p.w && p.kind !== 'field' && p.stage === 2).map(p => ({
+    solids = map.places.filter(p => p.w && p.kind !== 'field' && !isFarmSite(p.kind) && p.stage === 2).map(p => ({
       id: p.id, x: p.x, y: p.y, c: Math.cos(p.a), s: Math.sin(p.a), hw: p.w / 2 + 0.3, hd: p.d / 2 + 0.3, top: heightAt(map, p.x, p.y) + 1.75,
     }));
     for (const { pts, kind, road } of chains(map)) {
@@ -613,7 +616,7 @@ export function createWalk(container, onSelect, onNote) {
       const model = makeAnimal('cattle', cattleModels.length);
       cattleModels.push(model); built.add(model.animal);
     }
-    reuse('trees', map.trees, buildTrees);
+    reuse('trees', [map.trees, parish.appleTrees], buildTrees);
     for (const [key, entry] of scenery) if (!live.has(key)) removeScenery(key, entry);
     updateParish();
     post();
@@ -621,7 +624,7 @@ export function createWalk(container, onSelect, onNote) {
 
   function buildTrees() {
     // Trees, with a ring of distant woods beyond the mapped parish so the horizon is not bare.
-    const trees = map.trees.slice(), rand = rng(map.seed + 41);
+    const trees = [...map.trees, ...parish.appleTrees], rand = rng(map.seed + 41);
     for (let i = 0; i < 2600; i++) {
       const x = -60 + rand() * (map.w + 120), z = -60 + rand() * (map.h + 120), size = 0.7 + rand() * 0.6, pine = rand() < 0.5;
       if (x > 2 && z > 2 && x < map.w - 2 && z < map.h - 2) continue;
@@ -944,7 +947,7 @@ export function createWalk(container, onSelect, onNote) {
       if (ripple.visible) { ripple.scale.setScalar(0.25 + beat * 0.9); ripple.material.opacity = 0.75 * (1 - beat); }
     }
     const animalTime = calm.matches ? 0 : now;
-    moveAnimals(sheepModels, parish.sheep, animalTime);
+    moveAnimals(sheepModels, visibleSheep(parish, world), animalTime);
     moveAnimals(cattleModels, cattle, animalTime);
     for (const wheel of wheels) wheel.rotation.z += dt * 0.7 * wheel.userData.spin;
     sky(now, dt);
@@ -1061,7 +1064,7 @@ export function createWalk(container, onSelect, onNote) {
     soundScene(now) {
       if (!active || !map || !wx || !look.ready) return null;
       const radius = Math.min(37, 6 + 0.66 * (look.reach ?? look.dist));
-      return { map, weather: wx, actors, cattle, sheep: parish.sheep, moving: id => motion.at(id, now)?.moving,
+      return { map, weather: wx, actors, cattle, sheep: visibleSheep(parish, world), moving: id => motion.at(id, now)?.moving,
         listener: { x: look.target.x, y: look.target.z, rightX: Math.sin(look.yaw), rightY: -Math.cos(look.yaw), radius } };
     },
     // Holds the view on the place of a chronicle entry, or on any { place: { x, y, id } }, until it is
