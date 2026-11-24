@@ -598,16 +598,6 @@ export function createMap(canvas, onSelect, cards) {
   function ambient(time, sky, lit) {
     const k = view.scale;
     const cover = wx ? wx.cloud : 0.3;
-    if (sky.bright > 0.05 && cover > 0.05) {
-      // Cloud shadows cross the parish from the west, heavier the more cloud there is.
-      for (let i = 0; i < 3; i++) {
-        const cx = ((i * 71 + time * 0.0016 * (1 + i * 0.3)) % (map.w + 90)) - 45, cy = 18 + i * 37 + Math.sin(time * 0.00004 + i * 2) * 8;
-        const [x, y] = toScreen(cx, cy), r = (24 + i * 5) * k;
-        const g = c.createRadialGradient(x, y, 0, x, y, r);
-        g.addColorStop(0, 'rgba(58,52,34,' + (0.13 * sky.bright * (0.45 + cover * 1.1)).toFixed(3) + ')'); g.addColorStop(1, 'rgba(58,52,34,0)');
-        c.save(); c.translate(x, y); c.scale(1, 0.55); c.translate(-x, -y); c.fillStyle = g; c.fillRect(x - r, y - r, r * 2, r * 2); c.restore();
-      }
-    }
     // The current: long broken lines that travel downstream, each at its own pace.
     const rw = map.terrain.riverWidth, calm = 0.5 + 0.5 * sky.bright;
     c.lineCap = 'round';
@@ -635,6 +625,30 @@ export function createMap(canvas, onSelect, cards) {
         const [x, y] = toScreen(wx + Math.sin(i * 5.1) * rw * 0.3, wy), r = k * 0.2 * (blink - 0.45) * 2;
         c.strokeStyle = 'rgba(255,255,246,' + ((blink - 0.5) * 1.6).toFixed(3) + ')'; c.lineWidth = 1;
         c.beginPath(); c.moveTo(x - r, y); c.lineTo(x + r, y); c.moveTo(x, y - r); c.lineTo(x, y + r); c.stroke();
+      }
+    }
+    // A bridge stands over the water. Its deck is laid back, from the sheet, on top of the current, the
+    // glints and the fish that pass beneath it.
+    c.save(); c.beginPath();
+    for (const [a, b, kind] of map.edges) {
+      if (kind !== 'bridge') continue;
+      const A = map.nodes[a], B = map.nodes[b], len = Math.hypot(B[0] - A[0], B[1] - A[1]) || 1;
+      const ux = (B[0] - A[0]) / len, uy = (B[1] - A[1]) / len, half = 0.64 + 1.4 / k;
+      for (const [along, side, first] of [[-0.06, -1, true], [len + 0.06, -1], [len + 0.06, 1], [-0.06, 1]]) {
+        const [x, y] = toScreen(A[0] + ux * along - uy * half * side, A[1] + uy * along + ux * half * side);
+        if (first) c.moveTo(x, y); else c.lineTo(x, y);
+      }
+      c.closePath();
+    }
+    c.clip(); c.drawImage(paper, 0, 0, w, h); c.restore();
+    if (sky.bright > 0.05 && cover > 0.05) {
+      // Cloud shadows cross the parish from the west, heavier the more cloud there is.
+      for (let i = 0; i < 3; i++) {
+        const cx = ((i * 71 + time * 0.0016 * (1 + i * 0.3)) % (map.w + 90)) - 45, cy = 18 + i * 37 + Math.sin(time * 0.00004 + i * 2) * 8;
+        const [x, y] = toScreen(cx, cy), r = (24 + i * 5) * k;
+        const g = c.createRadialGradient(x, y, 0, x, y, r);
+        g.addColorStop(0, 'rgba(58,52,34,' + (0.13 * sky.bright * (0.45 + cover * 1.1)).toFixed(3) + ')'); g.addColorStop(1, 'rgba(58,52,34,0)');
+        c.save(); c.translate(x, y); c.scale(1, 0.55); c.translate(-x, -y); c.fillStyle = g; c.fillRect(x - r, y - r, r * 2, r * 2); c.restore();
       }
     }
     // Mist lies along the river as the light comes up, and the sun burns it off through the morning.

@@ -175,7 +175,8 @@ function buildPlace(p, map, glow) {
       for (const z of [-d / 2, d / 2]) g.add(box(0.07, tall, 0.07, '#a98a5d', x, tall / 2, z));
       for (const s of [-1, 1]) {
         const rafter = box(0.05, Math.hypot(d / 2, rise), 0.05, '#a98a5d', x, tall + rise / 2, s * d / 4);
-        rafter.rotation.x = s * Math.atan2(d / 2, rise);
+        // Each rafter leans in from its eave to meet the other at the ridge.
+        rafter.rotation.x = -s * Math.atan2(d / 2, rise);
         g.add(rafter);
       }
     }
