@@ -1,6 +1,6 @@
 // The card that opens over a resident on the map: who they are, what they are doing, and what the
 // village records say about why. It reports what is stored and does not guess at motives.
-import { dateOf, formatDate } from '/engine/calendar.mjs';
+import { dateOf, formatDate } from '../engine/calendar.mjs';
 
 const el = (tag, cls, value) => {
   const node = document.createElement(tag);
@@ -85,12 +85,49 @@ const hour = minute => { const h = Math.floor(minute / 60) % 24; return (h % 12 
 const when = (minute, now) => formatDate(minute, dateOf(minute).year !== dateOf(now).year ? 'full' : 'day') + ' at ' + hour(minute);
 const chip = (kind, text) => el('span', 'basis basis-' + kind, text);
 
-// One line of why, from the same records the card reads, for a caption that has room for no more.
-export function whyLine(actor, minute, names) {
-  const a = actor.action || {};
-  if (a.kind === 'waiting') return whyText(a.why, a.blockedVisit, names) || a.reason || '';
-  if (a.basis?.kind === 'standing') return 'Routine, following the choice made ' + when(a.basis.since, minute) + '.';
-  return (a.basis?.kind === 'fresh' ? 'A fresh choice. ' : '') + choiceExplanation(a, names);
+// Most activity labels already begin with a participle. Requests and ballots are worded as menu commands.
+const participles = { Ask: 'asking', Tell: 'telling', Promise: 'promising', Keep: 'keeping', Set: 'setting',
+  Support: 'supporting', Oppose: 'opposing', Abstain: 'abstaining' };
+function activityPhrase(label = '') {
+  const words = /^(\w+)\b(.*)$/.exec(label.trim().replace(/[.!?]+$/, ''));
+  if (!words) return '';
+  const verb = /ing$/i.test(words[1]) ? words[1].toLowerCase() : participles[words[1]];
+  if (!verb) return '';
+  return (verb + words[2]).replace(/\bmy\b/g, 'their').replace(/\bme\b/g, 'them').replace(/\bI\b/g, 'they')
+    .replace('aside and decide about it later', 'aside for later');
+}
+
+// The decision record keeps the preceding label in its reason once a wait ends.
+function previousLabel(action) {
+  if (action.kind === 'waiting') return action.previous?.label;
+  if (action.reason === 'Chose this.') return '';
+  const recorded = /^(?:Chose this|Selected by .+?) after (.+)\.$/.exec(action.reason)
+    || /^Chose this\. The previous activity was “(.+)”\.$/.exec(action.reason);
+  return recorded?.[1];
+}
+
+export function residentCaption(actor, names = {}) {
+  const a = actor.action, recorded = previousLabel(a);
+  const current = activityPhrase(a.label), previous = activityPhrase(recorded);
+  const after = previous && previous !== current ? 'After ' + previous + ', ' : '';
+  const travelling = a.phase === 'travelling';
+  const friend = a.kind === 'social' && current.startsWith('visiting ') && current.slice('visiting '.length);
+  let what;
+  if (a.kind === 'waiting') what = 'is deciding what to do next';
+  else if (friend) {
+    if (travelling) what = 'is on the way to see ' + friend;
+    else if (a.basis?.kind === 'standing') what = 'stayed a while longer with ' + friend;
+    else what = after ? 'went to see ' + friend : 'is visiting ' + friend;
+  } else if (travelling) {
+    const to = names[a.target];
+    what = a.target === actor.home ? 'is walking home' : to?.name ? 'is walking to ' + placeReference(to) : 'is on the way';
+  } else if (current) what = 'is ' + current;
+  const line = what ? after + actor.name + ' ' + what + '.' : [actor.name, a.label].filter(Boolean).join(' · ');
+
+  let why = visitChangeText(a.blockedVisit || a.basis?.visitChange, names);
+  if (!why && a.kind === 'waiting' && a.why !== 'no instruction applies') why = whyText(a.why);
+  if (a.kind !== 'waiting' && !a.basis && recorded == null) why = a.reason || '';
+  return { line, why };
 }
 
 // others are the residents under the same roof, when this one is indoors.

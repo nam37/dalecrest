@@ -2,7 +2,7 @@ import { createMap } from './map.js';
 import { bindMapFullscreen } from './map-fullscreen.js';
 import { dateOf, formatDate } from '/engine/calendar.mjs';
 import { light, skyOver } from '/ambient.js';
-import { residentCard, eventCard, kinds, portrait as likeness, whyText, whyLine, choiceExplanation, doing as doingAt } from '/card.js';
+import { residentCard, eventCard, kinds, portrait as likeness, whyText, residentCaption, choiceExplanation, doing as doingAt } from '/card.js';
 import { createDirector } from '/director.js';
 import { ageOf } from '/engine/lives.mjs';
 import { conditionWords } from '/engine/goals.mjs';
@@ -121,7 +121,7 @@ function narration() {
   const { world, actors, locations } = state;
   if (scene.kind === 'resident') {
     const actor = actors.find(a => a.id === scene.actorId);
-    return actor ? { kicker: scene.kicker, line: actor.name + ' · ' + doing(actor), why: whyLine(actor, world.minute, locations) } : null;
+    return actor ? { kicker: scene.kicker, ...residentCaption(actor, locations) } : null;
   }
   if (scene.kind === 'event') {
     const at = locations[scene.event.place.id]?.name, ago = world.minute - scene.event.minute;
@@ -504,7 +504,7 @@ function render() {
         const at=state.locations[held.place.id]?.name;
         caption({kicker:(at?'At '+at:'Out of doors')+' · '+(formatDate(held.minute)===formatDate(world.minute)?'':date(held.minute)+', ')+time(held.minute),
           line:held.text, back:'Back to '+actor.name.split(' ')[0]});
-      } else caption(actor ? {kicker:'Following',line:actor.name+' · '+doing(actor)} : null);
+      } else caption(actor ? {kicker:'Following', ...residentCaption(actor, state.locations)} : null);
     } else if(!loadingWalk) caption(watching&&scene?narration():null);
     renderProfile(actor);renderAffairs();
     $('map-count').textContent=actors.length+' residents';

@@ -1,12 +1,41 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { scenes, createDirector, NEWS_FOR } from './public/director.js';
-import { createVillage, stepVillage } from './sim.mjs';
+import { residentCaption } from './public/card.js';
+import { createVillage, startChosen, stepVillage } from './sim.mjs';
 
 const at = { x: 80, y: 60 };
 const person = (id, action, needs = {}) => ({ id, name: id, position: at, needs, action: { phase: 'working', target: 'green', label: id + ' is busy', ...action } });
 const asleep = id => person(id, { kind: 'rest', target: id + '-home', label: 'Sleeping at home' });
 const news = (id, minute, type = 'social', actorIds = []) => ({ id, minute, type, actorIds, text: 'Entry ' + id, place: { x: 70, y: 50, id: 'hall' } });
+
+test('the caption follows Agnes from the barley to Hugh, then distinguishes a longer visit', () => {
+  const village = createVillage(), agnes = village.actors.find(a => a.id === 'agnes'), hugh = village.actors.find(a => a.id === 'hugh');
+  village.world.minute = 600;
+  agnes.action = { kind: 'waiting', phase: 'waiting', target: 'fields', since: 595, previous: { label: 'Gathering barley' } };
+  hugh.action = { kind: 'work', label: 'Grinding barley', job: 'mill', target: 'mill', phase: 'working', remaining: 100 };
+  assert.equal(residentCaption(agnes).line, 'After gathering barley, Agnes Reed is deciding what to do next.');
+  assert.ok(startChosen(agnes, village, 'social:hugh:mill', { id: '7' }));
+  assert.deepEqual(residentCaption(agnes), { line: 'After gathering barley, Agnes Reed is on the way to see Hugh Fen.', why: '' });
+  for (let i = 0; i < 60 && agnes.action.phase === 'travelling'; i++) stepVillage(village, { minutes: 1, externalActions: true });
+  assert.deepEqual(residentCaption(agnes), { line: 'After gathering barley, Agnes Reed went to see Hugh Fen.', why: '' });
+  agnes.action = { kind: 'social', phase: 'working', label: 'Visiting Hugh Fen', basis: { kind: 'standing' } };
+  assert.equal(residentCaption(agnes).line, 'Agnes Reed stayed a while longer with Hugh Fen.');
+});
+
+test('captions handle saved reasons, repeated work, and a friend who moved', () => {
+  const caption = action => residentCaption({ name: 'Agnes Reed', action }, {
+    hall: { name: 'Village hall' }, green: { name: 'Village green' },
+  });
+  assert.deepEqual(caption({ kind: 'work', label: 'Gathering barley', reason: 'Selected by a model after Gathering barley.' }),
+    { line: 'Agnes Reed is gathering barley.', why: '' });
+  assert.equal(caption({ kind: 'conversation', label: 'Ask Thomas Pike to repair my bed', reason: 'Chose this.' }).line,
+    'Agnes Reed is asking Thomas Pike to repair their bed.');
+  const visitChange = { name: 'Hugh Fen', friendId: 'hugh', from: 'green', to: 'hall' };
+  assert.deepEqual(caption({ kind: 'work', label: 'Baking bread', phase: 'travelling', target: 'hall', basis: { kind: 'fresh', visitChange },
+    reason: 'Chose this after visiting Hugh Fen.' }), { line: 'After visiting Hugh Fen, Agnes Reed is walking to the village hall.',
+    why: 'Hugh Fen went from the village green to the village hall.' });
+});
 
 test('a kept promise is worth more than a trade, and a trade more than idling', () => {
   const list = scenes({ world: { minute: 600 }, actors: [
