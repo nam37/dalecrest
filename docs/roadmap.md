@@ -24,7 +24,8 @@
 | 6. Worth following | In hand | 1 | 1 | 2 |
 | 7. Taking part | Groundwork only | 0 | 1 | 4 |
 | 8. A wider world | Not begun | 0 | 0 | 1 |
-| All stages | | 50 | 6 | 8 |
+| 9. A living village culture (A–C) | Proposed, not begun | 0 | 0 | 10 |
+| All stages | | 50 | 6 | 18 |
 
 **Reading the live village.** `readout.mjs` reads every "Done when" measure the database can answer, stage by stage, and marks it met, not met, no data or needing a viewer. On the server: `docker exec dalecrest-app node readout.mjs`, for the last 168 real hours by default. It does not replace `tools/pilot-report.mjs`, which breaks Stage 0 down further.
 
@@ -464,6 +465,31 @@ Done when: a repeat submission creates one petition; a petition can lapse unhear
 - [ ] **More than one village.** Not begun.
 
 More than one village with a road between them. This multiplies everything above, including the cost, and waits until one village holds an audience.
+
+### Stage 9. A living village culture (A–C, proposed)
+
+**Status · 24 November 2026: not begun.** This is an additional, exploratory stage; it does not mark Stages 0–8 complete or change their existing acceptance measures. Dalecrest remains a continuously running, observable medieval village, not a game with victory conditions. Keep the accepted division of responsibilities: models form goals and select consequential choices, while the simulation validates actions and establishes facts. The culture must emerge from resident behavior, not a central village AI assigning customs.
+
+#### 9A. A continuous, variable-speed clock
+
+- [ ] **Proposed.** Configure daytime (06:00–22:00) at 15 real seconds per village minute and nighttime (22:00–06:00) at 7.5 seconds per minute; keep the present 30-second constant-rate mode for comparison and tests.
+- [ ] **Proposed.** Advance every village minute in order, including weather, needs, activities, deadlines and overnight incidents; never jump time or change speed based on viewer presence.
+- [ ] **Proposed.** Show the current clock multiplier (2× by day, 4× by night) in the observatory and keep dawn, dusk, lighting and animation aligned with the simulation clock.
+
+#### 9B. Culture that emerges from shared experience
+
+- [ ] **Proposed.** Record consequential events as verifiable world history, distinct from each resident's sourced memories and interpretations; nobody automatically knows or agrees on an event.
+- [ ] **Proposed.** Let accounts travel through encounters and the Dalecrest Daily; readers may react, disagree, forget or pass stories along. Robin's reporting must remain grounded in recorded events, not create facts.
+- [ ] **Proposed.** Allow repeated social practices and proposed recurring gatherings to become customs or institutions only through residents' choices, participation and reinforcement; permit customs to fade or be contested.
+- [ ] **Proposed.** Carry cultural knowledge through newcomers, children and deaths via observed practices, conversation and records, rather than a single village-wide AI mind.
+
+#### 9C. Cost-bounded growth and evidence
+
+- [ ] **Proposed.** Measure real-time decision waits, meaningful choices per village day, token spending by role, and whether faster days increase the fraction of time residents spend waiting.
+- [ ] **Proposed.** Pilot roughly 30–50 residents only after profiling; use standing instructions, household routines and event-triggered reflection to decouple routine activity from model calls, while preserving individual agency for consequential decisions.
+- [ ] **Proposed.** Compare seeded villages over 30–60 simulated days: can observers trace a custom or shared belief from an event through transmission to later choices, and do villages develop different practices without scripted outcomes?
+
+**Done when:** A timed pilot demonstrates continuous clock progression at both rates, unchanged event ordering and no viewer-dependent time changes; the observatory identifies the active multiplier; token usage and wait time remain within a documented budget; and at least one seeded 30–60-day run shows an evidence-linked cultural practice forming, spreading or fading through resident choices without being pre-scripted. Treat a quiet run with no emergent custom as valid evidence, not a reason to fabricate one.
 
 ## Order and dependencies
 
