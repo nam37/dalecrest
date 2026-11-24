@@ -1,4 +1,5 @@
 import { createMap } from './map.js';
+import { bindMapFullscreen } from './map-fullscreen.js';
 import { dateOf, formatDate } from '/engine/calendar.mjs';
 import { light, skyOver } from '/ambient.js';
 import { residentCard, eventCard, kinds, portrait as likeness, whyText, whyLine, choiceExplanation, doing as doingAt } from '/card.js';
@@ -54,7 +55,6 @@ async function show(mode) {
   viewMode = mode;
   for (const b of document.querySelectorAll('[data-view]')) b.setAttribute('aria-pressed', String(b.dataset.view === mode));
   $('map').hidden = mode !== 'plan'; $('walk').hidden = mode !== 'walk';
-  document.querySelector('.map-zoom').hidden = mode !== 'plan';
   for (const item of document.querySelectorAll('.plan-only')) item.hidden = mode !== 'plan';
   $('map-hint').textContent = mode === 'plan' ? 'Drag to pan · click, then scroll to zoom' : 'Drag to look around · click, then scroll to move closer · click a resident to follow';
   if (mode === 'walk' && !walk && !loadingWalk) {
@@ -537,7 +537,10 @@ function navigate(){
   const [key,who,record]=location.hash.slice(1).split('/');
   route=Object.hasOwn(names,key)?key:'village';
   if (leaveMissingResident()) return;
-  if (route !== 'village') residentHeat.hide();
+  if (route !== 'village') {
+    exitMapFullscreen();
+    residentHeat.hide();
+  }
   else if (record === 'heat' && who) tab = 'heat';
   else if (tab === 'heat') tab = 'life';
   // An address that names a resident is a wish to follow them, so a watch gives way to it.
@@ -617,6 +620,7 @@ for(const btn of document.querySelectorAll('[data-view]'))btn.addEventListener('
 $('zoom-in').addEventListener('click',()=>map.zoom(1.4));
 $('zoom-out').addEventListener('click',()=>map.zoom(1/1.4));
 $('zoom-home').addEventListener('click',()=>map.home());
+const exitMapFullscreen = bindMapFullscreen($('map-fullscreen'));
 $('pick-resident').addEventListener('change',e=>choose(e.target.value));
 $('caption-back').addEventListener('click',()=>{release();render();});
 $('watch').addEventListener('click',()=>watch(!watching,true));

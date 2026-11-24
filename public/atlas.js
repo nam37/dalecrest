@@ -1,6 +1,7 @@
 // A village that lives only in this page: the same engine the server runs, stepped on demand.
 import { createVillage, stepVillage, locationsOf } from '/sim.mjs';
 import { createMap } from '/map.js';
+import { bindMapFullscreen } from './map-fullscreen.js';
 import { formatDate } from '/engine/calendar.mjs';
 import { skyOver } from '/ambient.js';
 import { residentCard } from '/card.js';
@@ -62,7 +63,7 @@ async function view(next) {
   mode = next;
   for (const b of document.querySelectorAll('[data-view]')) b.setAttribute('aria-pressed', String(b.dataset.view === mode));
   $('map').hidden = mode !== 'plan'; $('walk').hidden = mode !== 'walk';
-  document.querySelector('.map-zoom').hidden = document.querySelector('.map-key').hidden = mode !== 'plan';
+  document.querySelector('.map-key').hidden = mode !== 'plan';
   if (mode === 'walk' && !walk) {
     const { createWalk } = await import('/view3d.js');
     walk = createWalk($('walk'), id => { selected = id; show(); });
@@ -87,6 +88,7 @@ for (const b of document.querySelectorAll('[data-view]')) b.addEventListener('cl
 $('zoom-in').addEventListener('click', () => map.zoom(1.4));
 $('zoom-out').addEventListener('click', () => map.zoom(1 / 1.4));
 $('zoom-home').addEventListener('click', () => map.home());
+bindMapFullscreen($('map-fullscreen'));
 bindVillageSound($('sound'), now => (mode === 'walk' && walk?.soundScene(now)) || map.soundScene(now));
 const asked = new URLSearchParams(location.search);
 if (asked.get('seed')) $('seed').value = asked.get('seed');

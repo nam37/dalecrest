@@ -121,6 +121,11 @@ h1 { font-size: clamp(2.2rem, 3.6vw, 3.5rem); line-height: 1.02; }
 }
 .map-panel { overflow: hidden; padding: 6px; background: #f7f0da; border-color: #b9ab84; }
 .map-area { position: relative; height: var(--stage); background: #e8e0bf; overflow: hidden; border: 1px solid #a99a72; }
+.map-area:is(:fullscreen, .map-expanded) { width: 100%; height: 100%; border: 0; }
+.map-area.map-expanded { position: fixed; inset: 0; z-index: 10; }
+/* The plate's entrance animation would contain the fixed map. */
+.map-panel:has(> .map-expanded) { animation: none; }
+html:has(.map-area.map-expanded) { overflow: hidden; }
 /* An engraved inner rule and a soft vignette, above the drawing and below the controls. */
 .map-area::after { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 2; box-shadow: inset 0 0 0 5px #f7f0da66, inset 0 0 0 6px #7a6c4a55, inset 0 0 90px #54432260; }
 .map-area canvas { display: block; width: 100%; height: 100%; cursor: grab; }
@@ -168,6 +173,13 @@ h1 { font-size: clamp(2.2rem, 3.6vw, 3.5rem); line-height: 1.02; }
 .map-zoom { right: 18px; top: 62px; display: grid; border: 1px solid #a99a72; background: #f9f2dce8; box-shadow: 0 6px 14px -10px #2b271d88; }
 .map-zoom button { width: 32px; height: 32px; padding: 0; font: 400 1.15rem/1 var(--display); letter-spacing: 0; }
 .map-zoom button + button { border-top: 1px solid #a99a7288; }
+#map-fullscreen { display: grid; place-items: center; }
+#map-fullscreen svg { width: 18px; height: 18px; }
+.fullscreen-exit, .map-area:is(:fullscreen, .map-expanded) .fullscreen-enter { display: none; }
+.map-area:is(:fullscreen, .map-expanded) .fullscreen-exit { display: inline; }
+#map[hidden] ~ .map-zoom > button:not(#map-fullscreen),
+.map-area:not(:is(:fullscreen, .map-expanded)) #map[hidden] ~ .map-zoom { display: none; }
+#map[hidden] ~ .map-zoom > #map-fullscreen { border-top: 0; }
 .map-key { left: 18px; bottom: 16px; display: flex; align-items: center; flex-wrap: wrap; gap: 5px 16px; max-width: calc(100% - 150px); padding: 6px 12px; background: #f9f2dcd9; border: 1px solid #a99a7299; font-size: .84rem; font-style: italic; color: var(--ink-soft); backdrop-filter: blur(2px); }
 .map-key span { display: flex; align-items: center; gap: 6px; }
 #map-count { font-style: normal; font-family: var(--caps); letter-spacing: .08em; }
