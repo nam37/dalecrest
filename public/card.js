@@ -40,14 +40,36 @@ const whys = {
   'instruction lapsed': 'An earlier choice for this routine has run out.',
   'instruction goals changed': 'Their goals have changed since they last chose.',
   'instruction ran its course': 'They have repeated this often enough to think again.',
-  'instructed action cannot start': 'What they usually do here is not possible now.',
+  'instructed action cannot start': 'They needed to choose again because the earlier option was no longer available.',
   'learned something new': 'They have heard something new.',
   'two urgent needs': 'Two needs are pressing at once.',
 };
-export const whyText = why => !why ? '' : whys[why] || (why.startsWith('would run into') ? 'Their routine ' + why + '.' : why[0].toUpperCase() + why.slice(1) + '.');
+function placeReference({ name, kind }) {
+  if (kind === 'cottage' && name.endsWith('’s cottage')) return name;
+  const lower = name[0].toLowerCase() + name.slice(1);
+  return lower.startsWith('the ') ? lower : 'the ' + lower;
+}
 
-export function choiceExplanation(activity) {
-  const waited = activity.basis?.waited, reason = activity.reason || '';
+function visitChangeText(change, names) {
+  if (!change) return '';
+  const from = names[change.from], to = names[change.to];
+  if (!from?.name || !to?.name) return '';
+  const earlier = placeReference(from), later = placeReference(to);
+  if (earlier === later) return change.name + (to.kind === 'cottage' ? ' went to a different cottage.' : ' went to a different place.');
+  return change.name + ' went from ' + earlier + ' to ' + later + '.';
+}
+
+export function whyText(why, visitChange, names = {}) {
+  const move = visitChangeText(visitChange, names);
+  if (move || !why) return move;
+  return whys[why] || (why.startsWith('would run into') ? 'Their routine ' + why + '.' : why[0].toUpperCase() + why.slice(1) + '.');
+}
+
+export function choiceExplanation(activity, names = {}) {
+  const { waited, visitChange } = activity.basis || {};
+  const move = visitChangeText(visitChange, names);
+  const followed = move && activity.kind === 'social' && activity.friendId === visitChange.friendId && activity.target === visitChange.to;
+  const reason = followed ? move : [move, activity.reason].filter(Boolean).join(' ');
   if (!waited) return reason;
   return (reason + ' Took ' + waited + ' village ' + (waited === 1 ? 'minute' : 'minutes') + ' to decide.').trim();
 }
@@ -64,11 +86,11 @@ const when = (minute, now) => formatDate(minute, dateOf(minute).year !== dateOf(
 const chip = (kind, text) => el('span', 'basis basis-' + kind, text);
 
 // One line of why, from the same records the card reads, for a caption that has room for no more.
-export function whyLine(actor, minute) {
+export function whyLine(actor, minute, names) {
   const a = actor.action || {};
-  if (a.kind === 'waiting') return whyText(a.why) || a.reason || '';
+  if (a.kind === 'waiting') return whyText(a.why, a.blockedVisit, names) || a.reason || '';
   if (a.basis?.kind === 'standing') return 'Routine, following the choice made ' + when(a.basis.since, minute) + '.';
-  return (a.basis?.kind === 'fresh' ? 'A fresh choice. ' : '') + choiceExplanation(a);
+  return (a.basis?.kind === 'fresh' ? 'A fresh choice. ' : '') + choiceExplanation(a, names);
 }
 
 // others are the residents under the same roof, when this one is indoors.
@@ -93,14 +115,17 @@ export function residentCard(actor, { index = 0, names = {}, minute = 0, others 
   if (deciding) {
     why.append(chip('waiting', 'Deciding'));
     say(a.reason);
-    say(whyText(a.why));
+    say(whyText(a.why, a.blockedVisit, names));
     if (Number.isFinite(a.since)) say('Since ' + when(a.since, minute));
   } else if (a.basis?.kind === 'standing') {
     why.append(chip('standing', 'Routine'));
     say('Following the choice made ' + when(a.basis.since, minute) + '.');
   } else {
-    if (a.basis?.kind === 'fresh') { why.append(chip('fresh', 'Fresh choice')); say(whyText(a.basis.why)); }
-    say(choiceExplanation(a));
+    if (a.basis?.kind === 'fresh') {
+      why.append(chip('fresh', 'Fresh choice'));
+      if (!visitChangeText(a.basis.visitChange, names)) say(whyText(a.basis.why));
+    }
+    say(choiceExplanation(a, names));
   }
   if (actor.plan?.reason) say('Today’s intention: ' + actor.plan.reason);
   const pressing = Object.entries(actor.needs || {}).filter(([, value]) => value >= 60).sort((x, y) => y[1] - x[1]).slice(0, 2);

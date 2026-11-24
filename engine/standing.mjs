@@ -110,7 +110,16 @@ export function consider(actor, state, menu, finished, pilot = PILOT) {
   }
   const ins = book[routine];
   const id = [...menu.keys()].find(key => matchOf(menu.get(key)) === ins.match);
-  if (!id) return result('instructed action cannot start');
+  if (!id) {
+    const verdict = result('instructed action cannot start');
+    if (routine === again && finished.kind === 'social' && finished.friendId) {
+      const friend = state.actors.find(other => other.id === finished.friendId);
+      const visit = [...menu.values()].find(action => action.kind === 'social' && action.friendId === finished.friendId
+        && action.target !== finished.target);
+      if (friend) verdict.blockedVisit = { friendId: friend.id, name: friend.name, from: finished.target, ...(visit && { to: visit.target }) };
+    }
+    return verdict;
+  }
   if (news(actor, pilot)) return result('learned something new');
   if (Object.values(actor.needs).filter(n => n >= pilot.urgent).length >= 2) return result('two urgent needs');
   const action = menu.get(id), there = map.places.find(p => p.id === action.target);

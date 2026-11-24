@@ -450,11 +450,12 @@ export function availableActions(actor, state, diagnostics) {
 }
 
 // A resident with a real choice to make waits for it where they stand. The clock and everyone else carry on.
-function waitForDecision(actor, minute, why) {
+function waitForDecision(actor, minute, { fresh: why, blockedVisit }) {
   if (actor.action.kind === 'waiting') return false;
   const { kind, label, target, job } = actor.action;
   actor.action = { kind: 'waiting', phase: 'waiting', label: 'Choosing the next activity', target, remaining: 0,
-    since: minute, previous: { kind, label, target, ...(job ? { job } : {}) }, why, reason: decisionAfter('Will decide', label) };
+    since: minute, previous: { kind, label, target, ...(job ? { job } : {}) }, why, reason: decisionAfter('Will decide', label),
+    ...(blockedVisit && { blockedVisit }) };
   actor.plan = null;
   return true;
 }
@@ -473,8 +474,9 @@ function atBoundary(actor, state, records, pilot) {
     if (waiting && verdict.fresh?.startsWith('would run into my promise') && actor.action.why !== verdict.fresh) {
       actor.action.why = verdict.fresh;
       actor.action.since = minute;
+      delete actor.action.blockedVisit;
     }
-    if (waitForDecision(actor, minute, verdict.fresh)) records?.push({ actorId: actor.id, minute, basis: 'waiting', reason: verdict.fresh, action: brief(finished) });
+    if (waitForDecision(actor, minute, verdict)) records?.push({ actorId: actor.id, minute, basis: 'waiting', reason: verdict.fresh, action: brief(finished) });
     return;
   }
   const { routine, id, action, instruction } = verdict.follow;
@@ -492,13 +494,19 @@ export function startChosen(actor, state, id, trace, pilot = standing.PILOT) {
   if (actor.action.kind !== 'waiting') return null;
   const action = availableActions(actor, state).get(id);
   if (!action) return null;
-  const minute = state.world.minute, { since, why, previous } = actor.action;
+  const minute = state.world.minute, { since, why, previous, blockedVisit } = actor.action;
   // The reply and ballot are committed together, even if this is the last minute of voting.
   const ballot = action.kind === 'ballot' && civic.recordBallot(actor, state, action, { source: 'decisions', traceId: trace.id });
   if (action.kind === 'ballot' && !ballot) return null;
   if (action.update) actor.helpBook[action.requestId].consideredFact = action.update.factId;
+  let visitChange = blockedVisit;
+  // The friend may have started somewhere else while the resident was waiting for the decision.
+  if (blockedVisit && action.kind === 'social' && action.friendId === blockedVisit.friendId && action.target !== blockedVisit.from) {
+    visitChange = { ...blockedVisit, to: action.target };
+  }
   actor.action = { ...action, phase: action.onSpot ? 'working' : 'travelling', choiceId: id, decisionTraceId: trace.id,
-    basis: { kind: 'fresh', trace: trace.id, waited: minute - since, ...(why ? { why } : {}) },
+    basis: { kind: 'fresh', trace: trace.id, waited: minute - since, ...(why ? { why } : {}),
+      ...(visitChange?.to && { visitChange }) },
     reason: decisionAfter('Chose this', previous?.label) };
   actor.plan = null;
   actor.lastModelPlanAt = actor.decidedAt = minute;

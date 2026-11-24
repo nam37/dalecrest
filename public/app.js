@@ -121,7 +121,7 @@ function narration() {
   const { world, actors, locations } = state;
   if (scene.kind === 'resident') {
     const actor = actors.find(a => a.id === scene.actorId);
-    return actor ? { kicker: scene.kicker, line: actor.name + ' · ' + doing(actor), why: whyLine(actor, world.minute) } : null;
+    return actor ? { kicker: scene.kicker, line: actor.name + ' · ' + doing(actor), why: whyLine(actor, world.minute, locations) } : null;
   }
   if (scene.kind === 'event') {
     const at = locations[scene.event.place.id]?.name, ago = world.minute - scene.event.minute;
@@ -243,7 +243,7 @@ function renderProfile(actor) {
   if (activity.kind === 'waiting') {
     const waiting = block(where, el('strong','activity','Deciding what to do next'), chip('waiting','Deciding'));
     if (activity.reason) waiting.append(el('p','reason',activity.reason));
-    if (activity.why) waiting.append(el('p','reason',whyText(activity.why)));
+    if (activity.why) waiting.append(el('p','reason',whyText(activity.why, activity.blockedVisit, state.locations)));
     const since = Number.isFinite(activity.since) ? 'Since '+date(activity.since)+' at '+time(activity.since) : '';
     if (since) waiting.append(el('p','reason',since));
     detail.append(waiting);
@@ -258,7 +258,7 @@ function renderProfile(actor) {
         el('p','reason','Following the choice made '+date(basis.since)+' at '+time(basis.since)+'.'));
     } else {
       if (basis?.kind === 'fresh') now.append(chip('fresh','Fresh choice','A choice the resident just made'));
-      now.append(el('p','reason',choiceExplanation(activity)));
+      now.append(el('p','reason',choiceExplanation(activity, state.locations)));
     }
     detail.append(now);
     if(actor.plan)detail.append(block(actor.plan.method==='choice'?'Priority · '+actor.plan.focus:'Today’s intention',el('p','goal',actor.plan.reason)));

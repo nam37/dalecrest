@@ -98,11 +98,41 @@ test('another stretch with the same friend follows the visit chosen, and a visit
   const menu = availableActions(actor, village);
   for (const [id, a] of menu) if (a.kind === 'social' && a.friendId === friend.id) menu.delete(id);
   assert.ok(visitTo(other), 'the other neighbour can still be visited');
-  assert.equal(consider(actor, village, menu, visit).fresh, 'instructed action cannot start');
+  const unavailable = consider(actor, village, menu, visit);
+  assert.equal(unavailable.fresh, 'instructed action cannot start');
+  assert.equal(unavailable.blockedVisit.to, undefined, 'there is no known new destination');
 
   // The friend has gone elsewhere, so finding them again is a fresh choice.
   friend.action = { ...friend.action, target: 'oven' };
   assert.equal(consider(actor, village, availableActions(actor, village), visit).fresh, 'instructed action cannot start');
+});
+
+test('a fresh visit records where the same person went, even if their destination changed while waiting', () => {
+  const village = createVillage();
+  village.world.minute = 1440 + 600;
+  const edith = village.actors.find(actor => actor.id === 'edith');
+  const oswin = village.actors.find(actor => actor.id === 'oswin');
+  oswin.action = { kind: 'work', job: 'cut', label: 'Cutting firewood', target: 'wood', phase: 'working', remaining: 40 };
+  const visit = availableActions(edith, village).get('social:oswin:wood');
+  keep(edith, village, visit, '51');
+  edith.action = { ...visit, phase: 'working', remaining: 1 };
+
+  oswin.action = { ...oswin.action, target: 'oven' };
+  stepVillage(village, { minutes: 1, externalActions: true });
+  assert.equal(edith.action.kind, 'waiting');
+  assert.equal(edith.action.why, 'instructed action cannot start');
+  const blocked = { friendId: 'oswin', name: 'Oswin Holt', from: 'wood', to: 'oven' };
+  assert.deepEqual(edith.action.blockedVisit, blocked);
+
+  const saved = JSON.parse(JSON.stringify(village));
+  const returning = saved.actors.find(actor => actor.id === 'edith');
+  const friend = saved.actors.find(actor => actor.id === 'oswin');
+  friend.action = { ...friend.action, target: 'hall' };
+  const chosen = startChosen(returning, saved, 'social:oswin:hall', { id: '52', model: 'script' });
+  assert.deepEqual(chosen.action.basis.visitChange, { ...blocked, to: 'hall' });
+
+  const anotherChoice = startChosen(edith, village, 'leisure:green', { id: '53', model: 'script' });
+  assert.deepEqual(anotherChoice.action.basis.visitChange, blocked);
 });
 
 test('a stale instruction is dropped with its reason and never followed', () => {
