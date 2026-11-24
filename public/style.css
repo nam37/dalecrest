@@ -125,8 +125,6 @@ h1 { font-size: clamp(2.2rem, 3.6vw, 3.5rem); line-height: 1.02; }
 .dial-snow circle { fill: #f8f8f4; stroke: #8fa0b8; stroke-width: .7; }
 .dial.moonlit .dial-arc { stroke: #8792b4; }
 .dial.dimmed .dial-sun, .dial.dimmed .dial-moon { opacity: .55; }
-.sun { font: 1.9rem/1 var(--display); color: var(--ochre); transition: color 2s; }
-.clock.night .sun { color: #7d8cb5; }
 
 /* The village: plate and margin */
 .village-layout { display: grid; grid-template-columns: minmax(0, 1fr) clamp(300px, 24vw, 380px); gap: 16px; margin-top: 16px; align-items: stretch; }
@@ -395,7 +393,8 @@ footer { display: flex; justify-content: space-between; gap: 14px; flex-wrap: wr
   .connection { margin-left: auto; order: 1; }
   nav { order: 2; width: 100%; flex-wrap: wrap; gap: 0 15px; }
   nav a { padding-block: 10px 6px; font-size: .95rem; letter-spacing: .07em; }
-  .page-title { margin: 20px 0 14px; align-items: start; }
+  /* The clock drops below a long title sooner than run off the side of a narrow page. */
+  .page-title { margin: 20px 0 14px; align-items: start; flex-wrap: wrap; gap: 8px 16px; }
   .growth .page-title { flex-wrap: wrap; gap: 8px 16px; }
   .village-record .page-title { flex-wrap: wrap; gap: 10px 16px; }
   .village-record .record-share { justify-items: start; }
@@ -411,7 +410,6 @@ footer { display: flex; justify-content: space-between; gap: 14px; flex-wrap: wr
   #clock .pace { grid-area: 2 / 2; justify-self: start; }
   #clock #day { grid-area: 3 / 1 / 4 / 3; margin-top: 3px; }
   #clock .weather { grid-area: 4 / 1 / 5 / 3; }
-  .sun { font-size: 1.4rem; }
   .plate-tools { right: 10px; top: 10px; flex-direction: column; align-items: end; gap: 6px; }
   .map-zoom { right: 10px; top: auto; bottom: 10px; }
   .map-key { left: 10px; bottom: 10px; max-width: calc(100% - 64px); }

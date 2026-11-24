@@ -6,6 +6,7 @@ import { formatDate } from '/engine/calendar.mjs';
 import { childResidents } from '/engine/children.mjs';
 import { addPlace, extendLane, pickLot } from '/engine/sites.mjs';
 import { skyOver } from '/ambient.js';
+import { createDial } from './clock-dial.js';
 import { residentCard } from '/card.js';
 import { bindVillageSound } from './village-audio.js';
 
@@ -15,7 +16,7 @@ const el = (tag, cls, value) => { const node = document.createElement(tag); if (
 const map = createMap($('map'), id => { selected = id; show(); }, { resident: (actor, others) => residentCard(actor, {
   index: people.findIndex(a => a.id === actor.id), names: locationsOf(village.map, village.actors), minute: village.world.minute, others }) });
 let village, selected, walk = null, mode = 'plan', revision = -1, log = [], running = 0;
-let people = [];
+let people = [], dial = null;
 
 function time(minute) {
   const hour = Math.floor(minute / 60) % 24;
@@ -38,7 +39,10 @@ function show() {
   map.update(snapshot, selected, names, undefined, world.minute, extras);
   if (mode === 'walk') walk?.update(snapshot, selected, world.minute, undefined, extras);
   $('day').textContent = time(world.minute);
-  $('weather').textContent = skyOver(world.minute, village.map.seed).label + ' · ' + world.supplies.wood + ' firewood'
+  // The dial beside the date follows the sun, the moon and the weather, as it does over the live village.
+  const sky = skyOver(world.minute, village.map.seed);
+  (dial ??= createDial($('dial')))(world.minute, sky);
+  $('weather').textContent = sky.label + ' · ' + world.supplies.wood + ' firewood'
     + (extras.coldHearths.length ? ' · ' + extras.coldHearths.length + ' cold hearths' : '');
   const population = actors.length + ' residents' + (children.length ? ' · ' + children.length + (children.length === 1 ? ' child' : ' children') : '');
   $('people').textContent = $('map-count').textContent = population;
