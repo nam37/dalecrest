@@ -23,6 +23,7 @@ const link = (text, href, cls) => Object.assign(el('a', cls, text), { href });
 const names = { village: 'Village observatory', residents: 'Village residents', chronicle: 'Village chronicle' };
 const stores = { grain:'Barley', flour:'Flour', bread:'Loaves · storehouse', wood:'Firewood', cloth:'Linen · storehouse', water:'Water', repair:'Building repairs' };
 const hallStores = { game:'Undressed game', meat:'Game meat', hide:'Raw hides', fish:'Fresh fish', cooked:'Cooked meals', preserved:'Salt fish and smoked game · storehouse', leather:'Leather · storehouse' };
+const clockPeriods = { day: 'Day pace', night: 'Night pace' };
 let state, latest, frozen=false, selected='agnes', tab='life', route='village', rosterSignature='', directorySignature='';
 let villagePeople = [];
 let ground=null, viewMode='plan', walk=null, loadingWalk=false;
@@ -495,6 +496,15 @@ function render() {
   $('day').textContent=formatDate(world.minute, matchMedia('(max-width: 690px)').matches ? 'full' : 'long');
   $('day').href=dayLink(world.minute);
   $('time').textContent=time(world.minute);
+  const speed = state.tickMs > 0 && state.tickMinutes > 0
+    ? (30000 * state.tickMinutes / state.tickMs).toLocaleString('en', { maximumSignificantDigits: 3 }) + '×'
+    : '';
+  const pace = speed && [speed, clockPeriods[state.clockPeriod]].filter(Boolean).join(' · ');
+  const paceLabel = $('clock-pace');
+  if (paceLabel.textContent !== pace) {
+    paceLabel.textContent = pace;
+    paceLabel.title = speed ? 'Speed relative to 30 real seconds per village minute' : '';
+  }
   $('clock').title='Day '+dateOf(world.minute).villageDay+' since Dalecrest was founded';
   // The season and the weather sit under the hour, and the mark beside them follows the sky.
   const night=light(world.minute).night, sky=state.map?skyOver(world.minute,state.map.seed):null;

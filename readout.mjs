@@ -10,6 +10,7 @@
 import { pathToFileURL } from 'node:url';
 import pg from 'pg';
 import { formatDate } from './engine/calendar.mjs';
+import { clockPace } from './engine/clock.mjs';
 import { PUBLIC } from './engine/chronicle.mjs';
 import { ALLOWANCE, MEAL_FLOOR } from './engine/storehouse.mjs';
 import { goalBudget } from './goal-reviews.mjs';
@@ -30,11 +31,9 @@ export function loavesIn(text) {
   return 0;
 }
 
-// Real seconds between ticks, by the rule db.mjs uses for the server this runs beside.
+// Compare clock lateness with the shortest interval the configured clock can run.
 export function tickSeconds(env = process.env) {
-  const set = Number(env.VILLAGE_SECONDS_PER_MINUTE);
-  const pace = set > 0 ? set : env.PLANNER_PROVIDER === 'openai' ? 30 : 1;
-  return Math.max(1, Math.round(3 / pace)) * pace;
+  return clockPace(0, env).seconds;
 }
 
 const num = v => v == null ? null : Number(v);

@@ -54,3 +54,13 @@ test('joining mid-tick follows corners and a paused snapshot stays still', () =>
   assert.equal(motion.at(actor.id, 29000).moving, false);
   assert.deepEqual([motion.at(actor.id, 29000).x, motion.at(actor.id, 29000).y], [0, 0]);
 });
+
+test('a rate change replaces a walking interval even when the committed minute is the same', () => {
+  const actor = { id: 'walker', traits: [], position: { x: 0, y: 0 },
+    action: { phase: 'travelling', remaining: 15, target: 'home', path: [[5, 0]] } };
+  const motion = createMotion();
+  motion.update([actor], 0, 30000, { minute: 1319, minutes: 1, ms: 30000, endsAt: 30000 });
+  motion.update([actor], 100, 15000, { minute: 1319, minutes: 1, ms: 15000, endsAt: 15100 });
+  assert.equal(motion.at(actor.id, 15100).x, 2.15);
+  assert.equal(motion.at(actor.id, 16000).moving, false);
+});

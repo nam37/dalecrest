@@ -26,9 +26,9 @@
 | 6. Worth following | In hand | 1 | 1 | 2 |
 | 7. Taking part | Groundwork only | 0 | 1 | 4 |
 | 8. A wider world | Not begun | 0 | 0 | 1 |
-| 9. A living village culture (A–C) | Proposed, not begun | 0 | 0 | 10 |
+| 9. A living village culture (A–C) | Clock built, live trial pending | 3 | 0 | 7 |
 | 10. The world comes to Dalecrest (A–C) | Proposed, not begun | 0 | 0 | 9 |
-| All stages | | 54 | 7 | 32 |
+| All stages | | 57 | 7 | 29 |
 
 **Reading the live village.** `readout.mjs` reads every "Done when" measure the database can answer, stage by stage, and marks it met, not met, no data or needing a viewer. On the server: `docker exec dalecrest-app node readout.mjs`, for the last 168 real hours by default. It does not replace `tools/pilot-report.mjs`, which breaks Stage 0 down further.
 
@@ -499,13 +499,17 @@ More than one village with a road between them. This multiplies everything above
 
 ### Stage 9. A living village culture (A–C, proposed)
 
-**Status · 24 November 2026: not begun.** This is an additional, exploratory stage; it does not mark Stages 0–8 complete or change their existing acceptance measures. Dalecrest remains a continuously running, observable medieval village, not a game with victory conditions. Keep the accepted division of responsibilities: models form goals and select consequential choices, while the simulation validates actions and establishes facts. The culture must emerge from resident behavior, not a central village AI assigning customs.
+**Status · 24 November 2026.** The variable-speed clock is built and the live trial is pending. The other parts remain proposals. Models form goals and select consequential choices, and the simulation validates those actions and establishes facts. Culture grows from what residents do and share.
 
 #### 9A. A continuous, variable-speed clock
 
-- [ ] **Proposed.** Configure daytime (06:00–22:00) at 15 real seconds per village minute and nighttime (22:00–06:00) at 7.5 seconds per minute; keep the present 30-second constant-rate mode for comparison and tests.
-- [ ] **Proposed.** Advance every village minute in order, including weather, needs, activities, deadlines and overnight incidents; never jump time or change speed based on viewer presence.
-- [ ] **Proposed.** Show the current clock multiplier (2× by day, 4× by night) in the observatory and keep dawn, dusk, lighting and animation aligned with the simulation clock.
+- [x] **Clock rates.** Run 06:00–22:00 at 15 real seconds per village minute and 22:00–06:00 at 7.5 seconds per minute. Keep 30 seconds as the live comparison rate and support a fixed 15-second trial. A village day takes twelve real hours at the comparison rate, six at fixed 2× and five at the day and night rates.
+- [x] **One minute at a time.** The rate changes on the committed minute at 06:00 and 22:00. Schedule from the tick deadline so each half-second survives. If the server misses a whole interval, resume from the current village minute. The clock runs independently of audience presence and the decision queue.
+- [x] **One clock in both views.** Commit the upcoming interval and its rate with village time. Show the active multiplier in the observatory and use the same interval for movement in Map and Walk.
+
+**Verification and rollout.** Replay the same choices at both rates and compare event order across 22:00, midnight and dawn. Run fixed 2× for one real day before testing 4× overnight. Compare village minutes spent waiting, replies that arrive too late to apply, and action tokens per real day. Inspect the dawn queue separately from the quiet part of the night.
+
+**Clock settings.** Use `VILLAGE_CLOCK_MODE=fixed` with `VILLAGE_SECONDS_PER_MINUTE=15` for the first trial. Use `VILLAGE_CLOCK_MODE=day-night` for the variable rate. The live comparison remains fixed at 30 seconds. Run `docker exec dalecrest-app node tools/pilot-report.mjs 24` to compare daytime, night and the hour around dawn.
 
 #### 9B. Culture that emerges from shared experience
 
@@ -520,7 +524,7 @@ More than one village with a road between them. This multiplies everything above
 - [ ] **Proposed.** Pilot roughly 30–50 residents only after profiling; use standing instructions, household routines and event-triggered reflection to decouple routine activity from model calls, while preserving individual agency for consequential decisions.
 - [ ] **Proposed.** Compare seeded villages over 30–60 simulated days: can observers trace a custom or shared belief from an event through transmission to later choices, and do villages develop different practices without scripted outcomes?
 
-**Done when:** A timed pilot demonstrates continuous clock progression at both rates, unchanged event ordering and no viewer-dependent time changes; the observatory identifies the active multiplier; token usage and wait time remain within a documented budget; and at least one seeded 30–60-day run shows an evidence-linked cultural practice forming, spreading or fading through resident choices without being pre-scripted. Treat a quiet run with no emergent custom as valid evidence, not a reason to fabricate one.
+**Done when:** Replays with the same choices preserve event order at both rates. A timed live pilot demonstrates continuous progression independent of viewers, shows the active multiplier, and measures waits and token use against the comparison rate. At least one seeded 30–60-day run shows an evidence-linked cultural practice forming, spreading or fading through resident choices. A quiet run is valid evidence.
 
 ### Stage 10. The world comes to Dalecrest (A–C, proposed)
 

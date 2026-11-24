@@ -307,7 +307,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
       <li><a href="#stage-6"><span class="n">6</span> Worth following <i class="pip hand"></i></a></li>
       <li><a href="#stage-7"><span class="n">7</span> Taking part <i class="pip"></i></a></li>
       <li><a href="#stage-8"><span class="n">8</span> A wider world <i class="pip"></i></a></li>
-      <li><a href="#stage-9"><span class="n">9</span> Living culture <i class="pip"></i></a></li>
+      <li><a href="#stage-9"><span class="n">9</span> Living culture <i class="pip hand"></i></a></li>
       <li><a href="#stage-10"><span class="n">10</span> Visitors and trade <i class="pip"></i></a></li>
     </ol>
     <h2>The reckoning</h2>
@@ -357,7 +357,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
     <li class="hand"><a href="#stage-6"><span class="stone">6</span><b>Following</b><small>In hand</small></a></li>
     <li><a href="#stage-7"><span class="stone">7</span><b>Taking part</b><small>Groundwork</small></a></li>
     <li><a href="#stage-8"><span class="stone">8</span><b>Wider world</b><small>Later</small></a></li>
-    <li><a href="#stage-9"><span class="stone">9</span><b>Living culture</b><small>Proposed</small></a></li>
+    <li class="hand"><a href="#stage-9"><span class="stone">9</span><b>Living culture</b><small>Clock built</small></a></li>
     <li><a href="#stage-10"><span class="stone">10</span><b>Visitors, trade</b><small>Proposed</small></a></li>
   </ol>
   <p class="milestone">Stages 0 and 1 together are the first milestone, the promise pilot.</p>
@@ -935,15 +935,17 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
 
   <!-- ============ Stage 9 ============ -->
   <article class="stage" id="stage-9">
-    <header><span class="numeral">9</span><h3>A living village culture</h3><span class="meta">Proposed · Parts A–C</span><span class="stamp">Not begun</span></header>
+    <header><span class="numeral">9</span><h3>A living village culture</h3><span class="meta">Parts A–C</span><span class="stamp hand">Clock built<br>Trial pending</span></header>
     <div class="meter"><span class="bar"><i class="d"></i><i class="p"></i></span><span class="count"></span></div>
-    <p>Continuous time, emerging shared practices and cost-bounded growth. No gamification or central AI deciding what the village believes. Existing stages and their acceptance measures remain unchanged.</p>
+    <p><b>Status · 24 November 2026.</b> The variable-speed clock is built and the live trial is pending. The other parts remain proposals. Models form goals and select consequential choices, and the simulation validates those actions and establishes facts. Culture grows from what residents do and share.</p>
     <h4>9A. A continuous, variable-speed clock</h4>
     <ul class="checks">
-      <li data-s="todo"><div class="what">Configure daytime (06:00–22:00) at 15 real seconds per village minute and nighttime (22:00–06:00) at 7.5 seconds per minute; keep the present 30-second constant-rate mode for comparison and tests.</div></li>
-      <li data-s="todo"><div class="what">Advance every village minute in order, including weather, needs, activities, deadlines and overnight incidents; never jump time or change speed based on viewer presence.</div></li>
-      <li data-s="todo"><div class="what">Show the current clock multiplier (2× by day, 4× by night) in the observatory and keep dawn, dusk, lighting and animation aligned with the simulation clock.</div></li>
+      <li data-s="done"><div class="what"><strong>Clock rates.</strong> Run 06:00–22:00 at 15 real seconds per village minute and 22:00–06:00 at 7.5 seconds per minute. Keep 30 seconds as the live comparison rate and support a fixed 15-second trial. A village day takes twelve real hours at the comparison rate, six at fixed 2× and five at the day and night rates.</div></li>
+      <li data-s="done"><div class="what"><strong>One minute at a time.</strong> The rate changes on the committed minute at 06:00 and 22:00. Schedule from the tick deadline so each half-second survives. If the server misses a whole interval, resume from the current village minute. The clock runs independently of audience presence and the decision queue.</div></li>
+      <li data-s="done"><div class="what"><strong>One clock in both views.</strong> Commit the upcoming interval and its rate with village time. Show the active multiplier in the observatory and use the same interval for movement in Map and Walk.</div></li>
     </ul>
+    <p><b>Verification and rollout.</b> Replay the same choices at both rates and compare event order across 22:00, midnight and dawn. Run fixed 2× for one real day before testing 4× overnight. Compare village minutes spent waiting, replies that arrive too late to apply, and action tokens per real day. Inspect the dawn queue separately from the quiet part of the night.</p>
+    <p><b>Clock settings.</b> Use <code>VILLAGE_CLOCK_MODE=fixed</code> with <code>VILLAGE_SECONDS_PER_MINUTE=15</code> for the first trial. Use <code>VILLAGE_CLOCK_MODE=day-night</code> for the variable rate. The live comparison remains fixed at 30 seconds. Run <code>docker exec dalecrest-app node tools/pilot-report.mjs 24</code> to compare daytime, night and the hour around dawn.</p>
     <h4>9B. Culture that emerges from shared experience</h4>
     <ul class="checks">
       <li data-s="todo"><div class="what">Record consequential events as verifiable world history, distinct from each resident's sourced memories and interpretations; nobody automatically knows or agrees on an event.</div></li>
@@ -957,7 +959,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
       <li data-s="todo"><div class="what">Pilot roughly 30–50 residents only after profiling; use standing instructions, household routines and event-triggered reflection to decouple routine activity from model calls, while preserving individual agency for consequential decisions.</div></li>
       <li data-s="todo"><div class="what">Compare seeded villages over 30–60 simulated days: can observers trace a custom or shared belief from an event through transmission to later choices, and do villages develop different practices without scripted outcomes?</div></li>
     </ul>
-    <p class="donewhen"><b>Done when</b> Both clock rates preserve every minute and event order; the multiplier is visible; real-world model wait and token cost are measured; and a 30–60-day seeded run traces a cultural practice through evidence, conversation and resident choice without scripting its outcome. A quiet run is valid evidence.</p>
+    <p class="donewhen"><b>Done when</b> Replays with the same choices preserve event order at both rates. A timed live pilot demonstrates continuous progression independent of viewers, shows the active multiplier, and measures waits and token use against the comparison rate. At least one seeded 30–60-day run shows an evidence-linked cultural practice forming, spreading or fading through resident choices. A quiet run is valid evidence.</p>
   </article>
 
   <!-- ============ Stage 10 ============ -->

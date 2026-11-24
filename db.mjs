@@ -13,6 +13,7 @@ import { claimReview, sendReview, settleReview } from './goal-reviews.mjs';
 import { initializeTraces, advanceWithTraces, writeSteps, writeActivities, residentState } from './decision-trace.mjs';
 import { historySchema, collectPresence, writePresence } from './village-history.mjs';
 import { eventMootKey, recordIndexes } from './record-pages.mjs';
+import { clockPace } from './engine/clock.mjs';
 
 if (!process.env.DATABASE_URL) throw new Error('Set DATABASE_URL in .env to a PostgreSQL database before starting Dalecrest.');
 const minimumResidents = Number(process.env.VILLAGE_MIN_RESIDENTS ?? 8);
@@ -145,12 +146,19 @@ export async function initialize() {
       `).join('')}
     `);
     await db.query(`ALTER TABLE dalecrest.world ADD COLUMN IF NOT EXISTS ticks bigint NOT NULL DEFAULT 0,
-      ADD COLUMN IF NOT EXISTS late_ms_max integer NOT NULL DEFAULT 0`);
-    // The clock stops with the server. Time it was down is not counted as the clock running late.
-    await db.query('UPDATE dalecrest.world SET next_tick = now() WHERE next_tick < now()');
+      ADD COLUMN IF NOT EXISTS late_ms_max integer NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS clock_pace jsonb`);
     const seed = Number(process.env.VILLAGE_SEED) || DEFAULT_SEED;
     const stored = await db.query('SELECT state FROM dalecrest.world WHERE id=1 FOR UPDATE');
     if (stored.rowCount) {
+      const pace = clockPace(stored.rows[0].state.minute, process.env);
+      // Keep a running interval across a restart. If the rate changed, schedule a full new interval.
+      // Time spent stopped never advances the simulation or counts as clock lateness.
+      await db.query(`UPDATE dalecrest.world SET clock_pace=$1,
+        next_tick=CASE WHEN next_tick <= statement_timestamp() THEN statement_timestamp()
+          WHEN clock_pace IS NULL THEN least(next_tick, statement_timestamp()+make_interval(secs=>$2))
+          WHEN clock_pace <> $1 THEN statement_timestamp()+make_interval(secs=>$2)
+          ELSE next_tick END WHERE id=1`, [pace, pace.seconds]);
       await queueEditions(db, null, stored.rows[0].state.minute);
       const robin = (await db.query("SELECT state FROM dalecrest.actors WHERE id='robin' AND state->>'trade'='harvest'")).rows[0]?.state;
       if (robin) {
@@ -178,7 +186,8 @@ export async function initialize() {
     const foundingRevision = village.map.revision;
     await saveMap(db, village.map, village.world.minute);
     if (process.env.PLANNER_PROVIDER !== 'openai') village.events.push(...stepVillage(village, { minutes: 105, observe: presence.observe }));
-    await db.query('INSERT INTO dalecrest.world(id, state) VALUES (1, $1)', [village.world]);
+    await db.query('INSERT INTO dalecrest.world(id, state, clock_pace) VALUES (1, $1, $2)',
+      [village.world, clockPace(village.world.minute, process.env)]);
     await saveActors(db, village.actors);
     if (village.map.revision !== foundingRevision) await saveMap(db, village.map, village.world.minute);
     await writePresence(db, presence.rows);
@@ -219,13 +228,11 @@ export async function pendingDecision() {
   return r.rows[0]?.id;
 }
 
-// Village time advances on its own schedule, whatever the models are doing. The pace is a pilot
-// parameter: real seconds per village minute, 30 when the Decisions API chooses and 1 under local rules.
-function clockPace(direct) {
-  const set = Number(process.env.VILLAGE_SECONDS_PER_MINUTE);
-  const pace = set > 0 ? set : direct ? 30 : 1;
-  const minutes = Math.max(1, Math.round(3 / pace));
-  return { minutes, seconds: minutes * pace };
+const untilNextTick = 'greatest(0, ceil(extract(epoch FROM next_tick - statement_timestamp()) * 1000))::int';
+
+export async function nextTickDelay() {
+  const { rows: [row] } = await pool.query(`SELECT ${untilNextTick} AS delay FROM dalecrest.world WHERE id=1`);
+  return row?.delay ?? 1000;
 }
 
 export async function advance() {
@@ -242,7 +249,7 @@ async function tick(db) {
   const traces = (await db.query(`SELECT id,actor_id,until_minute,decision_since FROM dalecrest.decision_traces
       WHERE status='applied' AND ended_minute IS NULL`)).rows;
   const direct = process.env.PLANNER_PROVIDER === 'openai';
-  const { minutes, seconds } = clockPace(direct);
+  const { minutes } = clockPace(world.minute, process.env);
   const beforeMinute = world.minute;
   const records = [];
   const village = { world, actors, map };
@@ -250,10 +257,6 @@ async function tick(db) {
   const arrivals = welcomeResidents(village, minimumResidents);
   const presence = collectPresence();
   const { events, steps } = advanceWithTraces(village, minutes, traces, direct, records, presence.observe);
-  // The right-hand sides read the row as it was, so lateness is measured against the tick that was due.
-  await db.query(`UPDATE dalecrest.world SET state=$1, ticks=ticks+1,
-    late_ms_max=greatest(late_ms_max, least(extract(epoch FROM now()-next_tick)*1000, 2000000000)::int),
-    next_tick=now()+make_interval(secs=>$2) WHERE id=1`, [world, seconds]);
   const chronicle = await recordEvents(db, [...arrivals, ...events]);
   await writeGoals(db, actors);
   await writeObservations(db, actors, chronicle);
@@ -263,6 +266,14 @@ async function tick(db) {
   await queueEditions(db, beforeMinute, world.minute);
   await writeSteps(db, steps, chronicle, traces, world.minute);
   await writeActivities(db, records);
+  const pace = clockPace(world.minute, process.env);
+  // Anchor ordinary ticks to the previous deadline so sub-second intervals and incidental delays
+  // do not accumulate. After a whole missed interval, schedule from now instead of racing to catch up.
+  await db.query(`UPDATE dalecrest.world SET state=$1, clock_pace=$3, ticks=ticks+1,
+    late_ms_max=greatest(late_ms_max, least(extract(epoch FROM now()-next_tick)*1000, 2000000000)::int),
+    next_tick=CASE WHEN next_tick+make_interval(secs=>$2) > statement_timestamp()
+      THEN next_tick+make_interval(secs=>$2)
+      ELSE statement_timestamp()+make_interval(secs=>$2) END WHERE id=1`, [world, pace.seconds, pace]);
 }
 
 // Observers only see committed maps. Capture one map and its residents in the same database snapshot.
@@ -271,7 +282,7 @@ export async function snapshot({ withMap = false } = {}) {
   const cached = observerMap;
   const result = await pool.query(`
     SELECT w.state AS world,
-      ${withMap ? `greatest(0, extract(epoch FROM w.next_tick - statement_timestamp()) * 1000)::int AS "nextTickInMs",
+      ${withMap ? `${untilNextTick} AS "nextTickInMs", w.clock_pace AS "clockPace",
         jsonb_build_array((SELECT max(id) FROM dalecrest.events),
           (SELECT count(*) FROM dalecrest.civic_accounts WHERE account IS NOT NULL)) AS "eventVersion",
         (SELECT m.state FROM dalecrest.map m WHERE m.id=w.id AND m.revision IS DISTINCT FROM $1::bigint) AS map,` : ''}
@@ -283,9 +294,11 @@ export async function snapshot({ withMap = false } = {}) {
     FROM dalecrest.world w WHERE w.id=1`, withMap ? [cached?.revision ?? null] : []);
   const state = result.rows[0];
   if (withMap) {
-    const pace = clockPace(process.env.PLANNER_PROVIDER === 'openai');
+    const pace = state.clockPace ?? clockPace(state.world.minute, process.env);
+    delete state.clockPace;
     state.tickMinutes = pace.minutes;
     state.tickMs = pace.seconds * 1000;
+    state.clockPeriod = pace.period;
     state.map ??= cached;
     observerMap = state.map;
   }

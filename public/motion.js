@@ -54,7 +54,8 @@ export function createMotion(span = 3100) {
           const action = actor.action;
           // A stream update or selection change unrelated to the route leaves the walk in progress.
           const samePath = path.length === t.path.length && path.every((point, i) => same(point, t.path[i]));
-          if (t.minute === tick.minute && t.target === action.target && t.phase === action.phase && same(to, t.end)
+          if (t.minute === tick.minute && t.tickMs === tick.ms && t.tickMinutes === tick.minutes
+            && t.target === action.target && t.phase === action.phase && same(to, t.end)
             && t.traceId === action.decisionTraceId && t.remaining === action.remaining && samePath
             && (path.length || t.revision === tick.map?.revision)) continue;
           let points = [];
@@ -66,7 +67,7 @@ export function createMotion(span = 3100) {
           // A fresh decision can arrive mid-tick, so begin that walk when we first see it.
           const start = action.path ? tick.endsAt - tick.ms : now;
           setSegment(t, [to, ...points], start, Math.max(1, tick.endsAt - start));
-          Object.assign(t, { end: to, minute: tick.minute, target: action.target, phase: action.phase, path,
+          Object.assign(t, { end: to, minute: tick.minute, tickMs: tick.ms, tickMinutes: tick.minutes, target: action.target, phase: action.phase, path,
             traceId: action.decisionTraceId, remaining: action.remaining, revision: tick.map?.revision });
           continue;
         }

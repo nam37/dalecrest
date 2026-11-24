@@ -1,4 +1,4 @@
-const sections = ['eventVersion', 'locations', 'affairs', 'planner', 'tickMinutes', 'tickMs'];
+const sections = ['eventVersion', 'locations', 'affairs', 'planner', 'tickMinutes', 'tickMs', 'clockPeriod'];
 const lists = ['actors', 'events'];
 const equal = (a, b) => a === b ||
   (a !== null && b !== null && typeof a === 'object' && typeof b === 'object' && JSON.stringify(a) === JSON.stringify(b));

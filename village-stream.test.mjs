@@ -23,6 +23,14 @@ test('village patches preserve the order, retained fields and pairing of world a
   assert.deepEqual(villageChanges(first, structuredClone(first)), {});
 });
 
+test('a clock boundary publishes its minute and next pace in the same stream update', () => {
+  const day = { ...first, world: { ...first.world, minute: 1319 }, tickMinutes: 1, tickMs: 15000, clockPeriod: 'day' };
+  const night = { ...day, world: { ...day.world, minute: 1320 }, tickMs: 7500, clockPeriod: 'night' };
+  const patch = JSON.parse(JSON.stringify(villageChanges(day, night)));
+  assert.deepEqual(patch, { world: { set: { minute: 1320 } }, tickMs: 7500, clockPeriod: 'night' });
+  assert.deepEqual(applyVillageChanges(day, patch), night);
+});
+
 class Response extends EventEmitter {
   frames = [];
   writeHead(status, headers) { this.status = status; this.headers = headers; }

@@ -2,6 +2,7 @@
 //   node --env-file=.env tools/pilot-report.mjs [real hours to look back, default 24]
 // It reads only. Set DATABASE_URL to the village to measure.
 import pg from 'pg';
+import { DAY_START, NIGHT_START } from '../engine/clock.mjs';
 
 if (!process.env.DATABASE_URL) throw new Error('Set DATABASE_URL to the village database to measure.');
 const hours = Number(process.argv[2]) > 0 ? Number(process.argv[2]) : 24;
@@ -10,6 +11,8 @@ await db.connect();
 const one = async (sql, args = []) => (await db.query(sql, args)).rows[0];
 const all = async (sql, args = []) => (await db.query(sql, args)).rows;
 const since = `now() - make_interval(hours => ${hours})`;
+const period = minute => `CASE WHEN mod(${minute},1440) >= ${DAY_START - 30} AND mod(${minute},1440) < ${DAY_START + 30} THEN 'Around dawn'
+  WHEN mod(${minute},1440) >= ${DAY_START} AND mod(${minute},1440) < ${NIGHT_START} THEN 'Day' ELSE 'Night' END`;
 
 const world = await one(`SELECT (state->>'minute')::bigint AS minute, ticks, late_ms_max,
   (SELECT count(*)::int FROM dalecrest.actors) AS residents FROM dalecrest.world`);
@@ -40,11 +43,12 @@ for (const r of await all(`SELECT routine, reason, count(*)::int AS n FROM dalec
 
 // A wait runs from the row that opened it to the next fresh or standing row for the same resident.
 const waits = `WITH ordered AS (
-    SELECT actor_id, basis, recorded_at, waited_minutes,
-      lead(basis) OVER w AS next_basis, lead(recorded_at) OVER w AS next_at
+    SELECT actor_id, basis, minute, recorded_at,
+      lead(basis) OVER w AS next_basis, lead(recorded_at) OVER w AS next_at, lead(minute) OVER w AS next_minute
     FROM dalecrest.activity_log WHERE basis IN ('waiting','fresh','standing') WINDOW w AS (PARTITION BY actor_id ORDER BY id))
-  SELECT actor_id, next_basis, extract(epoch FROM next_at - recorded_at) AS seconds FROM ordered
-  WHERE basis='waiting' AND next_at IS NOT NULL AND recorded_at > ${since}`;
+  SELECT actor_id, next_basis, ${period('minute')} AS period,
+    extract(epoch FROM next_at - recorded_at) AS seconds, next_minute-minute AS village_minutes
+  FROM ordered WHERE basis='waiting' AND next_basis IN ('fresh','standing') AND recorded_at > ${since}`;
 const wait = await one(`SELECT count(*)::int AS n, percentile_cont(0.5) WITHIN GROUP (ORDER BY seconds) AS median,
   percentile_cont(0.95) WITHIN GROUP (ORDER BY seconds) AS p95, max(seconds) AS longest FROM (${waits}) w`);
 console.log('\nReal time from an activity ending to the next one starting, when a choice was needed');
@@ -55,6 +59,13 @@ if (wait.n) {
   }
   const ended = await all(`SELECT next_basis, count(*)::int AS n FROM (${waits}) w GROUP BY 1`);
   console.log('  Ended by: ' + ended.map(e => `${e.next_basis === 'fresh' ? 'a reply' : 'an instruction coming to cover the moment'} ${e.n}`).join(', '));
+  console.log('\nWaits by village time at entry (around dawn is 05:30–06:30)');
+  for (const r of await all(`SELECT period, count(*)::int AS n,
+      percentile_cont(0.95) WITHIN GROUP (ORDER BY seconds) AS real_p95,
+      percentile_cont(0.95) WITHIN GROUP (ORDER BY village_minutes) AS village_p95
+    FROM (${waits}) w GROUP BY period ORDER BY period`)) {
+    console.log(`  ${r.period}: ${r.n} waits · 95th percentile ${Number(r.real_p95).toFixed(1)} real seconds · ${Number(r.village_p95).toFixed(1)} village minutes`);
+  }
 } else console.log('  No completed waits yet.');
 const open = await one(`SELECT count(*)::int AS n FROM dalecrest.actors WHERE state#>>'{action,kind}'='waiting'`);
 console.log(`  Residents waiting right now: ${open.n}`);
@@ -74,4 +85,8 @@ console.log(`  Tokens spent on replies that were not applied: ${spend.unapplied_
 console.log(`  Per real day: ${(spend.tokens * 24 / hours).toFixed(0)} tokens · per village day: ${(spend.tokens / villageDays).toFixed(0)} tokens`);
 for (const r of await all(`SELECT status, count(*)::int AS n FROM dalecrest.decision_traces
   WHERE decision_since IS NOT NULL AND requested_at > ${since} GROUP BY 1 ORDER BY n DESC`)) console.log(`  ${String(r.n).padStart(6)}  ${r.status}`);
+for (const r of await all(`SELECT ${period('observed_minute')} AS period, count(*)::int AS requests,
+    count(*) FILTER (WHERE status IN ('unavailable','superseded','stale'))::int AS changed
+  FROM dalecrest.decision_traces WHERE decision_since IS NOT NULL AND requested_at > ${since}
+  GROUP BY 1 ORDER BY 1`)) console.log(`  ${r.period}: ${r.changed} of ${r.requests} choices unavailable, superseded or stale`);
 await db.end();

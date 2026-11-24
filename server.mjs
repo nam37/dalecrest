@@ -1,6 +1,6 @@
 import http from 'node:http';
 import { readFile, readdir } from 'node:fs/promises';
-import { initialize, advance, snapshot, currentMap, pool, recentEvents, reviewGoalsOnce, publishCivicAccountOnce, listenForVillageChanges } from './db.mjs';
+import { initialize, advance, nextTickDelay, snapshot, currentMap, pool, recentEvents, reviewGoalsOnce, publishCivicAccountOnce, listenForVillageChanges } from './db.mjs';
 import { planOnce, plannerStatus, plannerPollMs } from './planner.mjs';
 import { locationsOf } from './sim.mjs';
 import { affairs } from './engine/civic.mjs';
@@ -92,14 +92,15 @@ const server = http.createServer(async (req, res) => {
     } else { res.writeHead(404).end(); }
   } catch { res.writeHead(503, { 'Content-Type': 'text/plain' }).end('Dalecrest is temporarily unavailable.'); }
 });
-let advancing = false;
-const clock = setInterval(async () => {
-  if (advancing) return;
-  advancing = true;
-  try { await advance(); }
-  catch { console.error('Village tick could not be committed. Retrying on next tick.'); }
-  finally { advancing = false; }
-}, 1000);
+let clock, stopping = false;
+async function runClock() {
+  let delay = 1000;
+  try {
+    await advance();
+    if (!stopping) delay = await nextTickDelay();
+  } catch { console.error('Village tick could not be committed. Retrying on next tick.'); }
+  if (!stopping) clock = setTimeout(runClock, Math.max(20, delay));
+}
 async function plan() {
   const before = plannerStatus.state;
   await planOnce();
@@ -129,11 +130,13 @@ const reviews = setInterval(async () => {
 }, 4000);
 server.listen(port, host, () => {
   console.log('Dalecrest is listening at http://' + host + ':' + port);
+  runClock();
   plan();
   editDaily();
 });
 function shutdown() {
-  clearInterval(clock); clearInterval(planner); clearInterval(press); clearInterval(reviews); clearInterval(accounts);
+  stopping = true;
+  clearTimeout(clock); clearInterval(planner); clearInterval(press); clearInterval(reviews); clearInterval(accounts);
   stopListening();
   stream.close();
   server.close(() => pool.end());

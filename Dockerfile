@@ -5,6 +5,7 @@ RUN npm ci --omit=dev --no-audit --no-fund
 COPY *.mjs ./
 COPY engine/ ./engine/
 COPY public/ ./public/
+COPY tools/pilot-report.mjs ./tools/
 USER node
 RUN npm test
 ENV HOST=0.0.0.0 PORT=4173 NODE_ENV=production
