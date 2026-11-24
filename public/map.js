@@ -274,20 +274,46 @@ function paintPaper(c, map, look, scale) {
     c.restore();
   });
   for (const garden of look.parish.gardens) drawGarden(c, garden, year, snow, line);
-  // Ways, narrowest first so the road lies over the lanes that join it.
+  // Ways. Every edge line is laid first and every surface after it, so where a lane meets the road the
+  // two run together with no line across the mouth. Surfaces go down narrowest first.
+  const made = look.chains.map((way, n) => ({ ...way, n })).filter(way => way.kind === 'lane' || way.kind === 'road');
+  for (const way of look.chains) {
+    if (way.kind === 'track') continue;
+    curve(c, way.pts);
+    if (way.kind === 'path') { c.setLineDash([0.25, 0.4]); c.strokeStyle = '#a8977299'; c.lineWidth = WAYS.path[0] + line * 1.6; c.stroke(); c.setLineDash([]); }
+    else { c.strokeStyle = '#b3a281'; c.lineWidth = WAYS[way.kind][0] + line * 2.2; c.stroke(); }
+  }
   for (const kind of ['track', 'path', 'lane', 'road']) {
-    const width = WAYS[kind][0], fill = snowed(WAYS[kind][1], 0.4);
-    for (const pass of [0, 1]) {
-      for (const way of look.chains) {
-        if (way.kind !== kind) continue;
-        curve(c, way.pts);
-        if (kind === 'track' || kind === 'path') {
-          if (pass) { c.strokeStyle = fill; c.lineWidth = width; c.stroke(); }
-          else if (kind === 'path') { c.setLineDash([0.25, 0.4]); c.strokeStyle = '#a8977299'; c.lineWidth = width + line * 1.6; c.stroke(); c.setLineDash([]); }
-        } else {
-          c.strokeStyle = pass ? fill : '#b3a281'; c.lineWidth = width + (pass ? 0 : line * 2.2); c.stroke();
+    c.strokeStyle = snowed(WAYS[kind][1], 0.4); c.lineWidth = WAYS[kind][0];
+    for (const way of look.chains) if (way.kind === kind) { curve(c, way.pts); c.stroke(); }
+  }
+  // The surface of a made way: a paler crown where feet have worn it, two broken ruts left by carts,
+  // and grit lying toward the edges. Under snow the ruts show dark.
+  if (scale > 3) {
+    for (const way of made) {
+      const width = WAYS[way.kind][0];
+      curve(c, way.pts); c.strokeStyle = snow > 0.4 ? '#ffffff38' : '#fff6de5c'; c.lineWidth = width * 0.3; c.stroke();
+      c.strokeStyle = snow > 0.4 ? '#8a836c70' : '#ae9a7378'; c.lineWidth = line * 0.85;
+      for (const side of [-1, 1]) {
+        curve(c, beside(way.pts, side * width * 0.25));
+        c.setLineDash([1.2 + (way.n % 3) * 0.45, 0.3, 0.45, 0.55]); c.lineDashOffset = way.n * 1.7 + side * 0.6; c.stroke();
+      }
+      c.setLineDash([]); c.lineDashOffset = 0;
+    }
+    for (const [tone, salt] of [['#9a896580', 61], ['#fffaea99', 67]]) {
+      c.fillStyle = snow > 0.4 ? '#8a836c66' : tone; c.beginPath();
+      for (const way of made) {
+        const width = WAYS[way.kind][0];
+        for (let i = 1; i < way.pts.length; i++) {
+          const a = way.pts[i - 1], b = way.pts[i], len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, key = way.n * 211 + i;
+          for (let j = 0, n = Math.ceil(len * (salt === 61 ? 1.5 : 0.8)); j < n; j++) {
+            const t = hash2(map.seed + salt, key, j), u = (hash2(map.seed + salt + 1, key, j) - 0.5) * width * 0.8, r = 0.03 + hash2(map.seed + salt + 2, key, j) * 0.045;
+            const x = a[0] + (b[0] - a[0]) * t - (b[1] - a[1]) / len * u, y = a[1] + (b[1] - a[1]) * t + (b[0] - a[0]) / len * u;
+            c.moveTo(x + r, y); c.arc(x, y, r, 0, TAU);
+          }
         }
       }
+      c.fill();
     }
   }
   for (const [a, b, kind] of map.edges) {
