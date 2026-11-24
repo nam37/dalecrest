@@ -11,7 +11,7 @@ let current = null, user = null, restoring, active = null, sending = false, refr
 let historySignature = '';
 
 async function api(path, body) {
-  const response = await fetch('/api/' + path, body === undefined ? {} : {
+  const response = await fetch(new URL('./api/' + path, import.meta.url), body === undefined ? {} : {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
   });
   const result = await response.json();

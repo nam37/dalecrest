@@ -356,7 +356,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
     <li class="built"><a href="#stage-4"><span class="stone">4</span><b>Voices</b><small>Built · measuring</small></a></li>
     <li class="hand"><a href="#stage-5"><span class="stone">5</span><b>Watching</b><small>In hand</small></a></li>
     <li class="hand"><a href="#stage-6"><span class="stone">6</span><b>Following</b><small>In hand</small></a></li>
-    <li class="hand"><a href="#stage-6a"><span class="stone">6a</span><b>Admin panel</b><small>First release previewed</small></a></li>
+    <li class="hand"><a href="#stage-6a"><span class="stone">6a</span><b>Admin panel</b><small>First release live</small></a></li>
     <li class="hand"><a href="#stage-7"><span class="stone">7</span><b>Living culture</b><small>Clock built</small></a></li>
     <li><a href="#stage-8"><span class="stone">8</span><b>Visitors, trade</b><small>Proposed</small></a></li>
     <li><a href="#stage-9"><span class="stone">9</span><b>Taking part</b><small>Groundwork</small></a></li>
@@ -904,9 +904,9 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
 
   <!-- ============ Stage 6a ============ -->
   <article class="stage" id="stage-6a">
-    <header><span class="numeral">6a</span><h3>Admin control panel</h3><span class="meta">Village operations</span><span class="stamp hand">First release<br>Previewed</span></header>
+    <header><span class="numeral">6a</span><h3>Admin control panel</h3><span class="meta">Village operations</span><span class="stamp hand">First release<br>Live</span></header>
     <div class="meter"><span class="bar"><i class="d"></i><i class="p"></i></span><span class="count"></span></div>
-    <p><b>First release · 24 November 2026.</b> The private panel has sign-in, a health view and audited clock changes. It was exercised in a separate PostgreSQL preview. Live installation and access are described in the <a href="admin-control-panel.md">operator guide</a>.</p>
+    <p><b>First release · 24 November 2026.</b> The password-protected panel has a health view and audited clock changes. It was exercised in a separate PostgreSQL preview. The live panel is at <a href="https://dalecrest.trinsicstudios.com/admin">/admin</a>. See the <a href="admin-control-panel.md">operator guide</a> for setup and read-only agent access.</p>
     <ul class="checks">
       <li data-s="done"><div class="what"><strong>Operator access.</strong> Named accounts have password-protected sign-in, expiring sessions and rate limits. Operator permissions are checked on every clock change. Monitors have read-only access. Agents use a separate read-only JSON URL with a bearer key.</div></li>
       <li data-s="done"><div class="what"><strong>Live status.</strong> The dashboard shows the village minute and pace, deployed revision, last successful backup, provider health, oldest pending decision and token usage. The dashboard dates its last health check and credentials stay in protected server configuration.</div></li>

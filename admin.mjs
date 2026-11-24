@@ -54,12 +54,16 @@ export function hostClockCommands() {
   };
 }
 
-export async function createAdminServer({ publicOrigin, preview = false, villageName = 'Dalecrest', credentials, auditFile, clock }) {
+export async function createAdminServer({ publicOrigin, basePath = '', preview = false, villageName = 'Dalecrest', credentials, auditFile, clock }) {
   const origin = new URL(publicOrigin);
   const local = origin.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(origin.hostname);
   if ((origin.protocol !== 'https:' && !(preview && local)) || origin.pathname !== '/' || origin.search ||
-      origin.hash || origin.username || origin.password) throw new Error('Set the HTTPS origin of the private admin panel.');
-  const auth = adminAuth(loadCredentials(credentials), { secure: !local });
+      origin.hash || origin.username || origin.password) throw new Error('Set the HTTPS origin of the admin panel.');
+  if (!/^(?:\/[a-z0-9][a-z0-9-]*)*$/.test(basePath)) {
+    throw new Error('Set ADMIN_BASE_PATH to a path such as /admin without a trailing slash.');
+  }
+  const panelPath = basePath + '/';
+  const auth = adminAuth(loadCredentials(credentials), { secure: !local, path: panelPath });
   const audit = await openClockAudit(auditFile);
   const validOrigin = req => req.headers.origin === origin.origin;
   let active = null, busy = false, cached, checked = 0, check;
@@ -129,7 +133,13 @@ export async function createAdminServer({ publicOrigin, preview = false, village
     res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
     try {
       if (req.headers.host !== origin.host) throw new RequestError(403, 'This host is outside the admin origin.');
-      const path = new URL(req.url, origin).pathname;
+      const pathname = new URL(req.url, origin).pathname;
+      if (basePath && pathname === basePath && (req.method === 'GET' || req.method === 'HEAD')) {
+        res.writeHead(308, { Location: panelPath }).end();
+        return;
+      }
+      if (!pathname.startsWith(panelPath)) throw new RequestError(404, 'This admin address does not exist.');
+      const path = pathname.slice(basePath.length);
       if (path === '/api/agent') {
         if (req.headers.origin && !validOrigin(req)) throw new RequestError(403, 'This request is outside the admin origin.');
         if (!auth.agent(req)) {
@@ -198,7 +208,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     throw new Error('Set ADMIN_LISTEN_HOST to a loopback or private IPv4 address.');
   }
   const server = await createAdminServer({
-    publicOrigin: env.ADMIN_ORIGIN, villageName: env.ADMIN_VILLAGE_NAME,
+    publicOrigin: env.ADMIN_ORIGIN, basePath: env.ADMIN_BASE_PATH, villageName: env.ADMIN_VILLAGE_NAME,
     credentials: JSON.parse(await readFile(env.ADMIN_CREDENTIALS, 'utf8')),
     auditFile: env.ADMIN_AUDIT_FILE,
     clock: hostClockCommands(),

@@ -36,11 +36,11 @@ export function loadCredentials({ accounts, agentKeys = [] } = {}) {
   return { people, keys };
 }
 
-export function adminAuth({ people, keys }, { secure }) {
+export function adminAuth({ people, keys }, { secure, path = '/' }) {
   const sessions = new Map(), attempts = new Map();
   const dummy = { salt: randomBytes(16), digest: randomBytes(32) };
-  const cookieName = secure ? '__Host-dalecrest-admin' : 'dalecrest-admin-preview';
-  const cookie = (token, maxAge) => cookieName + '=' + token + '; Path=/; HttpOnly; SameSite=Strict; Max-Age=' + maxAge + (secure ? '; Secure' : '');
+  const cookieName = secure ? (path === '/' ? '__Host-' : '__Secure-') + 'dalecrest-admin' : 'dalecrest-admin-preview';
+  const cookie = (token, maxAge) => cookieName + '=' + token + '; Path=' + path + '; HttpOnly; SameSite=Strict; Max-Age=' + maxAge + (secure ? '; Secure' : '');
   const tokenOf = req => req.headers.cookie?.split(';').map(value => value.trim())
     .find(value => value.startsWith(cookieName + '='))?.slice(cookieName.length + 1);
   let hashing = 0;

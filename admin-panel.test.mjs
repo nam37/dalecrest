@@ -119,3 +119,55 @@ test('operators can verify and restore the live pace and read-only credentials c
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test('the admin prefix scopes the page, browser session and agent API', async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'dalecrest-admin-prefix-test-'));
+  let server;
+  try {
+    const reservation = createServer().listen(0, '127.0.0.1');
+    await once(reservation, 'listening');
+    const port = reservation.address().port;
+    await new Promise(resolve => reservation.close(resolve));
+    const host = '127.0.0.1:' + port;
+    const origin = 'https://' + host;
+    server = await createAdminServer({
+      publicOrigin: origin, basePath: '/admin', auditFile: path.join(directory, 'audit.ndjson'),
+      credentials: {
+        accounts: [{ name: 'operator', role: 'operator', password: await passwordHash(password) }],
+        agentKeys: [{ name: 'fixture', digest: keyDigest(agentKey) }],
+      },
+      clock: { health: async () => ({ clock: { mode: '1x' } }) },
+    });
+    server.listen(port, '127.0.0.1');
+    await once(server, 'listening');
+    const request = (route, options) => fetch('http://' + host + route, { ...options, redirect: 'manual' });
+    const redirect = await request('/admin');
+    assert.equal(redirect.status, 308);
+    assert.equal(redirect.headers.get('location'), '/admin/');
+    const page = await request('/admin/');
+    assert.equal(page.status, 200);
+    assert.match(await page.text(), /src="\.\/admin\.js"/);
+    assert.equal((await request('/admin/admin.js')).status, 200);
+    assert.equal((await request('/admin/admin.css')).status, 200);
+    assert.equal((await request('/')).status, 404);
+    assert.equal((await request('/api/agent')).status, 404);
+    assert.equal((await request('/administrator')).status, 404);
+
+    const login = await request('/admin/api/session', {
+      method: 'POST', headers: { Origin: origin, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'operator', password }),
+    });
+    assert.equal(login.status, 200);
+    const cookie = login.headers.get('set-cookie');
+    assert.match(cookie, /^__Secure-dalecrest-admin=[^;]+; Path=\/admin\/; HttpOnly; SameSite=Strict; .*; Secure$/);
+    assert.equal((await request('/admin/api/status', { headers: { Cookie: cookie.split(';')[0] } })).status, 200);
+
+    const headers = { Authorization: 'Bearer fixture.' + agentKey };
+    assert.equal((await request('/admin/api/agent', { headers })).status, 200);
+    assert.equal((await request('/admin/api/agent', { headers, method: 'POST' })).status, 405);
+    assert.equal((await request('/admin/api/status', { headers })).status, 401);
+  } finally {
+    if (server?.listening) await new Promise(resolve => server.close(resolve));
+    await rm(directory, { recursive: true, force: true });
+  }
+});

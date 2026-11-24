@@ -4,7 +4,7 @@ The panel runs as a separate host service. It reads health from the running vill
 
 ## Sign-in and access
 
-Use a dedicated HTTPS URL for the panel. Route its reverse proxy to the admin service’s private listener and preserve the request’s host header. The browser sign-in cookie is scoped to the panel’s host. Named operator accounts can change the clock. Monitors can see health and change history.
+The live panel is at [Dalecrest administration](https://dalecrest.trinsicstudios.com/admin). Route both `/admin` and `/admin/*` to the admin service’s private listener. Preserve the request’s host header and full path. The browser sign-in cookie is issued for `/admin/`. The panel shares the public village's browser origin, so scripts served by either app are trusted by the browser on both. Named operator accounts can change the clock. Monitors can see health and change history.
 
 The host service uses Node.js 22 and runs as the unprivileged `dalecrest-admin` user and group. Install these files from the same release.
 
@@ -18,7 +18,8 @@ The host service uses Node.js 22 and runs as the unprivileged `dalecrest-admin` 
 The deployed village image must contain `admin-health.mjs`. The installed village Compose file must pass both clock settings. Use a root-owned working directory and keep credentials in `/etc/dalecrest-admin`, readable only by the service account and host administrators.
 
 ```dotenv
-ADMIN_ORIGIN=https://admin.dalecrest.example
+ADMIN_ORIGIN=https://dalecrest.trinsicstudios.com
+ADMIN_BASE_PATH=/admin
 ADMIN_LISTEN_HOST=127.0.0.1
 ADMIN_PORT=4180
 ADMIN_VILLAGE_NAME=Dalecrest
@@ -26,7 +27,7 @@ ADMIN_CREDENTIALS=/etc/dalecrest-admin/credentials.json
 ADMIN_AUDIT_FILE=/var/lib/dalecrest-admin/clock-changes.ndjson
 ```
 
-Use the actual admin HTTPS origin in `/etc/dalecrest-admin/admin.env`. For a proxy on a private Docker bridge, use the host’s address on that bridge as `ADMIN_LISTEN_HOST`. The service creates a private state directory for the audit journal. Load the unit with `systemctl daemon-reload`, then start it with `systemctl enable --now dalecrest-admin.service`.
+Set the origin and path in `/etc/dalecrest-admin/admin.env`. A standalone installation can omit `ADMIN_BASE_PATH` to serve the panel from the root of its own HTTPS host. For a proxy on a private Docker bridge, use the host’s address on that bridge as `ADMIN_LISTEN_HOST`. The service creates a private state directory for the audit journal. Load the unit with `systemctl daemon-reload`, then start it with `systemctl enable --now dalecrest-admin.service`.
 
 ## Provision credentials
 
@@ -49,7 +50,7 @@ Restart the admin service after adding or revoking credentials. The audit journa
 
 ## Agent URL
 
-Send `GET /api/agent` to the admin HTTPS origin with the issued key in the header `Authorization: Bearer <name>.<key>`. The response contains village health, the active change if any, and the last 30 clock changes. Agent keys are read-only. Operator sign-in is required for clock changes.
+Send `GET /admin/api/agent` with the issued key in the header `Authorization: Bearer <name>.<key>`. The response contains village health, the active change if any, and the last 30 clock changes. Agent keys are read-only. Operator sign-in is required for clock changes. [Live agent endpoint](https://dalecrest.trinsicstudios.com/admin/api/agent)
 
 ## Change or restore the pace
 

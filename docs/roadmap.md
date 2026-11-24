@@ -24,7 +24,7 @@
 | 4. Voices: competing interests and the moot | Built, awaiting a live moot | 5 | 0 | 0 |
 | 5. Worth watching | In hand | 8 | 0 | 0 |
 | 6. Worth following | In hand | 1 | 1 | 2 |
-| 6a. Admin control panel | First release verified in preview | 4 | 0 | 4 |
+| 6a. Admin control panel | First release on the live site | 4 | 0 | 4 |
 | 7. A living village culture (A–C) | Clock built, live trial pending | 3 | 0 | 7 |
 | 8. The world comes to Dalecrest (A–C) | Proposed, not begun | 0 | 0 | 9 |
 | 9. Taking part | Groundwork only | 0 | 1 | 4 |
@@ -474,7 +474,7 @@ Done when: in a small pilot, people voluntarily return to check on a resident, a
 
 ### Stage 6a. Admin control panel
 
-**First release · 24 November 2026.** The private panel has sign-in, a health view and audited clock changes. It was exercised in a separate PostgreSQL preview. Live installation and access are described in the [operator guide](admin-control-panel.md).
+**First release · 24 November 2026.** The password-protected panel has a health view and audited clock changes. It was exercised in a separate PostgreSQL preview. The live panel is at [/admin](https://dalecrest.trinsicstudios.com/admin). See the [operator guide](admin-control-panel.md) for setup and read-only agent access.
 
 - [x] **Operator access.** Named accounts have password-protected sign-in, expiring sessions and rate limits. Operator permissions are checked on every clock change. Monitors have read-only access. Agents use a separate read-only JSON URL with a bearer key.
 - [x] **Live status.** The dashboard shows the village minute and pace, deployed revision, last successful backup, provider health, oldest pending decision and token usage. The dashboard dates its last health check and credentials stay in protected server configuration.
