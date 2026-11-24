@@ -305,6 +305,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
       <li><a href="#stage-6"><span class="n">6</span> Worth following <i class="pip hand"></i></a></li>
       <li><a href="#stage-7"><span class="n">7</span> Taking part <i class="pip"></i></a></li>
       <li><a href="#stage-8"><span class="n">8</span> A wider world <i class="pip"></i></a></li>
+      <li><a href="#stage-9"><span class="n">9</span> Living culture <i class="pip"></i></a></li>
     </ol>
     <h2>The reckoning</h2>
     <ol>
@@ -351,6 +352,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
     <li class="hand"><a href="#stage-6"><span class="stone">6</span><b>Following</b><small>In hand</small></a></li>
     <li><a href="#stage-7"><span class="stone">7</span><b>Taking part</b><small>Groundwork</small></a></li>
     <li><a href="#stage-8"><span class="stone">8</span><b>Wider world</b><small>Later</small></a></li>
+    <li><a href="#stage-9"><span class="stone">9</span><b>Living culture</b><small>Proposed</small></a></li>
   </ol>
   <p class="milestone">Stages 0 and 1 together are the first milestone, the promise pilot.</p>
   <div class="key" role="group" aria-label="Show items by status">
@@ -881,6 +883,33 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
     <ul class="checks">
       <li data-s="todo"><div class="what">More than one village with a road between them. This multiplies everything above, including the cost, and waits until one village holds an audience.</div></li>
     </ul>
+  </article>
+
+  <!-- ============ Stage 9 ============ -->
+  <article class="stage" id="stage-9">
+    <header><span class="numeral">9</span><h3>A living village culture</h3><span class="meta">Proposed · Parts A–C</span><span class="stamp">Not begun</span></header>
+    <div class="meter"><span class="bar"><i class="d"></i><i class="p"></i></span><span class="count"></span></div>
+    <p>Continuous time, emerging shared practices and cost-bounded growth. No gamification or central AI deciding what the village believes. Existing stages and their acceptance measures remain unchanged.</p>
+    <h4>9A. A continuous, variable-speed clock</h4>
+    <ul class="checks">
+      <li data-s="todo"><div class="what">Configure daytime (06:00–22:00) at 15 real seconds per village minute and nighttime (22:00–06:00) at 7.5 seconds per minute; keep the present 30-second constant-rate mode for comparison and tests.</div></li>
+      <li data-s="todo"><div class="what">Advance every village minute in order, including weather, needs, activities, deadlines and overnight incidents; never jump time or change speed based on viewer presence.</div></li>
+      <li data-s="todo"><div class="what">Show the current clock multiplier (2× by day, 4× by night) in the observatory and keep dawn, dusk, lighting and animation aligned with the simulation clock.</div></li>
+    </ul>
+    <h4>9B. Culture that emerges from shared experience</h4>
+    <ul class="checks">
+      <li data-s="todo"><div class="what">Record consequential events as verifiable world history, distinct from each resident's sourced memories and interpretations; nobody automatically knows or agrees on an event.</div></li>
+      <li data-s="todo"><div class="what">Let accounts travel through encounters and the Dalecrest Daily; readers may react, disagree, forget or pass stories along. Robin's reporting must remain grounded in recorded events, not create facts.</div></li>
+      <li data-s="todo"><div class="what">Allow repeated social practices and proposed recurring gatherings to become customs or institutions only through residents' choices, participation and reinforcement; permit customs to fade or be contested.</div></li>
+      <li data-s="todo"><div class="what">Carry cultural knowledge through newcomers, children and deaths via observed practices, conversation and records, rather than a single village-wide AI mind.</div></li>
+    </ul>
+    <h4>9C. Cost-bounded growth and evidence</h4>
+    <ul class="checks">
+      <li data-s="todo"><div class="what">Measure real-time decision waits, meaningful choices per village day, token spending by role, and whether faster days increase the fraction of time residents spend waiting.</div></li>
+      <li data-s="todo"><div class="what">Pilot roughly 30–50 residents only after profiling; use standing instructions, household routines and event-triggered reflection to decouple routine activity from model calls, while preserving individual agency for consequential decisions.</div></li>
+      <li data-s="todo"><div class="what">Compare seeded villages over 30–60 simulated days: can observers trace a custom or shared belief from an event through transmission to later choices, and do villages develop different practices without scripted outcomes?</div></li>
+    </ul>
+    <p class="donewhen"><b>Done when</b> Both clock rates preserve every minute and event order; the multiplier is visible; real-world model wait and token cost are measured; and a 30–60-day seeded run traces a cultural practice through evidence, conversation and resident choice without scripting its outcome. A quiet run is valid evidence.</p>
   </article>
 </section>
 
