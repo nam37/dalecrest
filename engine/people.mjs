@@ -5,8 +5,13 @@ import { dist } from './geom.mjs';
 import { fieldsFeed } from './civic.mjs';
 import { dateOf } from './calendar.mjs';
 import { daysToHarvest, foodDays, mouths } from './stores.mjs';
+import { NAMES, YEAR } from './lives.mjs';
 
 export const POPULATION_LIMIT = 36;
+export function travelSeason(minute) {
+  const { month } = dateOf(minute);
+  return month >= 3 && month <= 10;
+}
 const FIRST = ['Wat', 'Joan', 'Piers', 'Cecily', 'Giles', 'Maud', 'Simon', 'Isolde', 'Ralph', 'Margery', 'Adam', 'Emma',
   'Walter', 'Beatrix', 'Hob', 'Avice', 'Roger', 'Sybil', 'Gilbert', 'Elena', 'Martin', 'Idonea', 'Stephen', 'Juliana',
   'Nicholas', 'Felice', 'Hamo', 'Rohese', 'Bartholomew', 'Amice'];
@@ -50,8 +55,7 @@ export function wantsNewcomer(state) {
   // The hall has two beds for lodgers. A storekeeper sleeps at the storehouse.
   if (actors.filter(a => a.home === 'hall').length > 1) return false;
   // Nobody takes to the roads between November and February.
-  const month = dateOf(world.minute).month;
-  if (month >= 11 || month <= 2) return false;
+  if (!travelSeason(world.minute)) return false;
   // Travellers stay where there is bread on the table, food in store to see one more to the next harvest
   // with a margin, and land enough to feed them.
   return world.supplies.bread >= pop * 0.75 && foodDays(world, mouths(state) + 1) >= daysToHarvest(world.minute) + 20
@@ -63,9 +67,9 @@ export function grownChild(state, child, home, random) {
   const { world, actors, map } = state;
   const pick = list => list[Math.floor(random() * list.length)];
   const parents = actors.filter(a => child.parents?.includes(a.id));
-  const surname = parents[0]?.name.split(' ').slice(1).join(' ') || pick(LAST);
+  const surname = child.surname || parents[0]?.name.split(' ').slice(1).join(' ') || pick(LAST);
   const taken = new Set(actors.map(a => a.id));
-  let id = child.name.toLowerCase().replace(/[^a-z]+/g, '-');
+  let id = child.id ?? child.name.toLowerCase().replace(/[^a-z]+/g, '-');
   while (taken.has(id)) id += '-' + (world.arrivals + actors.length);
   const trade = parents.map(p => p.trade).find(t => TRADES[t]) || shortestTrade(state, random), [kind, roles, goal] = TRADES[trade];
   const traits = [pick(TRAITS)];
@@ -77,7 +81,8 @@ export function grownChild(state, child, home, random) {
   const at = map.places.find(p => p.id === home)?.at || [map.w / 2, map.h / 2];
   return {
     id, name: child.name + ' ' + surname, role: pick(roles), home, workplace, trade, traits, born: child.born, sex: child.sex,
-    backstory: child.name + ' was born in Dalecrest' + (parents.length ? ' to ' + parents.map(p => p.name).join(' and ') : '') + ', and has grown up among its lanes and fields.',
+    backstory: child.name + ' was born in ' + (child.birthplace || 'Dalecrest') + (parents.length ? ' to ' + parents.map(p => p.name).join(' and ') : '')
+      + (child.birthplace ? ', and came to Dalecrest with their family.' : ', and has grown up among its lanes and fields.'),
     goals: [goal, 'Make a life of my own in Dalecrest'],
     needs: { hunger: 30, fatigue: 20, loneliness: 30, cold: 0 },
     relationships: Object.fromEntries(parents.map(p => [p.id, 75])), memories: [], plan: null, position: { x: at[0], y: at[1] },
@@ -86,13 +91,19 @@ export function grownChild(state, child, home, random) {
   };
 }
 
+function entrance(map, random) {
+  const gate = map.nodes[map.gates[random() < 0.7 ? 0 : 1]];
+  return { x: Math.min(map.w - 1, Math.max(1, gate[0])), y: gate[1] };
+}
+
 // A traveller who takes up the trade the village is shortest of, or the one named.
-export function newcomer(state, random, wanted) {
+export function newcomer(state, random, wanted, family) {
   const { world, actors, map } = state;
   const pick = list => list[Math.floor(random() * list.length)];
   const taken = new Set(actors.map(a => a.id));
-  const free = FIRST.filter(n => !taken.has(n.toLowerCase()));
-  const name = free.length ? pick(free) : pick(FIRST) + ' the younger';
+  const names = family ? NAMES[family.sex] : FIRST;
+  const free = names.filter(n => !taken.has(n.toLowerCase()));
+  const name = free.length ? pick(free) : pick(names) + ' the younger';
   let id = name.toLowerCase().replace(/[^a-z]+/g, '-');
   while (taken.has(id)) id += '-' + (world.arrivals + 1);
   const trade = TRADES[wanted] ? wanted : shortestTrade(state, random), [kind, roles, goal, craft] = TRADES[trade];
@@ -100,26 +111,30 @@ export function newcomer(state, random, wanted) {
   let second = pick(TRAITS);
   while (second === traits[0]) second = pick(TRAITS);
   traits.push(second);
-  const gate = map.nodes[map.gates[random() < 0.7 ? 0 : 1]];
-  const start = { x: Math.min(map.w - 1, Math.max(1, gate[0])), y: gate[1] };
-  let workplace = 'hall';
+  const start = family?.start ?? entrance(map, random);
+  let workplace = kind === 'home' && family ? family.home : 'hall';
   if (kind !== 'home') {
     const sites = placesOf(map, kind);
     if (sites.length) workplace = sites.reduce((a, b) => dist(a.at, [start.x, start.y]) <= dist(b.at, [start.x, start.y]) ? a : b).id;
   }
   const surnames = new Set(actors.map(a => a.name.split(' ').pop()));
   const spare = LAST.filter(n => !surnames.has(n));
-  const full = name + ' ' + pick(spare.length ? spare : LAST);
+  const full = name + ' ' + (family?.surname ?? pick(spare.length ? spare : LAST));
   // A storekeeper sleeps among the goods, as a keeper should, until there is a cottage to spare.
-  const home = trade === 'keep' && workplace !== 'hall' ? workplace : 'hall';
+  const home = family?.home ?? (trade === 'keep' && workplace !== 'hall' ? workplace : 'hall');
+  const role = pick(roles);
+  const story = family ? name + ' came from ' + family.town + ' with their family.' : name + ' walked in from ' + pick(TOWNS) + ' after ' + pick(REASONS) + '.';
+  const reason = family ? 'There was a cottage ready for their household in Dalecrest.'
+    : trade === 'keep' ? 'Word on the road was that Dalecrest had built a storehouse and wanted someone to keep it.'
+    : 'Word on the road was that Dalecrest had bread and work to spare.';
   return {
-    id, name: full, role: pick(roles), home, workplace, trade, traits,
-    backstory: name + ' walked in from ' + pick(TOWNS) + ' after ' + pick(REASONS) + '. ' + name + ' ' + craft + '.',
+    id, name: full, role, home, workplace, trade, traits,
+    ...(family && { sex: family.sex, born: world.minute - family.age * YEAR }),
+    backstory: story + ' ' + name + ' ' + craft + '.',
     goals: [goal, 'Find a place among the households of Dalecrest'],
     needs: { hunger: 38 + Math.floor(random() * 20), fatigue: 30 + Math.floor(random() * 20), loneliness: 45 + Math.floor(random() * 20), cold: 0 },
-    relationships: {}, memories: [], plan: null, position: start,
-    action: { kind: 'arrive', label: 'Coming up the road to Dalecrest', reason: trade === 'keep' ? 'Word on the road was that Dalecrest had built a storehouse and wanted someone to keep it.'
-      : 'Word on the road was that Dalecrest had bread and work to spare.', target: home, phase: 'travelling', remaining: 25 },
+    relationships: {}, memories: [], plan: null, position: { ...start },
+    action: { kind: 'arrive', label: 'Coming up the road to Dalecrest', reason, target: home, phase: 'travelling', remaining: 25 },
     lastChat: world.minute, lastJob: world.minute, daysWorked: 0, lastWorkDay: -1, arrived: world.minute,
   };
 }

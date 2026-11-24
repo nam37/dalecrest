@@ -49,6 +49,14 @@ test('following reports household membership and moot outcomes from the last sav
     'Wat Vale now lives here.', 'Edith Bell now lives here.', 'Wat Bell no longer lives here.',
   ]);
   assert.deepEqual(recordChanges('households', after, after), []);
+  const migrated = household(before.occupants.map(([path, name, born]) => ({ path, name, born })),
+    [{ id: 'child-1', name: 'Edith Bell', born: 400 }]);
+  assert.deepEqual(recordChanges('households', before, migrated), []);
+  const grown = household([
+    { name: 'Wat Bell', born: -6000, path: '/residents/wat/100' },
+    { name: 'Edith Bell', born: 400, path: '/residents/child-1/2210' },
+  ]);
+  assert.deepEqual(recordChanges('households', migrated, grown), ['Edith Bell now lives here.']);
   const scheduled = followSnapshot('moots', { status: 'scheduled', attendees: [], items: [] });
   const finished = followSnapshot('moots', {
     status: 'resolved', attendees: [{ id: 'agnes' }],

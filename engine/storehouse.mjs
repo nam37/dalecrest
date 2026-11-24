@@ -28,7 +28,7 @@ const KEEPS = 2;
 export const BREAD_LOW = 6;
 
 const YEAR = 365 * 1440;
-const eatingChildren = (cottage, minute) => (cottage?.children || []).filter(c => minute - c.born >= YEAR).length;
+export const eatingChildren = (cottage, minute) => (cottage?.children || []).filter(c => minute - c.born >= YEAR).length;
 
 export const storehouseOf = map => {
   const p = place(map, STOREHOUSE);

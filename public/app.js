@@ -6,6 +6,7 @@ import { residentCard, eventCard, kinds, portrait as likeness, whyText, resident
 import { createDirector } from '/director.js';
 import { ageOf } from '/engine/lives.mjs';
 import { conditionWords } from '/engine/goals.mjs';
+import { childResidents } from '/engine/children.mjs';
 import { bindVillageSound } from './village-audio.js';
 import { applyVillageChanges, sameGround } from './village-update.js';
 import { createResidentHeat } from './resident-heat.js';
@@ -23,6 +24,7 @@ const names = { village: 'Village observatory', residents: 'Village residents', 
 const stores = { grain:'Barley', flour:'Flour', bread:'Loaves · storehouse', wood:'Firewood', cloth:'Linen · storehouse', water:'Water', repair:'Building repairs' };
 const hallStores = { game:'Undressed game', meat:'Game meat', hide:'Raw hides', fish:'Fresh fish', cooked:'Cooked meals', preserved:'Salt fish and smoked game · storehouse', leather:'Leather · storehouse' };
 let state, latest, frozen=false, selected='agnes', tab='life', route='village', rosterSignature='', directorySignature='';
+let villagePeople = [];
 let ground=null, viewMode='plan', walk=null, loadingWalk=false;
 // The chronicle entry the walking view is holding on, if any.
 let held=null;
@@ -33,7 +35,7 @@ const recall = key => { try { return localStorage.getItem(key); } catch { return
 const keep = (key, value) => { try { localStorage.setItem(key, value); } catch { /* private window */ } };
 let watching = !location.hash.includes('/') && recall('dalecrest.watch') !== 'off', scene = null;
 const map = createMap($('map'), choose, {
-  resident: (actor, others) => residentCard(actor, { index: state.actors.findIndex(a => a.id === actor.id), names: state.locations, minute: state.world.minute, others }),
+  resident: (actor, others) => residentCard(actor, { index: villagePeople.findIndex(a => a.id === actor.id), names: state.locations, minute: state.world.minute, others }),
   event: (events, spot) => eventCard(events, { names: state.locations, minute: state.world.minute, place: spot.id }),
   steered: () => watch(false),
 });
@@ -42,6 +44,7 @@ const capacity = { grain:44, flour:34, bread:32, wood:32, cloth:12, repair:14, w
 
 function displayLatest() {
   state = latest;
+  villagePeople = [...state.actors, ...childResidents(state.world)];
   if (leaveMissingResident()) return;
   if (ground !== state.map) {
     ground = state.map;
@@ -90,13 +93,13 @@ function release() { held = null; walk?.hold(null); }
 // Asks the director what to show, and turns both views to it when the scene changes.
 function direct(repaint = true) {
   if (!watching || !state || frozen || route !== 'village' || document.hidden) return;
-  const next = director.pick(state, performance.now()), cut = next.key !== scene?.key;
+  const next = director.pick({ ...state, actors: villagePeople }, performance.now()), cut = next.key !== scene?.key;
   scene = next;
   if (cut) { stage(); if (repaint) render(); }
 }
 function stage() {
   held = null;
-  if (scene.actorId && state.actors.some(a => a.id === scene.actorId)) selected = scene.actorId;
+  if (scene.actorId && villagePeople.some(a => a.id === scene.actorId)) selected = scene.actorId;
   if (scene.kind === 'resident') { map.watch({ id: scene.actorId }); walk?.hold(null); }
   else if (scene.kind === 'event') { map.watch(scene.event.place); walk?.hold(scene.event); }
   else {
@@ -118,9 +121,9 @@ function watch(on, remember = false) {
 }
 // What the caption says about the scene being watched.
 function narration() {
-  const { world, actors, locations } = state;
+  const { world, locations } = state;
   if (scene.kind === 'resident') {
-    const actor = actors.find(a => a.id === scene.actorId);
+    const actor = villagePeople.find(a => a.id === scene.actorId);
     return actor ? { kicker: scene.kicker, ...residentCaption(actor, locations) } : null;
   }
   if (scene.kind === 'event') {
@@ -148,13 +151,13 @@ function date(minute) {
   return formatDate(minute, other ? 'full' : 'day');
 }
 
-const portrait = actor => likeness(state.actors.findIndex(a => a.id === actor.id));
+const portrait = actor => likeness(villagePeople.findIndex(a => a.id === actor.id));
 
 function who(actor) {
   const row=el('div','profile-top'), text=el('div');
   const name = el('h3');
-  name.append(link(actor.name, residentLink(actor)));
-  text.append(name,el('p','role',actor.role));
+  name.append(actor.child ? actor.name : link(actor.name, residentLink(actor)));
+  text.append(name,el('p','role',actor.child ? 'Age ' + actor.age : actor.role));
   row.append(portrait(actor),text);
   return row;
 }
@@ -164,10 +167,12 @@ function block(label, ...children) {
   return div;
 }
 function choose(id) {
-  if (!state?.actors.some(a=>a.id===id)) return;
+  const person = villagePeople.find(a => a.id === id);
+  if (!person) return;
   watch(false);
   release();
   selected=id;
+  if (person.child) tab='life';
   const address='#village/'+id+(tab==='heat'?'/heat':'');
   if (location.hash===address) { render(); return; }
   // Moving between residents on the village page replaces the address instead of filling the history.
@@ -175,16 +180,29 @@ function choose(id) {
   else location.hash=address;
 }
 function renderProfile(actor) {
-  const picker = $('pick-resident'), residents = state.actors;
+  const picker = $('pick-resident'), residents = villagePeople;
+  const optionName = person => person.child ? person.name : person.name.split(' ')[0];
   if (picker.options.length !== residents.length || [...picker.options].some((option, i) =>
-    option.value !== residents[i].id || option.text !== residents[i].name.split(' ')[0])) {
-    picker.replaceChildren(...residents.map(a => new Option(a.name.split(' ')[0], a.id)));
+    option.value !== residents[i].id || option.text !== optionName(residents[i]))) {
+    picker.replaceChildren(...residents.map(a => new Option(optionName(a), a.id)));
   }
   picker.disabled = !actor;
+  document.querySelector('.resident-panel .tabs').hidden = Boolean(actor?.child);
   if (!actor) {
     residentHeat.hide();
     $('profile').replaceChildren(el('p', 'empty', 'No residents are in the parish.'));
     $('detail').replaceChildren();
+    return;
+  }
+  if (actor.child) {
+    residentHeat.hide();
+    picker.value = actor.id;
+    $('profile').replaceChildren(who(actor));
+    const action = actor.action, home = state.locations[actor.home], at = state.locations[action.target];
+    $('detail').replaceChildren(block(action.phase === 'travelling' ? 'On the way' : at?.name || 'In the village',
+      el('strong', 'activity', doing(actor)),
+      ...(action.phase === 'travelling' ? [el('p', 'reason', action.label)] : [])),
+      block('Home', link(home?.name || 'Household record', householdLink(actor.home), 'where')));
     return;
   }
   const traits=el('div','trait-list');
@@ -489,16 +507,16 @@ function render() {
   $('page-title').hidden=route==='village';
   $('planner-status').textContent=planner.configured?'Village decisions · '+planner.state:'Village decisions · local rules';
   if(route==='village'){
-    const actor=actors.find(a=>a.id===selected)||actors[0]; selected=actor?.id;
+    const actor=villagePeople.find(a=>a.id===selected)||villagePeople[0]; selected=actor?.id;
     $('watch').setAttribute('aria-pressed',String(watching)); $('watch').textContent=watching?'Watching':'Watch';
     document.querySelector('.map-key').hidden=viewMode!=='plan'||watching;
     const motionMs = frozen ? 0 : Math.max(1, state.tickDueAt - performance.now());
     if (state.tickMs > 0 && state.tickMinutes > 0) {
       extras.liveTick = { map: ground, minute: world.minute, minutes: state.tickMinutes, ms: state.tickMs, endsAt: state.tickDueAt };
     }
-    map.update(actors,selected,state.locations,motionMs,world.minute,extras);
+    map.update(villagePeople,selected,state.locations,motionMs,world.minute,extras);
     if(walk&&viewMode==='walk'){
-      walk.update(actors,selected,world.minute,motionMs,extras);
+      walk.update(villagePeople,selected,world.minute,motionMs,extras);
       if(watching&&scene) caption(narration());
       else if(held){
         const at=state.locations[held.place.id]?.name;
@@ -507,7 +525,8 @@ function render() {
       } else caption(actor ? {kicker:'Following', ...residentCaption(actor, state.locations)} : null);
     } else if(!loadingWalk) caption(watching&&scene?narration():null);
     renderProfile(actor);renderAffairs();
-    $('map-count').textContent=actors.length+' residents';
+    const kids = villagePeople.length - actors.length;
+    $('map-count').textContent=actors.length+' residents'+(kids ? ' · '+kids+(kids === 1 ? ' child' : ' children') : '');
     const notable=shown(events,'highlights');
     journal($('recent-events'),(notable.length?notable:events).slice(0,5));
     const stocked = [...Object.entries(stores), ...Object.entries(hallStores).filter(([key]) => world.supplies[key] > 0)];
@@ -528,7 +547,11 @@ function render() {
 }
 function leaveMissingResident() {
   const [, who] = location.hash.slice(1).split('/');
-  if (route !== 'village' || !who || !state || state.actors.some(actor => actor.id === who)) return false;
+  if (route !== 'village' || !who || !state || villagePeople.some(actor => actor.id === who)) return false;
+  if (who.startsWith('child-') && !state.world.departed?.some(actor => actor.id === who)) {
+    history.replaceState(null, '', '#village');
+    return false;
+  }
   location.replace(residentLink({ id: who }) + '?latest=1');
   return true;
 }
@@ -545,6 +568,7 @@ function navigate(){
   else if (tab === 'heat') tab = 'life';
   // An address that names a resident is a wish to follow them, so a watch gives way to it.
   if(who) { selected=who; if(watching) { watching=false; scene=null; director.reset(); map.watch(null); walk?.hold(null); } }
+  if (villagePeople.some(person => person.id === selected && person.child)) { tab = 'life'; map.watch({ id: selected }); }
   for(const view of document.querySelectorAll('.view'))view.hidden=view.id!==route;
   for(const link of document.querySelectorAll('nav a')){
     if(link.hash==='#'+route)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');

@@ -2,6 +2,7 @@
 export const villageColors = ['#976048', '#65785a', '#b27a4b', '#537470', '#797291', '#856144', '#527997', '#957050'];
 export const skins = ['#c99873', '#bb9270', '#ce9d78', '#bc8e6c', '#bf926d', '#aa7a55', '#d6a77d', '#c59a70'];
 export const aprons = { bake: '#ebe4cf', mill: '#e2dac4', mend: '#8a6a45' };
+export const residentScale = actor => actor.child ? 0.56 + Math.min(13, Math.max(0, actor.age)) * 0.026 : 1;
 
 const tools = {
   cut: 'axe', build: 'mallet', mend: 'mallet', harvest: 'sickle', weed: 'hoe', bait: 'rod',

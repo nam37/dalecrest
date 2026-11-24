@@ -164,7 +164,11 @@ export function route(map, from, targetId) {
 
 // Part of the route a resident can cover in the given number of village minutes.
 // Keep the waypoints as well as the endpoint so both the clock and the map follow the same turns.
-export const walkingSpeed = actor => actor.traits.includes('restless') ? 2.65 : 2.15;
+export function walkingSpeed(actor) {
+  if (actor.action?.familyPace) return actor.action.familyPace;
+  if (actor.child) return actor.age < 8 ? 1.4 : 1.75;
+  return actor.traits.includes('restless') ? 2.65 : 2.15;
+}
 
 export function walkingSegment(actor, path, minutes = 1) {
   let left = walkingSpeed(actor) * minutes;

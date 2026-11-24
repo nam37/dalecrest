@@ -104,6 +104,7 @@ export function shapeActionMenu(actor, state, feasible, ownTrade) {
         (action.verb === 'share' && action.fact?.kept && action.fact?.requestId)) protect(id, 'request');
     if (lifeVerbs.has(action.verb)) protect(id, 'life');
     if (action.kind === 'meeting' || action.feast) protect(id, 'village_event');
+    if (action.kind === 'teach') protect(id, 'lesson');
     if (action.kind === 'food' && actor.needs.hunger >= PILOT.mealAt) protect(id, 'due_meal');
     if (action.kind === 'rest' && (isNight(minute) || tooIll(actor) ||
         Math.max(actor.needs.fatigue, actor.needs.cold ?? 0) >= PILOT.urgent)) protect(id, 'rest');

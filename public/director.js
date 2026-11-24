@@ -20,6 +20,9 @@ function standingOf(actor) {
   else if (a.commitmentId != null) [weight, kicker] = [9, 'Keeping a promise'];
   else if (a.kind === 'conversation') [weight, kicker] = [8.5, 'A word with a neighbour'];
   else if (a.kind === 'meeting' || a.kind === 'ballot') [weight, kicker] = [8, 'At the moot'];
+  else if (a.kind === 'teach' || a.kind === 'lesson') [weight, kicker] = [7, 'Lessons at the hall'];
+  else if (a.kind === 'kindling' || a.kind === 'carrying') [weight, kicker] = [5.5, 'Helping at home'];
+  else if (a.kind === 'play') [weight, kicker] = [4.5, 'At play'];
   else if (a.kind === 'civic') [weight, kicker] = [8, 'Village affairs'];
   else if (a.kind === 'arrive') [weight, kicker] = [8, 'A newcomer on the road'];
   else if (a.kind === 'work' && a.job === 'build') [weight, kicker] = [7.5, 'Building'];

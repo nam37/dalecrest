@@ -246,6 +246,7 @@ async function tick(db) {
   const beforeMinute = world.minute;
   const records = [];
   const village = { world, actors, map };
+  if (process.env.VILLAGE_FAMILY_ARRIVALS === '1') world.familyArrivals ??= [];
   const arrivals = welcomeResidents(village, minimumResidents);
   const presence = collectPresence();
   const { events, steps } = advanceWithTraces(village, minutes, traces, direct, records, presence.observe);

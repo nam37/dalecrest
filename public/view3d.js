@@ -9,7 +9,7 @@ import { makeFigure, poseFigure } from '/figure.js';
 import { light, hearths, indoors, yearLook, skyOver, blend } from '/ambient.js';
 import { kinds } from '/card.js';
 import { animalCoats, animalPose, fenceSpans, logsIn, parishLayout, strayCattle, workHeading } from './parish.js';
-import { residentActivity } from './resident-pose.js';
+import { residentActivity, residentScale } from './resident-pose.js';
 import { sameGround } from './village-update.js';
 
 const roofs = ['#a57456', '#a88c5d', '#aa7352', '#90907a', '#9c8259', '#b19769', '#a17c58', '#a96e50'];
@@ -830,12 +830,18 @@ export function createWalk(container, onSelect, onNote) {
       const p = motion.at(actor.id, now);
       if (!p) return;
       let f = figures.get(actor.id);
+      if (f && f.userData.child !== Boolean(actor.child)) {
+        people.remove(f);
+        names.remove(f.userData.label);
+        f = null;
+      }
       if (!f) {
         f = makeFigure(actor, index);
         // The sun's shadow is too coarse to reach the feet from far off, so a soft patch marks where they stand.
         const patch = new THREE.Mesh(contactGeo, contactMat);
         patch.rotation.x = -Math.PI / 2; patch.position.y = 0.006; patch.renderOrder = 1; f.add(patch);
         f.userData.id = actor.id;
+        f.userData.child = Boolean(actor.child);
         f.userData.label = textSprite(actor.name, false);
         f.userData.label.userData.reach = 14; f.userData.label.userData.size = 0.105;
         names.add(f.userData.label);
@@ -849,6 +855,8 @@ export function createWalk(container, onSelect, onNote) {
       }
       const y = isWater(map, x, z, 0.5) ? 0.25 : ground(x, z) + 0.012;
       f.position.set(x, y, z);
+      const scale = residentScale(actor);
+      f.scale.setScalar(scale);
       // Someone at home is indoors. Their smoke and lit window stand in for them.
       f.visible = !indoors(actor);
       f.userData.label.userData.hidden = !f.visible && actor.id !== selectedId;
@@ -858,7 +866,7 @@ export function createWalk(container, onSelect, onNote) {
       turn = Math.atan2(Math.sin(turn), Math.cos(turn));
       f.rotation.y += turn * Math.min(1, dt * 8);
       poseFigure(f, { ...activity, moving: p.moving, gone: p.gone, now, dt, still: calm.matches });
-      f.userData.label.position.set(x, y + 0.56 + (crowd.size % 2) * 0, z);
+      f.userData.label.position.set(x, y + 0.56 * scale, z);
       f.userData.label.userData.always = actor.id === selectedId;
       if (actor.id === selectedId) followed = { x, y, z, heading: p.heading, moving: p.moving, at: p.moving ? null : actor.action.target };
     });

@@ -1,6 +1,7 @@
 import { agendaTitle, BYLAWS, concerns, isLodger, WORKS } from './civic.mjs';
 import { remember } from './memory.mjs';
 import { placeAt } from './roads.mjs';
+import { isFamilyCottage } from './families.mjs';
 
 // An issue can return to the moot. A witness to last year's motion knows nothing of this one yet.
 const edition = p => p.since + ':' + p.key;
@@ -136,7 +137,7 @@ function possibleMotions(actor, state) {
   for (const c of concerns(actor, { ...state, world: knownWorld })) {
     // Public buildings and the number of neighbours can ground a case. A case about a reserve
     // also needs something this resident has handled or heard about.
-    if (c.kind === 'cottage' && c.key !== 'cottage:' + actor.id) continue;
+    if (c.kind === 'cottage' && c.key !== 'cottage:' + actor.id && !isFamilyCottage(c.key)) continue;
     if (c.kind === 'field' && !farmer(actor)) continue;
     if (c.kind === 'granary' && (!farmer(actor) || !recentGrain)) continue;
     if (c.kind === 'well' && (actor.trade !== 'draw' || (world.capacity.water >= actors.length * 2 && !shortage('water')))) continue;

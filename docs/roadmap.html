@@ -100,7 +100,7 @@ h1 em { font-style: italic; color: var(--pine); }
 .tally span { font: 400 .78rem/1.2 var(--caps); letter-spacing: .13em; color: var(--muted); }
 
 /* The lane of stages: one milestone per stage, joined by a dotted way. */
-.lane { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); position: relative; }
+.lane { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(15, minmax(0, 1fr)); position: relative; }
 .lane::before { content: ""; position: absolute; left: 5%; right: 5%; top: 21px; border-top: 2px dotted var(--ink-soft); opacity: .55; }
 .lane li { position: relative; text-align: center; padding: 0 3px; }
 .lane a { color: inherit; text-decoration: none; display: block; }
@@ -300,6 +300,8 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
       <li><a href="#stage-3"><span class="n">3</span> A village with stakes <i class="pip built"></i></a></li>
       <li><a href="#stage-3a"><span class="n">3a</span> The common store <i class="pip built"></i></a></li>
       <li><a href="#stage-3b"><span class="n">3b</span> A menu worth choosing from <i class="pip built"></i></a></li>
+      <li><a href="#stage-3c"><span class="n">3c</span> Families and village lessons <i class="pip built"></i></a></li>
+      <li><a href="#stage-3d"><span class="n">3d</span> What feeds the village <i class="pip"></i></a></li>
       <li><a href="#stage-4"><span class="n">4</span> Voices and the moot <i class="pip built"></i></a></li>
       <li><a href="#stage-5"><span class="n">5</span> Worth watching <i class="pip hand"></i></a></li>
       <li><a href="#stage-6"><span class="n">6</span> Worth following <i class="pip hand"></i></a></li>
@@ -348,6 +350,8 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
     <li class="built"><a href="#stage-3"><span class="stone">3</span><b>Stakes</b><small>Built · measuring</small></a></li>
     <li class="built"><a href="#stage-3a"><span class="stone">3a</span><b>Common store</b><small>Built · measuring</small></a></li>
     <li class="built"><a href="#stage-3b"><span class="stone">3b</span><b>The menu</b><small>Built · measuring</small></a></li>
+    <li class="built"><a href="#stage-3c"><span class="stone">3c</span><b>Families</b><small>Built · previewing</small></a></li>
+    <li><a href="#stage-3d"><span class="stone">3d</span><b>Food supply</b><small>Planned</small></a></li>
     <li class="built"><a href="#stage-4"><span class="stone">4</span><b>Voices</b><small>Built · measuring</small></a></li>
     <li class="hand"><a href="#stage-5"><span class="stone">5</span><b>Watching</b><small>In hand</small></a></li>
     <li class="hand"><a href="#stage-6"><span class="stone">6</span><b>Following</b><small>In hand</small></a></li>
@@ -792,6 +796,48 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
     <p class="donewhen"><b>Done when</b> a working week in the live village shows how often menus fit the 12-choice target, whether request size and actual tokens fell, and whether residents work at their trades on days when they can and take their preferred outings when they’re feasible. Every protected choice must remain visible. Compare fresh choices per resident before and after. A category taking over half of a working day’s choices is a reason to inspect the circumstances.</p>
   </article>
 
+  <!-- ============ Stage 3c ============ -->
+  <article class="stage" id="stage-3c">
+    <header>
+      <span class="numeral">3c</span>
+      <h3>Families and village lessons</h3>
+      <span class="meta">Size L · Needs Stages 3 and 3a</span>
+      <span class="stamp built">Built<br>Previewing</span>
+    </header>
+    <div class="meter"><span class="bar"><i class="d"></i><i class="p"></i></span><span class="count"></span></div>
+    <p>Bring two families into Dalecrest, each with two parents and four children of different ages. Children already belong to a household, eat from its larder, and become residents at fourteen. Before then, they should have days of their own that visitors can follow.</p>
+    <p>The live village had eleven residents, two hall lodgers, no vacant finished cottage and two loaves on the Storehouse shelves when this stage was proposed. At the current allowance, four adults and eight children old enough to eat add thirteen loaves to what the village issues each day.</p>
+    <ul class="checks">
+      <li data-s="done"><div class="what"><strong>Families arrive together.</strong> Each family takes a finished vacant cottage after the village allows for its existing lodgers. One chronicle entry names the parents and children and records the Storehouse's first delivery to the larder. The second family waits for three consecutive fed dawns in the first household.</div></li>
+      <li data-s="part"><div class="what"><strong>Prepare for live arrivals.</strong> The carpenter and Storekeeper can put a family cottage before the moot, and one newcomer takes up baking. The separate village rehearsal brought in both households. Check live housing, baking and the larders at dawn before enabling the live pilot.</div></li>
+      <li data-s="done"><div class="what"><strong>Children have their own days.</strong> Younger children stay close to home. Older children walk to play on the green and can bring kindling home. A completed trip moves one bundle from the village woodpile to the cottage, at most once per household per day. The clock runs these routines until the child turns fourteen.</div></li>
+      <li data-s="done"><div class="what"><strong>Lessons in the hall.</strong> A literate parent keeps their trade and can choose to teach letters and reading on Monday, Wednesday and Saturday mornings. The teacher must be present and the hall free of a moot. School-age children walk to the lesson and the record counts the time each actually attends. A dedicated schoolhouse can come later if the village asks for one.</div></li>
+      <li data-s="done"><div class="what"><strong>See what children do.</strong> Children can be selected and followed in Map and Walk. Household records show their activities and link to them on the map. Their IDs follow them into adult resident records. The first lesson with pupils appears in the chronicle.</div></li>
+    </ul>
+    <p class="status"><b>Preview · 24 November 2026.</b> Open <code>/atlas.html?families=1&amp;days=7</code> for a separate Sandbox village with spare cottages and stocked shelves. Seed 26111 brought in the Ashby household on 1 August and the Elmstead household on 4 August, with no missed breakfasts after either arrival. The preview recorded three lessons and six kindling deliveries. Set <code>VILLAGE_FAMILY_ARRIVALS=1</code> on a <a href="../tools/preview-village.mjs">separate server preview</a> to queue the same two households behind the usual housing and bread checks. At the live preflight there were two hall lodgers, no vacant finished cottage and two loaves on the shelves.</p>
+    <p class="donewhen"><b>Done when</b> both families arrive on separate days and keep their children fed, and a viewer can follow a child from home to a lesson, chore or play. The records show which lessons took place and which chores helped the household.</p>
+  </article>
+
+  <!-- ============ Stage 3d ============ -->
+  <article class="stage" id="stage-3d">
+    <header>
+      <span class="numeral">3d</span>
+      <h3>What feeds the village</h3>
+      <span class="meta">Size L · Needs Stages 3 and 3a</span>
+      <span class="stamp">Not begun</span>
+    </header>
+    <div class="meter"><span class="bar"><i class="d"></i><i class="p"></i></span><span class="count"></span></div>
+    <p><b>Proposed · 24 November 2026.</b> Today a resident can eat bread at home or a cooked or preserved portion at the hall. Fish and game both relieve hunger, but once prepared they share the same two stock entries. The village estimates days of food by converting grain, flour, loaves and prepared portions into loaves. Bread draws tell us what left the Storehouse. A meal record should also tell us what reached the table.</p>
+    <ol class="checks">
+      <li data-s="todo"><div class="what"><strong>Count food where it can be eaten.</strong> Give each edible portion a hunger value in the simulation. At each dawn, show how many days the ready food in the hall, Storehouse and cottage larders would feed the village, using the needs of adults and children. Report separately what grain, flour or raw meat could yield with enough labour and fuel. Milling, baking and carrying a loaf home must never count the same food twice.</div></li>
+      <li data-s="todo"><div class="what"><strong>Record what each household eats.</strong> Record the food and quantity at each meal, including children’s meals at dawn. Credit hunger relief when someone eats and divide that credit among the ingredients of a mixed dish. For each village week show how much hunger was relieved by bread, other farm produce, fish, hunted game and livestock products, alongside the number of residents who went hungry at dawn. Keep loaves drawn as a measure of the bread allowance. Mark older portions of unknown origin as such.</div></li>
+      <li data-s="todo"><div class="what"><strong>Follow fish and game to the table.</strong> Carry the river catch and woodland game through storage, spoilage, cooking and preserving. Credit fishing or hunting for the portions people actually eat. Record salt fish bought from the peddler as fish from trade so the village can tell how much its own fishers supplied.</div></li>
+      <li data-s="todo"><div class="what"><strong>Grow vegetables and fruit.</strong> Start with a vegetable plot and a small orchard. Peas and apples are example crops. Give each a planting season, time to maturity, work to tend and harvest it, and a storage life. Let families draw or grow produce, eat it at home or bring it to the hall. A bowl of peas or a stored apple should feed someone even on a day when the oven stands idle.</div></li>
+      <li data-s="todo"><div class="what"><strong>Raise sheep for food.</strong> Begin herding with a small flock. Give it pasture, a shepherd’s time, lambing and a winter fodder supply. Taking a sheep for mutton reduces the flock and yields meat that can be cooked or preserved. Count the portions eaten as food from herding. Cattle and goats can follow once the village can carry a flock through winter.</div></li>
+    </ol>
+    <p class="donewhen"><b>Done when</b> the following checks pass. In a seeded village with no bread for a day, a family with other food can feed its adults and children while a household with no access to a meal still goes hungry. A seven-day report reconciles portions eaten and hunger relieved by source with the meal records. A seasonal run shows a vegetable harvest, a fruit harvest and a flock carried through winter, with food from each reaching a table.</p>
+  </article>
+
   <!-- ============ Stage 4 ============ -->
   <article class="stage" id="stage-4">
     <header>
@@ -949,6 +995,8 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
     <li>Stage 3 is engine work and can begin once Stage 0 can count real tradeoffs. Its presentation counterpart, Stage 5, can run beside it.</li>
     <li>Stage 3a needs Stage 3's households and working day. Its floor under meals needs nothing and can go first. The allowance is a natural first bylaw for Stage 4's wider agenda.</li>
     <li>Stage 3b needs nothing beyond the stages already built. Measure its menus with <code>tools/menu-coverage.sql</code> and its activity starts with <code>readout.mjs</code> and <code>tools/standing-coverage.sql</code>. It comes before Stage 4, which adds positions and ballots to the menu.</li>
+    <li>Stage 3c builds on the households and lives in Stage 3 and the Storehouse allowance in Stage 3a. Begin with family arrivals, then add children's routines and lessons before opening the live rollout.</li>
+    <li>Stage 3d starts with the meals and larders from Stages 3 and 3a. Measure bread, fish and game first, add gardens and orchards next, then use the seasonal farm calendar for sheep and winter fodder.</li>
     <li>Stage 4 needs Stage 2's goals and observations.</li>
     <li>Stage 6 needs the records from Stages 1 and 2 and reads best after Stage 5's daily account.</li>
     <li>Stage 7 needs Stage 4's ballots and positions, which are what make a visitor's petition something residents can answer.</li>

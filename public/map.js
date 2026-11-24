@@ -10,7 +10,7 @@ import { drawAnimal, drawGarden, drawWoodpile } from './map-parish.js';
 import { drawGame, drawFish } from './map-wildlife.js';
 import { wildlife } from './wildlife.js';
 import { parishLayout, strayCattle, workHeading } from './parish.js';
-import { residentActivity } from './resident-pose.js';
+import { residentActivity, residentScale } from './resident-pose.js';
 
 export { villageColors } from './resident-pose.js';
 
@@ -824,7 +824,9 @@ export function createMap(canvas, onSelect, cards) {
       if (p.kind === 'cottage' || !p.name || (p.kind === 'well' && view.scale < 11)) continue;
       const [x, y] = toScreen(p.x, p.y);
       const drop = p.kind === 'field' ? 0 : p.kind === 'well' ? -1.3 * view.scale - 4 : p.kind === 'green' ? (p.ry + 1) * view.scale + 3 : ((p.d || 2.4) / 2 + 0.9) * view.scale + 4;
-      const text = p.stage < 2 && p.kind !== 'field' ? p.name + ' (building)' : p.name, size = Math.max(13, Math.min(20, view.scale * 1.9));
+      const text = p.id === 'hall' && world?.school?.lesson ? 'Lessons at the hall'
+        : p.stage < 2 && p.kind !== 'field' ? p.name + ' (building)' : p.name;
+      const size = Math.max(13, Math.min(20, view.scale * 1.9));
       const half = text.length * size * 0.26;
       let at = y + drop;
       for (let i = 0; i < 4 && written.some(b => Math.abs(b.x - x) < b.half + half && Math.abs(b.y - at) < size); i++) at += size * 1.05;
@@ -862,7 +864,7 @@ export function createMap(canvas, onSelect, cards) {
       if (!inside) {
         const activity = residentActivity(actor, p.moving);
         const heading = workHeading(p, activity, look.parish.common);
-        drawMapFigure(c, { x, y, size: s, actor, activity, index, moving: p.moving, gone: p.gone, now: time,
+        drawMapFigure(c, { x, y, size: s * residentScale(actor), actor, activity, index, moving: p.moving, gone: p.gone, now: time,
           facing: Math.cos(heading) >= 0 ? 1 : -1, still: reduced.matches });
         if (actor.action?.kind === 'waiting') {
           const bx = x + s * 0.42, by = y - s * 1.06;

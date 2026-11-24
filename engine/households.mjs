@@ -3,6 +3,7 @@
 // only from its own pile, so one household can wake to a cold house while the village's woodpile still
 // stands. The hall, where lodgers sleep, is kept by the village and draws on the common store directly.
 import { LARDER_HOLDS, drawable, stockLarder, storehouseOf, STOREHOUSE } from './storehouse.mjs';
+import { place } from './roads.mjs';
 
 export { LARDER_HOLDS };
 export const WOODPILE_HOLDS = 9;
@@ -26,6 +27,15 @@ export function prepareHousehold(cottage) {
 export function householdOf(world, actors, home) {
   const cottage = world.cottages?.[home];
   return { cottage, people: actors.filter(a => a.home === home), children: cottage?.children || [] };
+}
+
+export function vacantCottages({ world, actors, map }) {
+  return map.places.filter(site => site.kind === 'cottage' && site.stage === 2 && !actors.some(actor => actor.home === site.id)
+    && !(world.projects || []).some(project => project.id === site.id));
+}
+
+export function waitingLodgers({ actors, map }) {
+  return actors.filter(actor => place(map, actor.home)?.kind !== 'cottage' && !actor.spouse);
 }
 
 // Days a woodpile lasts at a day's burn. A pile in mild weather lasts as long as it likes.

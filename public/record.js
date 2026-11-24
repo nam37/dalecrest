@@ -71,8 +71,14 @@ function household({ household, residents, children, stores, stage, cold, minute
     item.append(link(person.name, person.path), person.role ? ' · ' + person.role : '');
     list.append(item);
   }
-  for (const child of children) list.append(el('li', child.name +
-    (Number.isFinite(child.born) ? ' · Age ' + Math.max(0, ageOf(child, minute)) : '')));
+  for (const child of children) {
+    const item = el('li');
+    item.append(child.id ? link(child.name, '/#village/' + encodeURIComponent(child.id)) : child.name);
+    if (Number.isFinite(child.born)) item.append(' · Age ' + Math.max(0, ageOf(child, minute)));
+    if (child.activity) item.append(el('p', child.travelling && child.location ? 'Walking to ' + child.location + ' · ' + child.activity
+      : child.activity + (child.location ? ' · ' + child.location : ''), 'reason'));
+    list.append(item);
+  }
   section('Who lives here', list.children.length ? list : el('p', 'Nobody lives here at present.', 'empty'));
   const provisions = [];
   if (Number.isFinite(stores?.wood)) provisions.push(el('p', Math.floor(stores.wood) + ' bundles of firewood'));

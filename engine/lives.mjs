@@ -9,8 +9,10 @@ import { place } from './roads.mjs';
 import { remember } from './memory.mjs';
 import { warm, warmthOf, trustOf } from './bonds.mjs';
 import { canContact } from './exchanges.mjs';
+import { vacantCottages, waitingLodgers } from './households.mjs';
 
-const DAY = 1440, YEAR = 365.25 * DAY;
+const DAY = 1440;
+export const YEAR = 365.25 * DAY;
 export const ADULT = 16, COMES_OF_AGE = 14;
 const clamp = (n, lo = 0, hi = 100) => Math.min(hi, Math.max(lo, n));
 
@@ -293,10 +295,13 @@ function shareHouse({ world, map, actors }, a, b) {
 
 // ------------------------------------------------------------------- children
 
-function childName(state, cottage, sex, rand) {
-  const used = new Set([...state.actors.map(first), ...(cottage.children || []).map(c => c.name)]);
-  const free = NAMES[sex].filter(n => !used.has(n));
-  return free.length ? free[Math.floor(rand() * free.length)] : NAMES[sex][Math.floor(rand() * NAMES[sex].length)];
+export function childName(state, cottage, sex, rand) {
+  const siblings = new Set(cottage.children?.map(c => c.name));
+  const adults = new Set(state.actors.map(first));
+  const pool = NAMES[sex].filter(name => !siblings.has(name));
+  const free = pool.filter(name => !adults.has(name));
+  const names = free.length ? free : pool;
+  return names[Math.floor(rand() * names.length)];
 }
 
 function dawnFamily(state, emit, rand, comeOfAge) {
@@ -348,12 +353,10 @@ function dawnFamily(state, emit, rand, comeOfAge) {
 
 // Lodgers move into a finished cottage that stands empty, whoever's turn it is by longest waiting.
 function dawnHouses(state, emit) {
-  const { world, actors, map } = state;
-  const empty = map.places.filter(p => p.kind === 'cottage' && p.stage === 2 && !actors.some(a => a.home === p.id)
-    && !(world.projects || []).some(q => q.id === p.id));
-  const lodgers = actors.filter(a => place(map, a.home)?.kind !== 'cottage' && !a.spouse && a.action.kind !== 'arrive')
+  const { world, map } = state;
+  const lodgers = waitingLodgers(state).filter(a => a.action.kind !== 'arrive')
     .sort((a, b) => (a.arrived ?? 0) - (b.arrived ?? 0));
-  for (const site of empty) {
+  for (const site of vacantCottages(state)) {
     const lodger = lodgers.shift();
     if (!lodger) break;
     lodger.home = site.id;

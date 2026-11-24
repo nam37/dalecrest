@@ -6,6 +6,8 @@ import { place, placesOf, route, walkingSegment } from './engine/roads.mjs';
 import * as civic from './engine/civic.mjs';
 import { civicChoices, enactCivicChoice, normalizeCivicNews } from './engine/civic-news.mjs';
 import { grownChild, newcomer, wantsNewcomer } from './engine/people.mjs';
+import { arrivingFamily, recordFamilyBreakfasts } from './engine/families.mjs';
+import { lessonOffer, prepareChildren, teachMinute, tickChildren } from './engine/children.mjs';
 import { dawnLives, finishLifeConversation, lifeChoices, lifeVerbs, maybeCourt, normalizeLife, tickLives, tooIll } from './engine/lives.mjs';
 import * as standing from './engine/standing.mjs';
 import { atOven, inspectOven, observeGrain } from './engine/observations.mjs';
@@ -132,6 +134,7 @@ function normalize({ world, actors, map }) {
   spreadWood(map);
   normalizeAllowance({ world, actors });
   normalizeBuildings({ world, map });
+  prepareChildren({ world, actors, map });
 }
 
 export function createVillage(seed = DEFAULT_SEED) {
@@ -287,6 +290,8 @@ function choose(actor, state, menu, diagnostics) {
   const weary = (night ? 48 : 0) + Math.max(0, fatigue - 65);
   if (actor.trade === 'report' && !night) offerReporting(actor, state, offer, weary);
   const ill = tooIll(actor);
+  const lesson = lessonOffer(actor, state);
+  if (lesson) offer('teach', 'Teaching letters and reading', 'hall', lesson.duration, 80 - weary, lesson.reason, { indoors: true });
   for (const job of (ill ? [] : menu ? jobsHere : jobsHere.slice(0, 1))) {
     const spec = jobs[job.key];
     const material = Object.keys(spec.makes)[0];
@@ -690,17 +695,21 @@ function spotOf({ actors, map }, actorIds, site) {
   return { place: { x: r2(who.position.x), y: r2(who.position.y), ...(settled && { id: settled.id }) } };
 }
 
-function arrival(state, trade) {
-  const { world, actors } = state;
-  const resident = newcomer(state, () => random(world), trade);
+function registerArrival({ world, actors }, resident) {
   normalizeLife(resident, world.minute);
   resident.desires = inferDesires(resident);
   normalizeGoals(resident, world.minute);
-  // A traveller is allowed a loaf on the day they arrive.
-  if (!world.cottages?.[resident.home]) resident.ration = 1;
   actors.push(resident);
   world.lastArrival = world.minute;
   world.arrivals = (world.arrivals ?? 0) + 1;
+}
+
+function arrival(state, trade) {
+  const { world } = state;
+  const resident = newcomer(state, () => random(world), trade);
+  // A traveller is allowed a loaf on the day they arrive.
+  if (!world.cottages?.[resident.home]) resident.ration = 1;
+  registerArrival(state, resident);
   return { type: 'arrival', minute: world.minute, actorIds: [resident.id], ...spotOf(state, [resident.id]),
     text: resident.name + ', a ' + resident.role.toLowerCase() + ', came up the road ' + (resident.home === STOREHOUSE
       ? 'to keep the storehouse, and will sleep there until there is a cottage to spare.' : 'looking for work and will lodge at the hall.') };
@@ -757,6 +766,7 @@ function stepMinute(state, events, externalActions, records, pilot) {
       actors.push(grown);
       emit('life', grown.name + ' has come of age and takes up work as a ' + grown.role.toLowerCase() + '.', [grown.id], { life: 'grown' });
     });
+    recordFamilyBreakfasts(state);
   }
   const spoiled = spoilFreshFood(world);
   if (Object.keys(spoiled).length) emit('village', 'Some raw fish or game spoiled in the hall’s stores.', [], { spoiled }, 'hall');
@@ -764,7 +774,11 @@ function stepMinute(state, events, externalActions, records, pilot) {
   tickVisitors(state, emit);
   if (minute % 1440 === FEAST_HOURS[0] && feastOf(minute)) emit('feast', 'Dalecrest keeps ' + feastOf(minute) + ' with a feast on the green this afternoon.', [], undefined, 'green');
   tickBarley(world, sky, map.seed);
-  if (minute % 1440 === 540 && wantsNewcomer(state) && random(world) < 0.7) {
+  const family = minute % 1440 === 540 && arrivingFamily(state, () => random(world));
+  if (family) {
+    for (const adult of family.adults) registerArrival(state, adult);
+    emit('arrival', family.text, family.parents, family.outcome);
+  } else if (minute % 1440 === 540 && wantsNewcomer(state) && random(world) < 0.7) {
     events.push(arrival(state));
   } else if (minute % 60 === 0 && minute % 1440 >= 480 && minute % 1440 <= 1080 && needsKeeper(state)) {
     events.push(arrival(state, 'keep'));
@@ -812,6 +826,10 @@ function stepMinute(state, events, externalActions, records, pilot) {
         endShiftEarly(actor, state, emit, 'blocked', 'the ' + (action.job === 'bake' ? 'oven' : 'millstones') + ' stayed in use too long');
         action.remaining = 0;
       }
+      continue;
+    }
+    if (action.kind === 'teach') {
+      action.remaining = teachMinute(actor, state) ? action.remaining - 1 : 0;
       continue;
     }
     advanceForageShift(actor);
@@ -912,6 +930,7 @@ function stepMinute(state, events, externalActions, records, pilot) {
     emit(type, text, ids, raised?.details);
     maybeCourt(actor, other, state, emit);
   }
+  tickChildren(state, sky, emit);
   if (externalActions) {
     // An activity that ended this minute is settled now, so routine carries straight on.
     for (const actor of actors) if (actor.action.remaining <= 0 && actor.action.kind !== 'waiting') atBoundary(actor, state, records, pilot);

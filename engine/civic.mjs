@@ -7,6 +7,7 @@ import { prepareCottage } from './village-work.mjs';
 import { GRANARY, foodDays, keepStores, mouths, ripen, storeDays } from './stores.mjs';
 import { witnessProposal } from './civic-news.mjs';
 import { weatherAt } from './seasons.mjs';
+import { familyCottageNeeded, isFamilyCottage } from './families.mjs';
 
 // Shifts of labour and bundles of wood each kind of work needs.
 export const WORKS = {
@@ -33,7 +34,8 @@ const whereabouts = (map, site) => lane(map, site) ? ' on ' + lane(map, site) : 
 export const fieldsFeed = map => map.places.filter(p => p.kind === 'field').length * 6.5;
 
 // What this resident would change about the village, strongest first.
-export function concerns(actor, { world, actors, map }) {
+export function concerns(actor, state) {
+  const { world, actors, map } = state;
   const out = [], pop = actors.length;
   const add = (key, weight, claim) => {
     if (weight < 25 || world.cooldown[key] > world.minute || world.projects.some(p => p.key === key)) return;
@@ -45,6 +47,8 @@ export function concerns(actor, { world, actors, map }) {
     add('cottage:' + other.id, 24 + (actor.relationships[other.id] || 0) * 0.5 + (actor.traits.includes('generous') ? 14 : 0)
       + (actor.trade === 'mend' ? 10 : 0), 'that ' + other.name + ' needs a cottage');
   }
+  const familyCottage = (actor.trade === 'mend' || actor.trade === 'keep') && familyCottageNeeded(state);
+  if (familyCottage) add(familyCottage, 67, 'that a family expected in Dalecrest needs a cottage');
   const farms = actor.trade === 'harvest' || actor.trade === 'mill';
   // Farmers ask for land before the village outgrows it; everyone asks once the stores run short.
   if (world.strain.grain >= 2) add('field', (farms ? 68 : 40) + world.strain.grain * 4, 'that the strips cannot feed ' + pop + ' mouths');
@@ -92,7 +96,8 @@ function siteScore(kind, state, owner, random) {
 function begin(state, proposal, random, emit) {
   const { world, actors, map } = state, kind = proposal.kind, green = place(map, 'green');
   const owner = kind === 'cottage' ? actors.find(a => a.id === proposal.key.split(':')[1]) : null;
-  if (kind === 'cottage' && (!owner || !isLodger(owner, map))) return null;
+  if (kind === 'cottage' && (isFamilyCottage(proposal.key)
+    ? familyCottageNeeded(state) !== proposal.key : !owner || !isLodger(owner, map))) return null;
   let site, props = { stage: 0, founded: world.minute };
   if (kind === 'field') {
     site = fieldSite(map, random);
@@ -127,12 +132,14 @@ function begin(state, proposal, random, emit) {
 }
 
 function describe(project, state) {
+  if (isFamilyCottage(project.key)) return 'a cottage for an arriving family';
   const owner = project.for && state.actors.find(a => a.id === project.for);
   return owner ? 'a cottage for ' + owner.name : WORKS[project.kind].a;
 }
 
 export function agendaTitle(proposal, state) {
   if (proposal.kind === 'cottage') {
+    if (isFamilyCottage(proposal.key)) return 'a cottage for an arriving family';
     const owner = state.actors.find(a => a.id === proposal.key.split(':')[1]);
     return 'a cottage for ' + (owner?.name || 'the lodger');
   }
@@ -146,6 +153,7 @@ const jsonCopy = value => JSON.parse(JSON.stringify(value));
 function eligible(p, state) {
   const { world, actors } = state;
   if (!ready(p, actors) || world.cooldown[p.key] > world.minute) return false;
+  if (isFamilyCottage(p.key) && familyCottageNeeded(state) !== p.key) return false;
   if (Object.hasOwn(BYLAWS, p.kind)) return !world.bylaws?.[p.kind] && p.key === p.kind;
   return Object.hasOwn(WORKS, p.kind) && world.projects.length < slots(actors);
 }
@@ -290,7 +298,8 @@ export function tick(state, emit, random, onMootInterruption, { externalBallots 
   const { world, actors } = state, minute = world.minute, day = minute % 1440;
   if (minute % 20 === 0 && !world.moot) {
     world.proposals = world.proposals.filter(p => minute - p.since < 8640
-      && (p.kind !== 'cottage' || actors.some(a => a.id === p.key.split(':')[1] && isLodger(a, state.map))));
+      && (p.kind !== 'cottage' || (isFamilyCottage(p.key) ? familyCottageNeeded(state) === p.key
+        : actors.some(a => a.id === p.key.split(':')[1] && isLodger(a, state.map)))));
     if (world.proposals.some(p => eligible(p, state))) {
       let at = minute - day + 1110;
       if (at - minute < 90) at += 1440;

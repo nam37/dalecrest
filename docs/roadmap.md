@@ -19,6 +19,8 @@
 | 3. A village with stakes | Built, awaiting the live measure | 7 | 0 | 0 |
 | 3a. The common store | Built, awaiting the live measure | 6 | 1 | 0 |
 | 3b. A menu worth choosing from | Built, awaiting the live measure and wording pass | 5 | 0 | 1 |
+| 3c. Families and village lessons | Built, awaiting live arrivals | 4 | 1 | 0 |
+| 3d. What feeds the village | Planned | 0 | 0 | 5 |
 | 4. Voices: competing interests and the moot | Built, awaiting a live moot | 5 | 0 | 0 |
 | 5. Worth watching | In hand | 8 | 0 | 0 |
 | 6. Worth following | In hand | 1 | 1 | 2 |
@@ -26,7 +28,7 @@
 | 8. A wider world | Not begun | 0 | 0 | 1 |
 | 9. A living village culture (A–C) | Proposed, not begun | 0 | 0 | 10 |
 | 10. The world comes to Dalecrest (A–C) | Proposed, not begun | 0 | 0 | 9 |
-| All stages | | 50 | 6 | 27 |
+| All stages | | 54 | 7 | 32 |
 
 **Reading the live village.** `readout.mjs` reads every "Done when" measure the database can answer, stage by stage, and marks it met, not met, no data or needing a viewer. On the server: `docker exec dalecrest-app node readout.mjs`, for the last 168 real hours by default. It does not replace `tools/pilot-report.mjs`, which breaks Stage 0 down further.
 
@@ -375,6 +377,34 @@ On the same production snapshot at village minute 8428, the 11 residents average
 
 Done when a working week in the live village shows how often menus fit the 12-choice target, whether request size and actual tokens fell, and whether residents work at their trades on days when they can and take their preferred outings when they’re feasible. Every protected choice must remain visible. Compare fresh choices per resident before and after. A category taking over half of a working day’s choices is a reason to inspect the circumstances.
 
+### Stage 3c. Families and village lessons (L)
+
+Bring two families into Dalecrest, each with two parents and four children of different ages. Children already belong to a household, eat from its larder, and become residents at fourteen. Before then, they should have days of their own that visitors can follow.
+
+The live village had eleven residents, two hall lodgers, no vacant finished cottage and two loaves on the Storehouse shelves when this stage was proposed. At the current allowance, four adults and eight children old enough to eat add thirteen loaves to what the village issues each day.
+
+- [x] **Families arrive together.** Each family takes a finished vacant cottage after the village allows for its existing lodgers. One chronicle entry names the parents and children and records the Storehouse's first delivery to the larder. The second family waits for three consecutive fed dawns in the first household.
+- [ ] **Prepare for live arrivals.** Under way. The carpenter and Storekeeper can put a family cottage before the moot, and one newcomer takes up baking. The separate village rehearsal brought in both households. Check live housing, baking and the larders at dawn before enabling the live pilot.
+- [x] **Children have their own days.** Younger children stay close to home. Older children walk to play on the green and can bring kindling home. A completed trip moves one bundle from the village woodpile to the cottage, at most once per household per day. The clock runs these routines until the child turns fourteen.
+- [x] **Lessons in the hall.** A literate parent keeps their trade and can choose to teach letters and reading on Monday, Wednesday and Saturday mornings. The teacher must be present and the hall free of a moot. School-age children walk to the lesson and the record counts the time each actually attends. A dedicated schoolhouse can come later if the village asks for one.
+- [x] **See what children do.** Children can be selected and followed in Map and Walk. Household records show their activities and link to them on the map. Their IDs follow them into adult resident records. The first lesson with pupils appears in the chronicle.
+
+**Preview · 24 November 2026.** Open `/atlas.html?families=1&days=7` for a separate Sandbox village with spare cottages and stocked shelves. Seed 26111 brought in the Ashby household on 1 August and the Elmstead household on 4 August, with no missed breakfasts after either arrival. The preview recorded three lessons and six kindling deliveries. Set `VILLAGE_FAMILY_ARRIVALS=1` on a [separate server preview](../tools/preview-village.mjs) to queue the same two households behind the usual housing and bread checks. At the live preflight there were two hall lodgers, no vacant finished cottage and two loaves on the shelves.
+
+Done when both families arrive on separate days and keep their children fed, and a viewer can follow a child from home to a lesson, chore or play. The records show which lessons took place and which chores helped the household.
+
+### Stage 3d. What feeds the village (L)
+
+**Proposed · 24 November 2026.** Today a resident can eat bread at home or a cooked or preserved portion at the hall. Fish and game both relieve hunger, but once prepared they share the same two stock entries. The village estimates days of food by converting grain, flour, loaves and prepared portions into loaves. Bread draws tell us what left the Storehouse. A meal record should also tell us what reached the table.
+
+- [ ] **Count food where it can be eaten.** Not begun. Give each edible portion a hunger value in the simulation. At each dawn, show how many days the ready food in the hall, Storehouse and cottage larders would feed the village, using the needs of adults and children. Report separately what grain, flour or raw meat could yield with enough labour and fuel. Milling, baking and carrying a loaf home must never count the same food twice.
+- [ ] **Record what each household eats.** Not begun. Record the food and quantity at each meal, including children’s meals at dawn. Credit hunger relief when someone eats and divide that credit among the ingredients of a mixed dish. For each village week show how much hunger was relieved by bread, other farm produce, fish, hunted game and livestock products, alongside the number of residents who went hungry at dawn. Keep loaves drawn as a measure of the bread allowance. Mark older portions of unknown origin as such.
+- [ ] **Follow fish and game to the table.** Not begun. Carry the river catch and woodland game through storage, spoilage, cooking and preserving. Credit fishing or hunting for the portions people actually eat. Record salt fish bought from the peddler as fish from trade so the village can tell how much its own fishers supplied.
+- [ ] **Grow vegetables and fruit.** Not begun. Start with a vegetable plot and a small orchard. Peas and apples are example crops. Give each a planting season, time to maturity, work to tend and harvest it, and a storage life. Let families draw or grow produce, eat it at home or bring it to the hall. A bowl of peas or a stored apple should feed someone even on a day when the oven stands idle.
+- [ ] **Raise sheep for food.** Not begun. Begin herding with a small flock. Give it pasture, a shepherd’s time, lambing and a winter fodder supply. Taking a sheep for mutton reduces the flock and yields meat that can be cooked or preserved. Count the portions eaten as food from herding. Cattle and goats can follow once the village can carry a flock through winter.
+
+Done when the following checks pass. In a seeded village with no bread for a day, a family with other food can feed its adults and children while a household with no access to a meal still goes hungry. A seven-day report reconciles portions eaten and hunger relieved by source with the meal records. A seasonal run shows a vegetable harvest, a fruit harvest and a flock carried through winter, with food from each reaching a table.
+
 ### Stage 4. Voices: competing interests and the moot (L)
 
 Apply the pilot's mechanism to a second problem, and let the village decide things by people taking positions.
@@ -523,6 +553,8 @@ More than one village with a road between them. This multiplies everything above
 - Stage 3 is engine work and can begin once Stage 0 can count real tradeoffs. Its presentation counterpart, Stage 5, can run beside it.
 - Stage 3a needs Stage 3's households and working day. Its floor under meals needs nothing and can go first. The allowance is a natural first bylaw for Stage 4's wider agenda.
 - Stage 3b needs nothing beyond the stages already built. Measure its menus with `tools/menu-coverage.sql` and its activity starts with `readout.mjs` and `tools/standing-coverage.sql`. It comes before Stage 4, which adds positions and ballots to the menu.
+- Stage 3c builds on the households and lives in Stage 3 and the Storehouse allowance in Stage 3a. Begin with family arrivals, then add children's routines and lessons before opening the live rollout.
+- Stage 3d starts with the meals and larders from Stages 3 and 3a. Measure bread, fish and game first, add gardens and orchards next, then use the seasonal farm calendar for sheep and winter fodder.
 - Stage 4 needs Stage 2's goals and observations.
 - Stage 6 needs the records from Stages 1 and 2 and reads best after Stage 5's daily account.
 - Stage 7 needs Stage 4's ballots and positions, which are what make a visitor's petition something residents can answer.

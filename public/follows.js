@@ -42,7 +42,7 @@ export function followSnapshot(kind, data) {
   if (kind === 'households') return {
     ready: data.stage >= 2, cold: data.cold,
     occupants: data.residents.map(person => [person.path, person.name, person.born]),
-    children: data.children.map(child => [child.born + '/' + child.name, child.name, child.born]),
+    children: data.children.map(child => [child.id || child.born + '/' + child.name, child.name, child.born]),
   };
   return {
     status: data.status, attendance: data.attendees.length,
@@ -56,6 +56,10 @@ const mootStatus = {
   sitting: 'The moot opened.', resolved: 'The moot concluded.', postponed: 'The moot was postponed.',
 };
 const motionStatus = { agreed: 'agreed', enacted: 'enacted', rejected: 'rejected', postponed: 'postponed' };
+const oldChildName = (old, name) => name === old || name.startsWith(old + ' ');
+function sameChild([oldKey, oldName, oldBirth], [key, name, birth]) {
+  return oldKey === key || (!oldKey.startsWith('child-') && oldBirth === birth && oldChildName(oldName, name));
+}
 
 export function recordChanges(kind, previous, next, events = []) {
   if (!previous) return [];
@@ -73,10 +77,14 @@ export function recordChanges(kind, previous, next, events = []) {
     const oldOccupants = new Map(previous.occupants), occupants = new Map(next.occupants);
     for (const [key, name] of occupants) if (!oldOccupants.has(key)) changes.push(name + ' now lives here.');
     for (const [key, name] of oldOccupants) if (!occupants.has(key)) changes.push(name + ' no longer lives here.');
-    const oldChildren = new Map(previous.children), children = new Map(next.children);
-    for (const [key, name] of children) if (!oldChildren.has(key)) changes.push(name + ' joined the household.');
-    for (const [key, name, born] of previous.children) {
-      if (!children.has(key) && !next.occupants.some(([, resident, birth]) => birth === born && resident.startsWith(name + ' '))) {
+    for (const child of next.children) {
+      if (!previous.children.some(old => sameChild(old, child))) changes.push(child[1] + ' joined the household.');
+    }
+    for (const child of previous.children) {
+      const [key, name, born] = child;
+      const grown = next.occupants.some(([path, resident, birth]) => path.startsWith('/residents/' + key + '/')
+        || birth === born && oldChildName(name, resident));
+      if (!next.children.some(nextChild => sameChild(child, nextChild)) && !grown) {
         changes.push(name + ' left the household.');
       }
     }

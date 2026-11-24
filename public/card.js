@@ -134,15 +134,16 @@ export function residentCaption(actor, names = {}) {
 export function residentCard(actor, { index = 0, names = {}, minute = 0, others = [] } = {}) {
   const card = document.createDocumentFragment(), a = actor.action || {};
   const head = el('div', 'map-card-head'), title = el('div');
-  title.append(el('h3', '', actor.name), el('p', 'role', actor.role));
+  title.append(el('h3', '', actor.name), el('p', 'role', actor.child ? 'Age ' + actor.age : actor.role));
   head.append(portrait(index), title);
 
   const at = names[a.target]?.name || a.target, deciding = a.kind === 'waiting';
-  const travelling = !deciding && a.phase === 'travelling', inside = a.kind === 'rest' && a.phase === 'working';
+  const travelling = !deciding && a.phase === 'travelling', inside = (a.kind === 'rest' || a.indoors) && a.phase === 'working';
   const what = el('div', 'map-card-part');
   const where = at ? (inside ? 'Indoors at ' : 'At ') + at : 'Out in the parish';
   what.append(el('div', 'eyebrow', travelling ? 'On the way' : where), el('strong', 'activity', doing(actor, names)));
   if (travelling) what.append(el('p', 'reason', 'On arrival · ' + a.label));
+  card.append(head, what);
 
   // The reason is whatever the records hold: a fresh choice, a routine resting on an earlier
   // choice, or the village's own rules speaking in the first person.
@@ -168,7 +169,7 @@ export function residentCard(actor, { index = 0, names = {}, minute = 0, others 
   const pressing = Object.entries(actor.needs || {}).filter(([, value]) => value >= 60).sort((x, y) => y[1] - x[1]).slice(0, 2);
   if (pressing.length) say('Pressing now: ' + pressing.map(([need, value]) => need + ' ' + Math.round(value)).join(', ') + '.');
 
-  card.append(head, what, why);
+  if (why.children.length > 1) card.append(why);
   if (others.length) card.append(el('p', 'map-card-others', 'Also indoors here: ' + others.map(o => o.name.split(' ')[0]).join(', ') + '.'));
   return card;
 }

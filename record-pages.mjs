@@ -1,5 +1,6 @@
 import { placeName } from './sim.mjs';
 import { PUBLIC } from './engine/chronicle.mjs';
+import { childView } from './engine/children.mjs';
 import { eventAccount } from './civic-accounts.mjs';
 import { eventRequestKey, validCursor } from './request-archive.mjs';
 import { dayLink, housing, householdLink, mootLink, residentLink, validRecordMinute } from './public/record-links.js';
@@ -71,7 +72,12 @@ function householdRecord(village, id) {
   const site = village.places.find(p => p.id === id);
   const residents = village.actors.filter(p => p.home === id).map(p => ({ name: p.name, role: p.role, born: p.born, path: residentLink(p) }));
   const cottage = village.cottages?.[id];
-  const children = (cottage?.children ?? []).map(c => ({ name: c.name, born: c.born }));
+  const children = (cottage?.children ?? []).map(child => {
+    const { name, born, action } = childView(child, id, village.minute);
+    const at = action && village.places.find(place => place.id === action.target);
+    return { name, born, ...(child.id && { id: child.id }),
+      ...(action && { activity: action.label, travelling: action.phase === 'travelling', location: at && placeName(at, village.actors) }) };
+  });
   const stores = cottage && { wood: cottage.woodpile, bread: cottage.larder, allowance: cottage.ration };
   return result({ household, stage: site.stage, minute: village.minute, residents, children, stores,
     cold: (village.cold ?? []).includes(id) }, household.path);
@@ -120,7 +126,7 @@ async function villageDay(db, day) {
       coalesce((SELECT jsonb_agg(to_jsonb(e) ORDER BY e.minute, e.id::bigint) FROM (
         SELECT id::text, minute, kind AS type, description AS text, actor_ids AS "actorIds", ${eventRequestKey} AS "requestId",
           ${eventMootKey} AS "mootId", ${eventAccount} AS account FROM dalecrest.events
-        WHERE minute >= $2 AND minute < $3 AND salience >= ${PUBLIC}
+        WHERE minute >= $2 AND minute < $3 AND (salience >= ${PUBLIC} OR outcome ? 'lesson' OR outcome ? 'chore')
       ) e), '[]'::jsonb) AS events
     FROM dalecrest.world w WHERE w.id=1 AND (w.state->>'minute')::bigint >= $2`, [day, from, from + dayMinutes]);
   if (!row) return missing('village day');
@@ -134,13 +140,14 @@ async function activitySince(db, record, { after, before }) {
   const { person, household, cursor } = record;
   const scope = person
     ? 'actor_ids @> ARRAY[$4::text] AND minute >= $5 AND ($6::bigint IS NULL OR minute <= $6)'
-    : "place->>'id'=$4 AND kind IN ('life','build','village')";
+    : "place->>'id'=$4 AND (kind IN ('life','build','village') OR outcome ? 'chore')";
   const bounds = person ? [person.id, person.arrived ?? 0, person.left ?? null] : [household.id];
   // Use the same high-water mark as the record. A tick committed between the reads belongs to the next visit.
   const { rows } = await db.query(`
     SELECT id::text, minute, description AS text, outcome->>'life' AS life
     FROM dalecrest.events
-    WHERE salience >= ${PUBLIC} AND id > $1 AND id <= $2 AND ($3::bigint IS NULL OR id < $3) AND ${scope}
+    WHERE (salience >= ${PUBLIC} OR outcome ? 'chore' OR outcome ? 'lesson')
+      AND id > $1 AND id <= $2 AND ($3::bigint IS NULL OR id < $3) AND ${scope}
     ORDER BY dalecrest.events.id DESC LIMIT ${activityLimit + 1}`, [after, cursor, before, ...bounds]);
   const items = rows.slice(0, activityLimit);
   return { items, next: rows.length > activityLimit ? items.at(-1).id : null };
