@@ -24,11 +24,12 @@
 | 4. Voices: competing interests and the moot | Built, awaiting a live moot | 5 | 0 | 0 |
 | 5. Worth watching | In hand | 8 | 0 | 0 |
 | 6. Worth following | In hand | 1 | 1 | 2 |
+| 6a. Admin control panel | First release verified in preview | 4 | 0 | 4 |
 | 7. A living village culture (A–C) | Clock built, live trial pending | 3 | 0 | 7 |
 | 8. The world comes to Dalecrest (A–C) | Proposed, not begun | 0 | 0 | 9 |
 | 9. Taking part | Groundwork only | 0 | 1 | 4 |
 | 10. A wider world | Not begun | 0 | 0 | 1 |
-| All stages | | 62 | 7 | 24 |
+| All stages | | 66 | 7 | 28 |
 
 **Reading the live village.** `readout.mjs` reads every "Done when" measure the database can answer, stage by stage, and marks it met, not met, no data or needing a viewer. On the server: `docker exec dalecrest-app node readout.mjs`, for the last 168 real hours by default. It does not replace `tools/pilot-report.mjs`, which breaks Stage 0 down further.
 
@@ -471,6 +472,21 @@ Done when: someone who opens the site with no explanation stays more than two mi
 
 Done when: in a small pilot, people voluntarily return to check on a resident, and it is known which unresolved matter brought them back.
 
+### Stage 6a. Admin control panel
+
+**First release · 24 November 2026.** The private panel has sign-in, a health view and audited clock changes. It was exercised in a separate PostgreSQL preview. Live installation and access are described in the [operator guide](admin-control-panel.md).
+
+- [x] **Operator access.** Named accounts have password-protected sign-in, expiring sessions and rate limits. Operator permissions are checked on every clock change. Monitors have read-only access. Agents use a separate read-only JSON URL with a bearer key.
+- [x] **Live status.** The dashboard shows the village minute and pace, deployed revision, last successful backup, provider health, oldest pending decision and token usage. The dashboard dates its last health check and credentials stay in protected server configuration.
+- [x] **Clock controls.** Select 1×, fixed 2× or day/night and see how long a village day takes. The [clock helper](../deploy/dalecrest-set-clock) applies and verifies a preset, with rollback on failure. A restricted host permission covers the helper’s approved operations. The panel shows the effective pace and the recorded request while the village app restarts.
+- [ ] **Timed trials.** Schedule a start and end in real time and show both in the operator’s time zone. Require the agreed baseline before starting and show the reason if the trial is held. Capture decision waits, discarded replies and token use before and after. Keep the schedule through an app restart, flag conflicts with manual changes and restore the previous pace once at the end.
+- [ ] **Separate pause controls.** A simulation pause holds the committed village minute and resumes from it. A planner pause stops new model requests while the clock and valid standing instructions continue. Show which pause is active and what happens to replies already in flight.
+- [ ] **Rollout checks and budget limits.** Offer approved feature switches and spending caps with their effective values and restart requirements. Before enabling family arrivals, show spare cottages, hall beds and the bread reserve. State which changes apply only to future arrivals.
+- [x] **Change history and recovery.** Requests and outcomes are written to a server journal. The record shows the operator, reason, timestamps, and the previous, requested and effective paces. Restore an earlier verified setting as a new audited change. A stale request is rejected if another operator has already changed the pace.
+- [ ] **Rehearsal.** Try the same settings in a clearly labeled preview village with separate state and local decisions. Use it to exercise restart, rollback and family-arrival checks before applying settings to the live village.
+
+The first release is ready when an operator can sign in, set and verify a clock pace, and reverse it from the change record. Tests must enforce operator-only changes through the API. The full stage is done when a preview trial survives a restart, captures its comparison, restores the previous pace once and records each step.
+
 ### Stage 7. A living village culture (A–C, proposed)
 
 **Status · 24 November 2026.** The variable-speed clock is built and the live trial is pending. The other parts remain proposals. Models form goals and select consequential choices, and the simulation validates those actions and establishes facts. Culture grows from what residents do and share.
@@ -565,6 +581,7 @@ More than one village with a road between them. This multiplies everything above
 - Stage 3d builds on the meals and larders from Stages 3 and 3a. Harvests, hay and lambing use Stage 3’s seasonal calendar.
 - Stage 4 needs Stage 2's goals and observations.
 - Stage 6 needs the records from Stages 1 and 2 and reads best after Stage 5's daily account.
+- Stage 6a can start with Stage 0’s activity records and the clock helper from Stage 7A. Rehearse the panel in a preview before connecting it to the live village.
 - Stage 7 measures how clock speed affects decision waits and costs in a single village.
 - Stage 8 pilots travelers, courier letters and trade within one village before broader visitor participation in Stage 9 and multiple villages in Stage 10.
 - Stage 9 needs Stage 4's ballots and positions, which are what make a visitor's petition something residents can answer.
@@ -664,6 +681,7 @@ The central test: **can someone follow Mabel, return the next day, and tell whet
 16. **Whether the engine may leave a feasible option off the menu.** *Decided for Stage 3b, 22 November 2026.* The fresh-choice menu aims for 12 with overflow for protected choices. The trace records omissions and the engine checks replies and standing instructions against feasibility.
 17. **How many people a menu offers, and who.** *Decided for Stage 3b, 22 November 2026.* Up to four named visits. Active relationships and responsibilities, proximity, warmth and time apart guide the shortlist.
 18. **Whether company is offered by person or by place.** *Decided for Stage 3b, 22 November 2026.* Casual company at public places and targeted visits to named people both have a place on the menu.
+19. **How operators reach the admin panel.** Choose whether to put it behind the existing private operator access or give it its own authenticated entry point. Both options need individually attributable changes and separate read and edit permissions.
 
 ## Future considerations
 

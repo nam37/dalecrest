@@ -5,6 +5,7 @@ RUN npm ci --omit=dev --no-audit --no-fund
 COPY *.mjs ./
 COPY engine/ ./engine/
 COPY public/ ./public/
+COPY admin-ui/ ./admin-ui/
 COPY tools/pilot-report.mjs ./tools/
 USER node
 RUN npm test

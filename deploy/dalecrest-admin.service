@@ -1,0 +1,21 @@
+[Unit]
+Description=Dalecrest private administration panel
+After=network.target docker.service
+
+[Service]
+Type=simple
+User=dalecrest-admin
+Group=dalecrest-admin
+WorkingDirectory=/opt/dalecrest-admin
+EnvironmentFile=/etc/dalecrest-admin/admin.env
+ExecStart=/usr/bin/node admin.mjs
+StateDirectory=dalecrest-admin
+StateDirectoryMode=0700
+UMask=0077
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

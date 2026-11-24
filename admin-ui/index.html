@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dalecrest administration</title>
+  <link rel="stylesheet" href="/admin.css">
+  <script type="module" src="/admin.js"></script>
+</head>
+<body>
+  <header class="top">
+    <div><h1>Dalecrest administration</h1><p id="target" hidden></p></div>
+    <div id="account" hidden><span id="viewer"></span><button id="logout" type="button">Sign out</button></div>
+  </header>
+  <main>
+    <section class="card login" id="sign-in">
+      <h2>Operator sign-in</h2>
+      <form id="login" method="post" action="/api/session">
+        <label>Account name<input name="name" autocomplete="username" required maxlength="40"></label>
+        <label>Password<input name="password" type="password" autocomplete="current-password" required maxlength="256"></label>
+        <button class="primary" type="submit">Sign in</button>
+        <p id="login-message" role="alert"></p>
+      </form>
+    </section>
+    <div id="dashboard" hidden>
+      <section aria-labelledby="health-heading">
+        <div class="heading"><h2 id="health-heading">Village health</h2><p id="checked"></p></div>
+        <p id="health-message" role="status"></p>
+        <div class="metrics">
+          <article class="card"><h3>Clock</h3><strong id="pace">—</strong><p id="village-time">—</p><p id="next-period"></p></article>
+          <article class="card"><h3>Decision planner</h3><strong id="planner">—</strong><p id="waiting">—</p><p id="oldest"></p></article>
+          <article class="card"><h3>Action budget</h3><strong id="tokens">—</strong><p>Tokens in the last real hour</p></article>
+          <article class="card"><h3>Deployment</h3><strong id="release">—</strong><p id="backup">—</p></article>
+        </div>
+      </section>
+      <section class="card clock-panel" id="operator-controls" aria-labelledby="clock-heading" hidden>
+        <h2 id="clock-heading">Change clock pace</h2>
+        <form id="clock-form" method="post" action="/api/clock">
+          <div class="form-fields">
+            <label>Requested pace
+              <select name="mode">
+                <option value="1x">1× fixed · 30 seconds per village minute</option>
+                <option value="2x">2× fixed · 15 seconds per village minute</option>
+                <option value="day-night">Day/night · 2× by day and 4× overnight</option>
+              </select>
+            </label>
+            <label>Reason<input name="reason" maxlength="300" required></label>
+          </div>
+          <p id="pace-summary"></p>
+          <button id="apply" class="primary" type="submit">Apply clock pace</button>
+          <p id="clock-message" role="status"></p>
+        </form>
+      </section>
+      <section class="card history" aria-labelledby="history-heading">
+        <h2 id="history-heading">Clock change history</h2>
+        <p id="empty-history">No clock changes recorded.</p>
+        <div class="table-scroll" id="history-table" hidden>
+          <table>
+            <thead><tr><th>Requested</th><th>Operator</th><th>Clock change</th><th>Outcome</th><th>Reason</th><th aria-label="Actions"></th></tr></thead>
+            <tbody id="changes"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </main>
+</body>
+</html>

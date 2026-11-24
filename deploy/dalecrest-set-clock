@@ -4,18 +4,32 @@ set -euo pipefail
 umask 077
 
 case "${1:-}" in
+  status) expected= ;;
   1x) mode=fixed; seconds=30; expected=fixed:1:30000 ;;
   2x) mode=fixed; seconds=15; expected=fixed:1:15000 ;;
   day-night) mode=day-night; seconds=30; expected=day-night ;;
-  *) echo 'Usage: dalecrest-set-clock {1x|2x|day-night}' >&2; exit 2 ;;
+  *) echo 'Usage: dalecrest-set-clock {status|1x|2x|day-night} [expected pace]' >&2; exit 2 ;;
 esac
-[[ $# -eq 1 ]] || { echo 'Pass exactly one clock mode.' >&2; exit 2; }
+if [[ "$1" == status ]]; then
+  [[ $# -eq 1 ]] || exit 2
+else
+  [[ $# -le 2 ]] || exit 2
+  case "${2:-}" in
+    '') prior= ;;
+    1x) prior=fixed:1:30000 ;;
+    2x) prior=fixed:1:15000 ;;
+    day-night) prior=day-night ;;
+    *) echo 'Invalid expected pace.' >&2; exit 2 ;;
+  esac
+fi
 
 stack=/opt/stacks/dalecrest
 state=/opt/git-deploy/dalecrest
 cd "$stack"
-exec 9>"$state/deploy.lock"
-flock 9
+if [[ "$1" != status ]]; then
+  exec 9>"$state/deploy.lock"
+  flock -w 120 9 || { echo 'The deploy lock is busy.' >&2; exit 1; }
+fi
 
 export DALECREST_RELEASE
 DALECREST_RELEASE=$(cat "$state/deployed-sha")
@@ -23,6 +37,15 @@ DALECREST_RELEASE=$(cat "$state/deployed-sha")
 # Compose gives the caller's environment precedence over .env.
 unset VILLAGE_CLOCK_MODE VILLAGE_SECONDS_PER_MINUTE
 compose=(docker compose --project-directory "$stack" -f "$stack/compose.yaml")
+
+if [[ "$1" == status ]]; then
+  last_backup=
+  if [[ -d "$state/backups" ]]; then
+    last_backup=$(find "$state/backups" -maxdepth 1 -type f -name '*.dump' -printf '%T@\n' | awk '$1 > newest { newest = $1 } END { print newest }')
+  fi
+  "${compose[@]}" exec -T -e "DALECREST_RELEASE=$DALECREST_RELEASE" -e "DALECREST_LAST_BACKUP=$last_backup" app node admin-health.mjs
+  exit
+fi
 
 clock_profile() {
   "${compose[@]}" exec -T app node -e '
@@ -57,6 +80,10 @@ restart_app() {
 }
 
 previous=$(clock_profile)
+if [[ -n "$prior" && "$previous" != "$prior" ]]; then
+  echo 'The running clock changed before the operation acquired the deploy lock.' >&2
+  exit 3
+fi
 work=$(mktemp -d "$stack/.clock.XXXXXX")
 backup="$work/original.env"
 candidate="$work/next.env"

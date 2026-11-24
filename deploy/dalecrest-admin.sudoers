@@ -1,0 +1,5 @@
+Cmnd_Alias DALECREST_CLOCK = /usr/local/sbin/dalecrest-set-clock status, \
+    /usr/local/sbin/dalecrest-set-clock 1x 2x, /usr/local/sbin/dalecrest-set-clock 1x day-night, \
+    /usr/local/sbin/dalecrest-set-clock 2x 1x, /usr/local/sbin/dalecrest-set-clock 2x day-night, \
+    /usr/local/sbin/dalecrest-set-clock day-night 1x, /usr/local/sbin/dalecrest-set-clock day-night 2x
+dalecrest-admin ALL=(root) NOPASSWD: DALECREST_CLOCK

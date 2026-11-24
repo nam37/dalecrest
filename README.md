@@ -64,6 +64,8 @@ node --env-file=.env tools/winter-village.mjs
 
 `node --env-file=.env tools/pilot-report.mjs` reports how activities began, how long residents waited and what was spent, for whichever village `DATABASE_URL` names.
 
+The [admin control panel](docs/admin-control-panel.md) provides an authenticated health dashboard, audited clock controls, and a read-only agent URL.
+
 `node --env-file=.env readout.mjs [hours]` reads each roadmap stage's "Done when" measures from the same records, over the last week of real time unless told otherwise, and marks each met, not met, or not yet measurable. Add `--json` for the figures alone. On the server it runs inside the app container: `docker exec dalecrest-app node readout.mjs`.
 
 ## Explore the project
