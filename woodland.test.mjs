@@ -37,10 +37,12 @@ test('a new village has the wider wood, and a stored one gains it on its next st
   assert.ok(village.map.trees.length > plain.trees.length + 60);
   assert.equal(village.world.mapRevision, village.map.revision);
 
-  // A village stored before the wood spread: the same ground without the new trees or their mark.
-  const stored = JSON.parse(JSON.stringify(village)), kept = new Set(plain.trees.map(t => t.join()));
-  stored.map.trees = stored.map.trees.filter(t => kept.has(t.join()));
+  // A village stored before the wood spread: the ground as it was first drawn, without the new trees
+  // or their mark, and without the high country that was raised after them.
+  const stored = JSON.parse(JSON.stringify(village));
+  stored.map.trees = plain.trees;
   delete place(stored.map, 'wood').spread;
+  delete stored.map.terrain.fell;
   const before = stored.map.revision;
   stepVillage(stored, { minutes: 1 });
   assert.equal(stored.map.trees.length, village.map.trees.length);

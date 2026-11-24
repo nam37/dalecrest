@@ -1,7 +1,7 @@
 // The walking view: the same stored map, raised into low-poly ground, buildings and trees,
 // seen from just behind whichever resident is selected.
 import * as THREE from '/vendor/three.module.min.js';
-import { heightAt, isWater, WATER_LEVEL } from '/engine/terrain.mjs';
+import { heightAt, isWater, TREE_LINE, WATER_LEVEL } from '/engine/terrain.mjs';
 import { hash2, rng, fbm, rectPoly, TAU } from '/engine/geom.mjs';
 import { createMotion } from '/motion.js';
 import { chains } from '/map.js';
@@ -347,7 +347,7 @@ export function createWalk(container, onSelect, onNote) {
     const margin = 64, cell = 1.5, nx = Math.ceil((map.w + margin * 2) / cell), nz = Math.ceil((map.h + margin * 2) / cell);
     grid = { margin, cell, nx, nz, y: new Float32Array((nx + 1) * (nz + 1)) };
     const pos = new Float32Array((nx + 1) * (nz + 1) * 3), col = new Float32Array(pos.length), index = [];
-    const grass = new THREE.Color('#9fb267'), dry = new THREE.Color('#c8c486'), lush = new THREE.Color('#7c9a54'), mud = new THREE.Color('#b9ad88'), bed = new THREE.Color('#8d9a84'), c = new THREE.Color();
+    const grass = new THREE.Color('#9fb267'), dry = new THREE.Color('#c8c486'), lush = new THREE.Color('#7c9a54'), mud = new THREE.Color('#b9ad88'), bed = new THREE.Color('#8d9a84'), rock = new THREE.Color('#9a9484'), scree = new THREE.Color('#b3ab96'), heath = new THREE.Color('#9c9a63'), c = new THREE.Color();
     for (let j = 0, k = 0; j <= nz; j++) {
       for (let i = 0; i <= nx; i++, k += 3) {
         const x = -margin + i * cell, z = -margin + j * cell, y = heightAt(map, x, z);
@@ -356,6 +356,10 @@ export function createWalk(container, onSelect, onNote) {
         const tone = fbm(map.seed + 19, x / 17, z / 17);
         c.copy(grass).lerp(tone > 0.5 ? dry : lush, Math.abs(tone - 0.5) * 1.5);
         if (y < 0.14) c.lerp(mud, Math.min(1, (0.14 - y) * 6));
+        // The grass gives way to heath on the high moor, and that to bare rock above the tree line,
+        // in two greys so the crags do not look poured.
+        if (y > 3.6) c.lerp(heath, Math.min(0.75, (y - 3.6) / 4));
+        if (y > TREE_LINE - 1.5) c.lerp(tone > 0.5 ? scree : rock, Math.min(1, (y - TREE_LINE + 1.5) / 3));
         if (y < WATER_LEVEL) c.lerp(bed, 0.8);
         col[k] = c.r; col[k + 1] = c.g; col[k + 2] = c.b;
       }
@@ -621,7 +625,8 @@ export function createWalk(container, onSelect, onNote) {
     for (let i = 0; i < 2600; i++) {
       const x = -60 + rand() * (map.w + 120), z = -60 + rand() * (map.h + 120), size = 0.7 + rand() * 0.6, pine = rand() < 0.5;
       if (x > 2 && z > 2 && x < map.w - 2 && z < map.h - 2) continue;
-      if (fbm(map.seed + 31, x / 26, z / 26) < 0.47 || heightAt(map, x, z) < 0.12) continue;
+      const stand = heightAt(map, x, z);
+      if (fbm(map.seed + 31, x / 26, z / 26) < 0.47 || stand < 0.12 || stand > TREE_LINE) continue;
       trees.push([x, z, size, pine ? 1 : 0]);
     }
     const trunkGeo = new THREE.CylinderGeometry(0.06, 0.09, 0.6, 5), leafGeo = new THREE.IcosahedronGeometry(1, 0), pineGeo = new THREE.ConeGeometry(0.62, 1.9, 6);

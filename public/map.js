@@ -1,6 +1,6 @@
 // The plan view. Everything here is drawn from the village's stored map, so a new lane,
 // field or cottage appears as soon as the residents have made it.
-import { heightAt } from '/engine/terrain.mjs';
+import { heightAt, TREE_LINE } from '/engine/terrain.mjs';
 import { rectPoly, rng, hash2, smooth, TAU } from '/engine/geom.mjs';
 import { createMotion } from '/motion.js';
 import { light, hearths, indoors, yearLook, skyOver, sunOver, blend, PLAIN_LIGHT } from '/ambient.js';
@@ -166,6 +166,33 @@ function paintPaper(c, map, look, scale) {
     g.addColorStop(1, lit > 0 ? 'rgba(252,255,214,0)' : 'rgba(38,62,48,0)');
     c.fillStyle = g; c.fillRect(x - r, y - r, r * 2, r * 2);
   }
+  // Bare rock and scree above the tree line, greyer the higher it stands.
+  for (const [x, y, bare] of look.crags) {
+    const g = c.createRadialGradient(x, y, 0, x, y, 2.9);
+    g.addColorStop(0, 'rgba(' + (snow > 0.4 ? '238,238,232,' : '196,188,166,') + (0.5 * bare).toFixed(3) + ')'); g.addColorStop(1, 'rgba(196,188,166,0)');
+    c.fillStyle = g; c.fillRect(x - 2.9, y - 2.9, 5.8, 5.8);
+  }
+  // Its faces are lit and shaded more strongly than the low ground's, so the mountain stands up off the sheet.
+  for (const [x, y, bare, , , , lit] of look.crags) {
+    // Each wash overlaps its neighbours several times over, so each one is faint.
+    const a = Math.min(lit > 0 ? 0.075 : 0.1, Math.abs(lit) * 0.13) * bare * (1 - snow * 0.3);
+    if (a < 0.008) continue;
+    const g = c.createRadialGradient(x, y, 0, x, y, 4.2), tone = lit > 0 ? '255,250,224,' : '66,62,52,';
+    g.addColorStop(0, 'rgba(' + tone + a.toFixed(3) + ')'); g.addColorStop(1, 'rgba(' + tone + '0)');
+    c.fillStyle = g; c.fillRect(x - 4.2, y - 4.2, 8.4, 8.4);
+  }
+  c.strokeStyle = '#6b6450aa'; c.lineWidth = line * 1.1; c.beginPath();
+  for (const [x, y, bare, gx, gy, k] of look.crags) {
+    const steep = Math.hypot(gx, gy);
+    if (steep < 0.2 || bare < 0.25) continue;
+    // Three short strokes side by side, each pointing downhill.
+    const dx = -gx / steep, dy = -gy / steep, len = Math.min(1.25, 0.4 + steep * 1.6);
+    for (const side of [-0.6, 0, 0.6]) {
+      const sx = x + (k - 0.5) * 1.2 - dy * side, sy = y + (k - 0.5) * 0.9 + dx * side;
+      c.moveTo(sx, sy); c.lineTo(sx + dx * len * (side ? 0.75 : 1), sy + dy * len * (side ? 0.75 : 1));
+    }
+  }
+  c.stroke();
   // Dotted contours mark each rise in the ground.
   c.strokeStyle = snow > 0.4 ? '#7f8a8288' : '#4f6a4688'; c.lineWidth = line * 1.7; c.setLineDash([0.01, 0.62]);
   c.beginPath();
@@ -376,7 +403,7 @@ function paintPaper(c, map, look, scale) {
 
 // Decoration that depends only on the terrain is worked out once per map.
 function prepare(map) {
-  const rand = rng(map.seed + 3), look = { washes: [], relief: [], contours: [], specks: [] };
+  const rand = rng(map.seed + 3), look = { washes: [], relief: [], contours: [], specks: [], crags: [] };
   for (let i = 0; i < 150; i++) look.washes.push([rand() * map.w, rand() * map.h, 5 + rand() * 13, i % 3 !== 0]);
   // A grid of heights gives both the shading of each slope and the contour lines between levels.
   const step = 2, nx = Math.ceil(map.w / step), ny = Math.ceil(map.h / step), H = [];
@@ -386,12 +413,18 @@ function prepare(map) {
     for (let i = 1; i < nx; i++) {
       top = Math.max(top, H[j][i]);
       if (H[j][i] < 0.06) continue;
+      // High ground is bare. Where it is steep as well, hachures run down the slope.
+      if (H[j][i] > TREE_LINE - 1.2) {
+        const gx = (H[j][i + 1] - H[j][i - 1]) / (2 * step), gy = (H[j + 1][i] - H[j - 1][i]) / (2 * step);
+        look.crags.push([i * step, j * step, smooth(TREE_LINE - 1.2, TREE_LINE + 1, H[j][i]), gx, gy, hash2(map.seed + 9, i, j), (gx + gy) / Math.SQRT2]);
+      }
       // Ground that rises toward the south-east faces the north-west light.
       const lit = ((H[j][i + 1] - H[j][i - 1]) + (H[j + 1][i] - H[j - 1][i])) / (2 * step) / Math.SQRT2;
       if (Math.abs(lit) > 0.012) look.relief.push([i * step, j * step, step * 1.9, lit]);
     }
   }
-  for (let level = 0.42; level < top; level += 0.4) {
+  // Contours stand closer together on the low ground than on the mountain, where every fourth is drawn.
+  for (let level = 0.42; level < top; level += level < TREE_LINE ? 0.4 : 1.6) {
     for (let j = 0; j < ny; j++) {
       for (let i = 0; i < nx; i++) {
         const x = i * step, y = j * step, pts = [];
@@ -436,7 +469,8 @@ export function createSurvey(canvas) {
     if (!w || !h) return;
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
-    const key = [map.seed, map.w, map.h].join(':');
+    // The ground is drawn again when the terrain itself changes, as when the high country was raised.
+    const key = [map.seed, map.w, map.h, JSON.stringify(map.terrain.fell ?? 0)].join(':');
     if (key !== groundKey) { look = prepare(map); groundKey = key; }
     if (map !== lastMap) {
       look.chains = chains(map);
@@ -1075,7 +1109,8 @@ export function createMap(canvas, onSelect, cards) {
   return {
     setMap(next, names = {}) {
       const grew = !map || next.places.length !== map.places.length;
-      if (!look || next.seed !== map?.seed) look = prepare(next);
+      const ground = next.seed + ':' + JSON.stringify(next.terrain.fell ?? 0);
+      if (!look || ground !== look.ground) { look = prepare(next); look.ground = ground; }
       map = next; locations = names;
       look.chains = chains(map);
       look.parish = parishLayout(map);

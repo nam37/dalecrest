@@ -1,7 +1,7 @@
 // Seeds a village from a single number. Roads come first: a through road, lanes out to the
 // places people work, then buildings on lots along those ways, fields and woods.
 import { rng, spline, dist, r2, fbm, TAU, inPoly, lerp } from './geom.mjs';
-import { riverDistance, isWater } from './terrain.mjs';
+import { riverDistance, isWater, heightAt, riverEast, TREE_LINE } from './terrain.mjs';
 import { HALF, addNode, addEdge, nearestOnRoads, outline, place, touch } from './roads.mjs';
 import { FOOTPRINT, addPlace, pickLot } from './sites.mjs';
 
@@ -81,6 +81,39 @@ export function spreadWood(map) {
   }
   touch(map);
   return map.trees.length - before;
+}
+
+// The high country east of the river: a moor that climbs away from the water, and on it a ridge that
+// comes in over the north edge of the sheet and runs off the east, clear of the High Road. A map drawn
+// before it stood gains it once. The ridge is set out from the river and the bridge, so it keeps its
+// place on any map. Trees above the tree line go, and woods are planted up the new slopes.
+export function raiseFell(map) {
+  const t = map.terrain;
+  if (t.fell) return false;
+  const low = { ...map, terrain: { ...t } };
+  const bridge = map.edges.find(edge => edge[2] === 'bridge'), by = bridge ? map.nodes[bridge[0]][1] : t.cy + 4.5;
+  // Each point of the crest: how far east of the river, how far north of the bridge, and how high.
+  const wide = (map.w - riverEast(t, by - 42)) / 58;
+  t.fell = { moor: 4.2, r: 30, crest: [[46, 77, 11], [46, 59, 8], [40, 42, 15], [46, 32, 7.5], [53, 25, 9.5], [70, 21, 6]]
+    .map(([east, north, h]) => [r1(riverEast(t, by - north) + east * wide), r1(by - north), h]) };
+  map.trees = map.trees.filter(tree => heightAt(map, tree[0], tree[1]) < TREE_LINE);
+  const rand = rng(t.seed + 97), solids = map.places.map(p => outline(p, p.kind === 'field' ? 0.4 : 1)).filter(Boolean);
+  for (let gy = 3; gy < map.h - 2; gy += 2.3) {
+    for (let gx = 3; gx < map.w - 2; gx += 2.3) {
+      const x = gx + (rand() - 0.5) * 1.8, y = gy + (rand() - 0.5) * 1.8;
+      const roll = rand(), kindRoll = rand(), size = rand();
+      const h = heightAt(map, x, y), lifted = h - heightAt(low, x, y);
+      if (lifted < 1.2 || h > TREE_LINE - 0.6) continue;
+      // Thick on the ridge's lower slopes and thinning upward. On the open moor, in scattered stands.
+      const chance = lifted > 3.2 ? 0.5 * (1 - (h - 5) / 9) : fbm(t.seed + 41, x / 20, y / 20) > 0.52 ? 0.42 : 0.04;
+      if (roll > chance || riverDistance(map, x, y) - t.riverWidth / 2 < 1 || solids.some(poly => inPoly([x, y], poly))) continue;
+      const way = nearestOnRoads(map, [x, y], () => true);
+      if (way.d < HALF[way.kind] + 1.2 || map.trees.some(tree => dist(tree, [x, y]) < 1.5)) continue;
+      map.trees.push([r1(x), r1(y), r1(0.6 + size * 0.55), kindRoll < (h > 5 ? 0.85 : 0.4) ? 1 : 0]);
+    }
+  }
+  touch(map);
+  return true;
 }
 
 export function generateMap(seed = 26111) {
