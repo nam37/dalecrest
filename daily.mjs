@@ -1,4 +1,5 @@
 import { formatDate } from './engine/calendar.mjs';
+import { chooseDailyIllustration } from './engine/daily-illustrations.mjs';
 import { eventRequestKey } from './request-archive.mjs';
 
 const dayLength = 1440;
@@ -32,7 +33,7 @@ export async function queueEditions(db, before, after) {
 async function readSources(db, day) {
   const start = (day - 1) * dayLength;
   const { rows } = await db.query(`SELECT id::text, minute::float8, kind, description AS text,
-      ${eventRequestKey} AS "requestId" FROM dalecrest.events
+      ${eventRequestKey} AS "requestId", place->>'id' AS "placeId", outcome->>'site' AS "workSite" FROM dalecrest.events
     WHERE minute >= $1 AND minute < $2 AND kind <> 'plan'
       AND coalesce(outcome->>'verb','') NOT IN ('retain','defer')
     ORDER BY minute, dalecrest.events.id`, [start, start + dayLength]);
@@ -98,11 +99,13 @@ Give each paragraph the string event IDs that support its facts. Lead and briefs
 coverage day. If the day has no records, return a headline saying so and leave lead and briefs empty.`;
 
 async function writeCopy({ day, records, prior }, model, key, request, recordUsage) {
-  const dated = ({ minute, ...source }) => ({ ...source, when: formatDate(minute, 'day') + ', ' + partOfDay(minute) });
+  const dated = ({ id, kind, text, requestId, minute }) =>
+    ({ id, kind, text, requestId, when: formatDate(minute, 'day') + ', ' + partOfDay(minute) });
+  const { illustration, ...previousEdition } = prior ?? {};
   const input = { coverageDate: formatDate((day - 1) * dayLength, 'long'),
     robinsNotebook: records.filter(r => r.kind === 'fieldnote').map(dated),
     villageRecords: records.filter(r => r.kind !== 'fieldnote').map(dated),
-    previousEdition: prior && { ...prior, sources: prior.sources.map(dated) } };
+    previousEdition: prior && { ...previousEdition, sources: prior.sources.map(dated) } };
   const response = await request('https://api.anthropic.com/v1/messages', {
     method: 'POST', signal: AbortSignal.timeout(180000),
     headers: { 'content-type': 'application/json', 'anthropic-version': '2023-06-01', 'x-api-key': key },
@@ -143,7 +146,9 @@ function assembleEdition(copy, { records, prior }) {
     });
   }
   if (records.some(r => r.kind === 'fieldnote') && !records.some(r => r.kind === 'fieldnote' && cited.has(r.id))) invalid();
-  edition.sources = [...cited].map(id => available.get(id));
+  const citedRecords = [...cited].map(id => available.get(id));
+  edition.illustration = chooseDailyIllustration(edition.lead, records);
+  edition.sources = citedRecords.map(({ placeId, workSite, ...record }) => record);
   return edition;
 }
 
@@ -185,6 +190,11 @@ export async function dailyArchive(db, dayParam) {
     FROM dalecrest.daily_editions d WHERE edition IS NOT NULL AND ($1::integer IS NULL OR d.day=$1)
     ORDER BY d.day DESC LIMIT 1`, [dayParam]);
   if (dayParam !== null && !issue) return { status: 404, body: { error: 'This edition has not been published.' } };
+  if (issue && !Object.hasOwn(issue.edition, 'illustration')) {
+    const start = (issue.day - 1) * dayLength;
+    const sources = issue.edition.sources.filter(source => source.minute >= start && source.minute < start + dayLength);
+    issue.edition.illustration = chooseDailyIllustration(issue.edition.lead, sources);
+  }
   const { rows: [state] } = await db.query(`SELECT (state->>'minute')::float8 AS minute,
     (SELECT min(day) FROM dalecrest.daily_editions WHERE edition IS NULL) AS pending FROM dalecrest.world WHERE id=1`);
   return { status: 200, body: { issue: issue ?? null, ...state, editorConfigured: Boolean(process.env.CLAUDE_KEY?.trim()) } };

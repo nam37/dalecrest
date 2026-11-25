@@ -75,6 +75,9 @@ nav a[aria-current=page] { color: var(--rust); border-bottom-color: var(--rust);
 .paper-columns { display: grid; grid-template-columns: minmax(0, 1.8fr) minmax(0, 1fr); gap: clamp(18px, 4vw, 50px); margin: 28px 0; }
 .paper-lead #coverage { font-family: var(--caps); color: var(--rust); letter-spacing: .04em; }
 .paper-lead h2 { font-size: clamp(2.3rem, 4.5vw, 3.9rem); line-height: 1.02; margin: 10px 0 18px; }
+.paper-illustration { margin: 0 0 1em; }
+.paper-illustration img { width: 100%; height: auto; display: block; }
+.paper-illustration figcaption { margin-top: .3em; color: var(--muted); font-size: .9rem; font-style: italic; }
 .paper-lead #lead p { font-size: 1.19rem; line-height: 1.5; margin: 0 0 .9em; }
 .paper-side { padding-left: clamp(15px, 3vw, 32px); border-left: 1px solid var(--rule); }
 .paper-side h2 { font-size: 1.6rem; border-bottom: 1px solid var(--rule); padding-bottom: 5px; margin-bottom: 10px; }

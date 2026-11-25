@@ -1,4 +1,5 @@
 import { formatDate } from '/engine/calendar.mjs';
+import { dailyIllustrations } from '/engine/daily-illustrations.mjs';
 import { dayLink, promiseLink } from './record-links.js';
 
 const $ = id => document.getElementById(id);
@@ -31,6 +32,15 @@ function showIssue({ day, edition, older, newer }) {
   $('coverage').replaceChildren('From ', link(formatDate(start, 'long'), dayLink(start)));
   $('headline').textContent = edition.headline;
   const numbers = new Map(edition.sources.map((source, index) => [source.id, index + 1]));
+  const illustration = edition.illustration;
+  const figure = $('lead-illustration');
+  figure.hidden = true;
+  if (illustration && Object.hasOwn(dailyIllustrations, illustration.subject) && numbers.has(illustration.sourceId)) {
+    const { src, alt, caption } = dailyIllustrations[illustration.subject];
+    Object.assign($('lead-image'), { src, alt });
+    Object.assign($('lead-image-caption'), { textContent: caption, href: address(day) + '#record-' + illustration.sourceId });
+    figure.hidden = false;
+  }
   function paragraphs(id, items) {
     $(id).replaceChildren(...items.map(item => {
       const p = document.createElement('p');
@@ -102,5 +112,6 @@ async function refresh() {
   }
 }
 
+$('lead-image-caption').addEventListener('click', () => { $('records').open = true; });
 window.addEventListener('hashchange', showRecord);
 refresh();

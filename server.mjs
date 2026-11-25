@@ -6,6 +6,7 @@ import { locationsOf } from './sim.mjs';
 import { affairs } from './engine/civic.mjs';
 import { requestArchive } from './request-archive.mjs';
 import { dailyArchive, publishNextDaily } from './daily.mjs';
+import { dailyIllustrations } from './engine/daily-illustrations.mjs';
 import { createVillageStream } from './village-stream.mjs';
 import { mapRevisions, mapRevision, residentHeat } from './village-history.mjs';
 import { recordPage } from './record-pages.mjs';
@@ -13,10 +14,16 @@ import { recordPath } from './public/record-links.js';
 
 const host = process.env.HOST || '127.0.0.1';
 const port = Number(process.env.PORT || 4173);
-const types = { html: 'text/html', js: 'text/javascript', mjs: 'text/javascript', css: 'text/css', svg: 'image/svg+xml', woff2: 'font/woff2' };
+const types = {
+  html: 'text/html; charset=utf-8', js: 'text/javascript; charset=utf-8', mjs: 'text/javascript; charset=utf-8',
+  css: 'text/css; charset=utf-8', svg: 'image/svg+xml; charset=utf-8', webp: 'image/webp', woff2: 'font/woff2',
+};
 // Everything the browser may fetch, listed once at startup. The engine modules are shared with the page.
 const files = new Map([['/', new URL('./public/index.html', import.meta.url)], ['/sim.mjs', new URL('./sim.mjs', import.meta.url)]]);
-for (const name of await readdir(new URL('./public/', import.meta.url))) files.set('/' + name, new URL('./public/' + name, import.meta.url));
+for (const entry of await readdir(new URL('./public/', import.meta.url), { withFileTypes: true })) {
+  if (entry.isFile()) files.set('/' + entry.name, new URL('./public/' + entry.name, import.meta.url));
+}
+for (const { src } of Object.values(dailyIllustrations)) files.set(src, new URL('./public' + src, import.meta.url));
 for (const name of await readdir(new URL('./engine/', import.meta.url))) files.set('/engine/' + name, new URL('./engine/' + name, import.meta.url));
 for (const name of ['three.module.min.js', 'three.core.min.js']) files.set('/vendor/' + name, new URL('./node_modules/three/build/' + name, import.meta.url));
 // The typefaces are npm dependencies too, so the page still loads nothing from another host.
@@ -88,7 +95,7 @@ const server = http.createServer(async (req, res) => {
       const file = files.get(page ? page.kind === 'promises' ? '/requests.html' : '/record.html' : path);
       const body = await readFile(file);
       if (path.startsWith('/vendor/')) res.setHeader('Cache-Control', 'public, max-age=604800');
-      res.writeHead(200, { 'Content-Type': types[file.pathname.split('.').pop()] + '; charset=utf-8' }).end(body);
+      res.writeHead(200, { 'Content-Type': types[file.pathname.split('.').pop()] }).end(body);
     } else { res.writeHead(404).end(); }
   } catch { res.writeHead(503, { 'Content-Type': 'text/plain' }).end('Dalecrest is temporarily unavailable.'); }
 });
