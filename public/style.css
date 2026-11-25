@@ -244,21 +244,24 @@ html:has(.map-area.map-expanded) { overflow: hidden; }
 .scene-caption .where { margin: 6px 0 0; }
 .scene-caption .eyebrow { color: var(--rust); }
 /* The card that opens over a resident on the map. */
-.map-card { position: absolute; left: 0; top: 0; z-index: 5; width: min(318px, calc(100% - 16px)); padding: 13px 15px 11px; background: #fbf6e6; border: 1px solid #a99a72; box-shadow: 0 0 0 3px #f9f2dcb3, 0 0 0 4px #a99a7266, 0 16px 28px -12px #2b271dbb; pointer-events: none; animation: card-in .14s ease-out; }
-.map-card.pinned { pointer-events: auto; }
-.map-card::after { content: ""; position: absolute; left: var(--notch, 50%); bottom: -7px; width: 12px; height: 12px; margin-left: -6px; background: #fbf6e6; border: solid #a99a72; border-width: 0 1px 1px 0; transform: rotate(45deg); }
+.map-card { position: absolute; left: 0; top: 0; z-index: 5; width: min(304px, calc(100% - 16px)); padding: 12px 13px; background: var(--leaf); border: 1px solid #a99a72; box-shadow: 0 0 0 3px #f9f2dcb3, 0 0 0 4px #a99a7266, 0 16px 28px -12px #2b271dbb; overflow-wrap: anywhere; animation: card-in .14s ease-out; }
+.map-card::after { content: ""; position: absolute; left: var(--notch, 50%); bottom: -7px; width: 12px; height: 12px; margin-left: -6px; background: var(--leaf); border: solid #a99a72; border-width: 0 1px 1px 0; transform: rotate(45deg); pointer-events: none; }
 .map-card.below::after { bottom: auto; top: -7px; border-width: 1px 0 0 1px; }
-.map-card-head { display: flex; align-items: center; gap: 12px; padding-right: 18px; }
-.map-card-head .portrait { width: 42px; height: 45px; }
+.map-card-head { display: flex; align-items: center; gap: 10px; min-height: 40px; padding-right: 36px; }
+.map-card-head .portrait { width: 37px; height: 40px; }
 .map-card-head h3 { font: 400 1.3rem/1.15 var(--display); }
-.map-card-part { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--rule-soft); }
-.map-card-part .activity { font-size: 1.28rem; margin: 1px 0 2px; }
-.map-card-part .basis { margin: 3px 0 4px; }
-.map-card-part .reason + .reason { margin-top: 3px; }
-.map-card-others, .map-card-hint { margin-top: 8px; font-size: .86rem; font-style: italic; color: var(--muted); }
-.map-card.pinned .map-card-hint, .map-card:not(.pinned) .map-card-close { display: none; }
-.map-card-close { position: absolute; right: 5px; top: 3px; width: 28px; height: 28px; padding: 0; border: 0; background: none; font: 400 1.35rem/1 var(--display); color: var(--ink-soft); cursor: pointer; }
-.map-card-close:hover, .map-card-close:focus-visible { color: var(--rust); }
+.map-card-head .role { margin-top: 1px; font-size: .91rem; line-height: 1.25; }
+.map-card-part { margin-top: 8px; padding-top: 7px; border-top: 1px solid var(--rule-soft); }
+.map-card-part .eyebrow { font-size: .75rem; line-height: 1.25; }
+.map-card-part .activity { font-size: 1.22rem; margin: 2px 0 0; }
+.map-card-part .reason { margin-top: 2px; font-size: .94rem; line-height: 1.38; }
+.map-card-context { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 8px; }
+.map-card-context .basis { margin: 0; padding: 1px 6px; border: 0; border-radius: 2px; font-size: .76rem; line-height: 1.2; letter-spacing: .045em; }
+.map-card-others { margin-top: 7px; font-size: .86rem; font-style: italic; color: var(--muted); }
+.map-card-pin { position: absolute; right: 7px; top: 7px; display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 1px solid transparent; border-radius: 3px; background: transparent; color: var(--ink-soft); }
+.map-card-pin::before { content: ""; width: 15px; height: 17px; background: currentColor; transform: rotate(35deg); clip-path: polygon(18% 0, 82% 0, 82% 15%, 71% 15%, 71% 45%, 92% 65%, 92% 76%, 56% 76%, 56% 96%, 50% 100%, 44% 96%, 44% 76%, 8% 76%, 8% 65%, 29% 45%, 29% 15%, 18% 15%); }
+.map-card-pin:hover, .map-card-pin[aria-pressed=true] { color: var(--rust); background: #f3ecd6; border-color: var(--rule-soft); }
+.map-card-pin[aria-pressed=true]::before { transform: none; }
 @keyframes card-in { from { opacity: 0; } }
 .map-card .journal-time { display: block; margin-bottom: 2px; }
 /* A chronicle entry that knows where it happened offers to show the place. */

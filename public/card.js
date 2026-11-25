@@ -125,20 +125,20 @@ export function residentCard(actor, { names = {}, minute = 0, others = [] } = {}
 
   // The reason is whatever the records hold: a fresh choice, a routine resting on an earlier
   // choice, or the village's own rules speaking in the first person.
-  const why = el('div', 'map-card-part');
-  why.append(el('div', 'eyebrow', 'Why'));
+  const why = el('div', 'map-card-part'), context = el('div', 'map-card-context');
+  context.append(el('span', 'eyebrow', 'Why'));
+  why.append(context);
   const say = text => { if (text) why.append(el('p', 'reason', text)); };
   if (deciding) {
-    why.append(chip('waiting', 'Deciding'));
     say(a.reason);
     say(whyText(a.why, a.blockedVisit, names));
     if (Number.isFinite(a.since)) say('Since ' + when(a.since, minute));
   } else if (a.basis?.kind === 'standing') {
-    why.append(chip('standing', 'Routine'));
+    context.append(chip('standing', 'Routine'));
     say('Following the choice made ' + when(a.basis.since, minute) + '.');
   } else {
     if (a.basis?.kind === 'fresh') {
-      why.append(chip('fresh', 'Fresh choice'));
+      context.append(chip('fresh', 'Fresh choice'));
       if (!visitChangeText(a.basis.visitChange, names)) say(whyText(a.basis.why));
     }
     say(choiceExplanation(a, names));
@@ -147,7 +147,7 @@ export function residentCard(actor, { names = {}, minute = 0, others = [] } = {}
   const pressing = Object.entries(actor.needs || {}).filter(([, value]) => value >= 60).sort((x, y) => y[1] - x[1]).slice(0, 2);
   if (pressing.length) say('Pressing now: ' + pressing.map(([need, value]) => need + ' ' + Math.round(value)).join(', ') + '.');
 
-  if (why.children.length > 1) card.append(why);
+  if (why.children.length > 1 || context.children.length > 1) card.append(why);
   if (others.length) card.append(el('p', 'map-card-others', 'Also indoors here: ' + others.map(o => o.name.split(' ')[0]).join(', ') + '.'));
   return card;
 }
