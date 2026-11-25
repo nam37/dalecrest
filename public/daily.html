@@ -24,7 +24,17 @@
         <button type="submit">Go</button>
       </form>
     </nav>
+    <form class="daily-edition-search" role="search" action="/daily.html" method="get">
+      <label for="edition-search-query">Search editions</label>
+      <input id="edition-search-query" name="q" type="search" placeholder="Word or phrase" maxlength="120" required>
+      <button type="submit">Search</button>
+    </form>
     <p id="press-status" role="status">Reading the village press…</p>
+    <section id="edition-search-results" class="daily-search-results" aria-labelledby="search-results-title" hidden>
+      <h2 id="search-results-title">Search results</h2>
+      <ol id="search-results-list" class="daily-search-issues"></ol>
+      <div id="search-results-pages" class="edition-links"></div>
+    </section>
     <article id="edition" hidden>
       <div class="paper-columns">
         <section class="paper-lead"><p id="coverage"></p><h2 id="headline"></h2>

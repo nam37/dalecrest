@@ -3,7 +3,7 @@ import test from 'node:test';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { availableActions, createVillage, stepVillage } from './sim.mjs';
-import { composeEdition, dailyArchive, publishNextDaily, queueEditions } from './daily.mjs';
+import { composeEdition, dailyArchive, publishNextDaily, queueEditions, searchDaily } from './daily.mjs';
 import { chooseDailyIllustration } from './engine/daily-illustrations.mjs';
 import { readAdminMetrics } from './admin-metrics.mjs';
 
@@ -178,6 +178,32 @@ test('the morning press persists one sourced edition per day and follows yesterd
     assert.equal(metrics.tokens.reduce((sum, row) => sum + row.anthropic, 0), 525);
     assert.equal(metrics.waits.find(row => row.date === bucket.date).p95, 20);
     assert.deepEqual(metrics.activities.actors.find(actor => actor.id === 'chart-fixture').starts.at(-1), { fresh: 1, standing: 1 });
+
+    const olderSearchIssue = { headline: 'Village news', lead: [{ text: 'Talk turned to the alehouse.' }] };
+    const newerSearchIssue = {
+      headline: 'News from the Alehouse',
+      lead: Array.from({ length: 17 }, () => ({ text: 'At the alehouse, the matter was settled.' })),
+      briefs: [{ text: 'The tally includes %_ by the ALEHOUSE.' }],
+      sinceYesterday: [{ text: 'There was more news of the alehouse.' }],
+      sources: [{ id: '321', text: 'Robin made a note of the alehouse.' }],
+    };
+    await pool.query(`INSERT INTO dalecrest.daily_editions(day, edition, published_at)
+      VALUES (4, $1, now()), (5, $2, now())`, [olderSearchIssue, newerSearchIssue]);
+    await add(3500, 'fieldnote', 'An alehouse was mentioned in an unpublished record.');
+    const pageOne = (await searchDaily(pool, '  aleHOUSE  ')).body;
+    assert.equal(pageOne.query, 'aleHOUSE');
+    assert.equal(pageOne.matches.length, 20);
+    assert.equal(pageOne.hasMore, true);
+    assert.equal(pageOne.matches[0].match, 'Alehouse');
+    assert.deepEqual([pageOne.matches[0].anchor, pageOne.matches[1].anchor, ...pageOne.matches.slice(-2).map(hit => hit.anchor)],
+      ['headline', 'lead-1', 'briefs-1', 'since-yesterday-1']);
+    const pageTwo = (await searchDaily(pool, 'alehouse', '2')).body;
+    assert.equal(pageTwo.hasMore, false);
+    assert.deepEqual(pageTwo.matches.map(hit => [hit.day, hit.anchor]), [[5, 'record-321'], [4, 'lead-1']]);
+    const literal = (await searchDaily(pool, '%_')).body.matches;
+    assert.deepEqual(literal.map(hit => [hit.anchor, hit.match]), [['briefs-1', '%_']]);
+    assert.equal((await searchDaily(pool, '   ')).status, 400);
+    assert.equal((await searchDaily(pool, 'alehouse', '0')).status, 400);
   } finally {
     if (db) await db.pool.end();
     if (created) await admin.query('DROP DATABASE ' + name);

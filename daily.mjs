@@ -200,3 +200,47 @@ export async function dailyArchive(db, dayParam) {
     (SELECT min(day) FROM dalecrest.daily_editions WHERE edition IS NULL) AS pending FROM dalecrest.world WHERE id=1`);
   return { status: 200, body: { issue: issue ?? null, ...state, editorConfigured: Boolean(process.env.CLAUDE_KEY?.trim()) } };
 }
+
+const searchPageSize = 20;
+
+function searchExcerpt(text, position, length) {
+  const characters = [...text];
+  const start = position - 1, end = start + length;
+  const left = Math.max(0, start - 72), right = Math.min(characters.length, end + 116);
+  let before = characters.slice(left, start).join(''), after = characters.slice(end, right).join('');
+  if (left) before = '…' + before.replace(/^\S*\s+/, '');
+  if (right < characters.length) after = after.replace(/\s+\S*$/, '') + '…';
+  return { before, match: characters.slice(start, end).join(''), after };
+}
+
+export async function searchDaily(db, queryParam, pageParam = null) {
+  const query = queryParam?.trim() ?? '';
+  if (!query || query.length > 120 || query.includes('\0')) {
+    return { status: 400, body: { error: 'Enter a word or phrase of up to 120 characters.' } };
+  }
+  if (pageParam !== null && !/^[1-9]\d{0,5}$/.test(pageParam)) {
+    return { status: 400, body: { error: 'Invalid search results page.' } };
+  }
+  const page = Number(pageParam ?? 1);
+  const { rows } = await db.query(`SELECT d.day, d.edition->>'headline' AS headline, passage.section,
+      passage.anchor, passage.text, hit.position
+    FROM dalecrest.daily_editions d
+    CROSS JOIN LATERAL (
+      SELECT 'headline' AS section, 'headline' AS anchor, d.edition->>'headline' AS text, 0 AS rank, 0::bigint AS ordinal
+      UNION ALL
+      SELECT section.name,
+        section.name || '-' || CASE WHEN section.field = 'sources' THEN item.value->>'id' ELSE item.ordinal::text END,
+        item.value->>'text', section.rank, item.ordinal
+      FROM (VALUES ('lead', 'lead', 1), ('briefs', 'briefs', 2),
+        ('sinceYesterday', 'since-yesterday', 3), ('sources', 'record', 4)) AS section(field, name, rank)
+      CROSS JOIN LATERAL jsonb_array_elements(d.edition->section.field) WITH ORDINALITY AS item(value, ordinal)
+    ) AS passage
+    CROSS JOIN LATERAL (SELECT strpos(lower(passage.text), lower($1)) AS position) AS hit
+    WHERE d.edition IS NOT NULL AND hit.position > 0 AND passage.anchor IS NOT NULL
+    ORDER BY d.day DESC, passage.rank, passage.ordinal
+    LIMIT $2 OFFSET $3`, [query, searchPageSize + 1, (page - 1) * searchPageSize]);
+  const length = [...query].length;
+  const matches = rows.slice(0, searchPageSize).map(({ text, position, ...record }) =>
+    ({ ...record, ...searchExcerpt(text, position, length) }));
+  return { status: 200, body: { query, page, matches, hasMore: rows.length > searchPageSize } };
+}

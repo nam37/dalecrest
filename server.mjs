@@ -5,7 +5,7 @@ import { planOnce, plannerStatus, plannerPollMs } from './planner.mjs';
 import { locationsOf } from './sim.mjs';
 import { affairs } from './engine/civic.mjs';
 import { requestArchive } from './request-archive.mjs';
-import { dailyArchive, publishNextDaily } from './daily.mjs';
+import { dailyArchive, publishNextDaily, searchDaily } from './daily.mjs';
 import { dailyIllustrations } from './engine/daily-illustrations.mjs';
 import { createVillageStream } from './village-stream.mjs';
 import { mapRevisions, mapRevision, residentHeat } from './village-history.mjs';
@@ -70,6 +70,9 @@ const server = http.createServer(async (req, res) => {
     } else if (path === '/api/daily') {
       const { status, body } = await dailyArchive(pool, url.searchParams.get('day'));
       res.writeHead(status, { 'Content-Type': 'application/json' }).end(JSON.stringify(body));
+    } else if (path === '/api/daily/search') {
+      const { status, body } = await searchDaily(pool, url.searchParams.get('q'), url.searchParams.get('page'));
+      json(res, status, body);
     } else if (path.startsWith('/api/records/')) {
       const ref = recordPath(path.slice('/api/records'.length));
       if (!ref) { json(res, 400, { error: 'Invalid record address.' }); return; }

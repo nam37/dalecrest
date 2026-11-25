@@ -3,19 +3,20 @@ import { dailyIllustrations } from '/engine/daily-illustrations.mjs';
 import { dayLink, promiseLink } from './record-links.js';
 
 const $ = id => document.getElementById(id);
-const day = new URLSearchParams(location.search).get('day');
+const params = new URLSearchParams(location.search);
+const day = params.get('day');
 const address = day => '/daily.html?day=' + day;
 const link = (label, href) => Object.assign(document.createElement('a'), { textContent: label, href });
 const editionDate = day => formatDate(day * 1440, 'long');
 let displayedDay;
 let listedDays = '';
 
-function showRecord() {
-  document.querySelector('.paper-records [aria-current="location"]')?.removeAttribute('aria-current');
-  if (!/^#record-\d+$/.test(location.hash)) return;
+function showEditionLocation() {
+  $('edition').querySelector('[aria-current="location"]')?.removeAttribute('aria-current');
+  if (!/^#(?:headline|(?:lead|briefs|since-yesterday|record)-\d+)$/.test(location.hash)) return;
   const target = $(location.hash.slice(1));
   if (target) {
-    $('records').open = true;
+    if (target.id.startsWith('record-')) $('records').open = true;
     target.setAttribute('aria-current', 'location');
     target.scrollIntoView({ block: 'nearest' });
   }
@@ -66,8 +67,9 @@ function showIssue({ day, edition, older }) {
     figure.hidden = false;
   }
   function paragraphs(id, items) {
-    $(id).replaceChildren(...items.map(item => {
+    $(id).replaceChildren(...items.map((item, index) => {
       const p = document.createElement('p');
+      p.id = id + '-' + (index + 1);
       p.append(item.text);
       const passage = document.createDocumentFragment();
       passage.append(p);
@@ -109,7 +111,66 @@ function showIssue({ day, edition, older }) {
   }));
   $('records').hidden = !edition.sources.length;
   $('edition').hidden = false;
-  showRecord();
+  showEditionLocation();
+}
+
+const searchSections = {
+  headline: 'Headline', lead: 'Lead story', briefs: 'Village briefs',
+  'since-yesterday': 'Since yesterday', record: 'Reporting record',
+};
+
+function showSearchResults({ query, page, matches, hasMore }) {
+  const status = $('press-status'), list = $('search-results-list'), pages = $('search-results-pages');
+  $('search-results-title').textContent = 'Results for “' + query + '”';
+  $('edition-search-results').hidden = false;
+  status.hidden = matches.length > 0;
+  if (!matches.length) status.textContent = page === 1 ? 'No published editions match this search.' : 'No matches on this page.';
+
+  let edition, passages;
+  for (const result of matches) {
+    const url = address(result.day);
+    if (result.day !== edition) {
+      edition = result.day;
+      const group = document.createElement('li'), date = document.createElement('p'), title = document.createElement('h3');
+      date.className = 'daily-search-date';
+      date.textContent = editionDate(edition);
+      title.append(link(result.headline, url));
+      passages = document.createElement('ul');
+      passages.className = 'daily-search-passages';
+      group.append(date, title, passages);
+      list.append(group);
+    }
+    const row = document.createElement('li'), highlight = document.createElement('mark');
+    const section = document.createElement('span');
+    section.className = 'daily-search-section';
+    section.textContent = searchSections[result.section];
+    highlight.textContent = result.match;
+    const passage = link('', url + '#' + result.anchor);
+    passage.append(section, ' · ', result.before, highlight, result.after);
+    row.append(passage);
+    passages.append(row);
+  }
+  const searchPage = number => '/daily.html?' + new URLSearchParams({ q: query, ...(number > 1 && { page: number }) });
+  if (page > 1) pages.append(link('← Previous results', searchPage(page - 1)));
+  if (hasMore) pages.append(link('More results →', searchPage(page + 1)));
+}
+
+async function searchArchive(query) {
+  $('edition-search-query').value = query;
+  showEditionNavigation(null);
+  document.title = 'Dalecrest Daily · Search';
+  const status = $('press-status'), search = new URLSearchParams({ q: query });
+  const page = params.get('page');
+  if (page !== null) search.set('page', page);
+  status.textContent = 'Searching the archive…';
+  try {
+    const response = await fetch('/api/daily/search?' + search);
+    const result = await response.json();
+    if (response.ok) showSearchResults(result);
+    else status.textContent = result.error;
+  } catch {
+    status.textContent = 'The archive search is temporarily unavailable.';
+  }
 }
 
 async function refresh() {
@@ -140,5 +201,7 @@ async function refresh() {
 }
 
 $('lead-image-caption').addEventListener('click', () => { $('records').open = true; });
-window.addEventListener('hashchange', showRecord);
-refresh();
+window.addEventListener('hashchange', showEditionLocation);
+const query = params.get('q');
+if (query === null) refresh();
+else searchArchive(query);
