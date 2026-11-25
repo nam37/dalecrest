@@ -12,6 +12,18 @@
     <header class="paper-name"><h1>Dalecrest Daily</h1>
       <div class="paper-dateline"><span>Morning edition</span><a id="edition-date" hidden></a><span>By <a href="/residents/robin">Robin Marsh</a></span></div>
     </header>
+    <nav id="edition-navigation" class="daily-pager" aria-label="Edition archive" hidden>
+      <div class="daily-pager-links">
+        <a id="previous-edition" rel="prev" hidden>← Previous edition</a>
+        <a id="next-edition" rel="next" hidden>Next edition →</a>
+        <a id="latest-edition" href="/daily.html" hidden>Latest edition</a>
+      </div>
+      <form id="edition-jump" class="daily-edition-jump" action="/daily.html" method="get" hidden>
+        <label for="edition-picker">Jump to date</label>
+        <select id="edition-picker" name="day"></select>
+        <button type="submit">Go</button>
+      </form>
+    </nav>
     <p id="press-status" role="status">Reading the village press…</p>
     <article id="edition" hidden>
       <div class="paper-columns">
@@ -27,7 +39,6 @@
       </div>
       <details class="paper-records" id="records"><summary>Reporting notes and village records</summary><ol id="sources"></ol></details>
     </article>
-    <div id="edition-links" class="edition-links" aria-label="Edition archive"></div>
     <noscript>Enable JavaScript to read the newspaper.</noscript>
   </main>
   <script type="module" src="/daily.js"></script>

@@ -186,7 +186,8 @@ export async function dailyArchive(db, dayParam) {
   if (dayParam !== null && (!/^[1-9]\d{0,8}$/.test(dayParam))) return { status: 400, body: { error: 'Invalid edition date.' } };
   const { rows: [issue] } = await db.query(`SELECT d.day, d.edition, d.model,
     (SELECT max(day) FROM dalecrest.daily_editions WHERE day<d.day AND edition IS NOT NULL) AS older,
-    (SELECT min(day) FROM dalecrest.daily_editions WHERE day>d.day AND edition IS NOT NULL) AS newer
+    (SELECT min(day) FROM dalecrest.daily_editions WHERE day>d.day AND edition IS NOT NULL) AS newer,
+    ARRAY(SELECT day FROM dalecrest.daily_editions WHERE edition IS NOT NULL ORDER BY day DESC) AS "publishedDays"
     FROM dalecrest.daily_editions d WHERE edition IS NOT NULL AND ($1::integer IS NULL OR d.day=$1)
     ORDER BY d.day DESC LIMIT 1`, [dayParam]);
   if (dayParam !== null && !issue) return { status: 404, body: { error: 'This edition has not been published.' } };

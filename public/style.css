@@ -71,6 +71,11 @@ nav a[aria-current=page] { color: var(--rust); border-bottom-color: var(--rust);
 .paper-dateline, .edition-links { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 16px; }
 .paper-dateline { padding: 8px 0; border-block: 1px solid var(--ink); border-bottom: 4px double var(--ink); }
 .paper-dateline a { text-underline-offset: .18em; }
+.daily-pager, .daily-pager-links, .daily-edition-jump { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 16px; }
+.daily-pager { justify-content: space-between; padding: 7px 0; border-bottom: 1px solid var(--rule); }
+.daily-pager a { display: inline-block; padding: 6px 0; border: 0; font: inherit; letter-spacing: normal; text-decoration: underline; text-underline-offset: .18em; }
+.daily-edition-jump { gap: 6px 8px; }
+.daily-edition-jump select, .daily-edition-jump button { background: var(--leaf); border: 1px solid var(--rule); padding: 4px 8px; }
 .newspaper #press-status { margin: 24px 0; font-style: italic; }
 .paper-columns { display: grid; grid-template-columns: minmax(0, 1.8fr) minmax(0, 1fr); gap: clamp(18px, 4vw, 50px); margin: 28px 0; }
 .paper-lead #coverage { font-family: var(--caps); color: var(--rust); letter-spacing: .04em; }

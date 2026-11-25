@@ -6,7 +6,9 @@ const $ = id => document.getElementById(id);
 const day = new URLSearchParams(location.search).get('day');
 const address = day => '/daily.html?day=' + day;
 const link = (label, href) => Object.assign(document.createElement('a'), { textContent: label, href });
+const editionDate = day => formatDate(day * 1440, 'long');
 let displayedDay;
+let listedDays = '';
 
 function showRecord() {
   document.querySelector('.paper-records [aria-current="location"]')?.removeAttribute('aria-current');
@@ -19,13 +21,35 @@ function showRecord() {
   }
 }
 
-function showIssue({ day, edition, older, newer }) {
-  $('edition-links').replaceChildren();
-  if (older) $('edition-links').append(link('← Previous edition', address(older)));
-  if (newer) $('edition-links').append(link('Next edition →', address(newer)));
+function showEditionNavigation(issue) {
+  const { day, older, newer, publishedDays = [] } = issue ?? {};
+  const previous = $('previous-edition'), next = $('next-edition');
+  previous.hidden = !older;
+  next.hidden = !newer;
+  if (older) previous.href = address(older);
+  if (newer) next.href = address(newer);
+  const latest = $('latest-edition');
+  latest.hidden = Boolean(issue && !newer);
+
+  const picker = $('edition-picker'), dates = publishedDays.join(',');
+  const selected = Number(picker.value);
+  if (listedDays !== dates) {
+    picker.replaceChildren(...publishedDays.map(day => new Option(editionDate(day), day)));
+    listedDays = dates;
+  }
+  if (day !== undefined) {
+    const choice = selected !== displayedDay && publishedDays.includes(selected) ? selected : day;
+    if (Number(picker.value) !== choice) picker.value = choice;
+  }
+  const jump = $('edition-jump');
+  jump.hidden = publishedDays.length < 2;
+  $('edition-navigation').hidden = previous.hidden && next.hidden && latest.hidden && jump.hidden;
+}
+
+function showIssue({ day, edition, older }) {
   if (displayedDay === day) return;
   displayedDay = day;
-  const issueDate = formatDate(day * 1440, 'long');
+  const issueDate = editionDate(day);
   document.title = 'Dalecrest Daily · ' + issueDate;
   Object.assign($('edition-date'), { textContent: issueDate, href: address(day), hidden: false });
   const start = (day - 1) * 1440;
@@ -93,12 +117,15 @@ async function refresh() {
     const response = await fetch('/api/daily' + (day === null ? '' : '?day=' + encodeURIComponent(day)));
     if (response.status === 400 || response.status === 404) {
       $('press-status').textContent = 'This edition is unavailable.';
-      $('edition-links').replaceChildren(link('Read the latest edition', '/daily.html'));
+      showEditionNavigation(null);
       return;
     }
     if (!response.ok) throw new Error();
     const { issue, pending, editorConfigured } = await response.json();
-    if (issue) showIssue(issue);
+    if (issue) {
+      showEditionNavigation(issue);
+      showIssue(issue);
+    }
     const status = $('press-status');
     status.hidden = Boolean(issue) && (day !== null || !pending);
     if (!status.hidden) status.textContent = pending

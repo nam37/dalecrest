@@ -145,9 +145,12 @@ test('the morning press persists one sourced edition per day and follows yesterd
     assert.equal(calls, 2, 'one editor claimed the edition');
     await queueEditions(pool, 1802, 3240);
     await publishNextDaily(pool, { key: 'fixture', request: editor(true, true) });
-    const latest = (await dailyArchive(pool, null)).body.issue;
+    await queueEditions(pool, 3240, 4680);
+    const { issue: latest, pending } = (await dailyArchive(pool, null)).body;
     assert.equal(latest.older, 1);
     assert.equal(latest.day, 2);
+    assert.deepEqual(latest.publishedDays, [2, 1]);
+    assert.equal(pending, 3);
     assert.equal(latest.edition.sinceYesterday[0].sources.length, 2);
     assert.equal(latest.edition.illustration, null);
     const { rows: [stored] } = await pool.query('SELECT edition FROM dalecrest.daily_editions WHERE day=1');
@@ -155,6 +158,7 @@ test('the morning press persists one sourced edition per day and follows yesterd
     await pool.query("UPDATE dalecrest.daily_editions SET edition=edition-'illustration' WHERE day=1");
     const first = (await dailyArchive(pool, '1')).body.issue;
     assert.equal(first.newer, 2);
+    assert.deepEqual(first.publishedDays, [2, 1]);
     assert.deepEqual(first.edition.illustration, stored.edition.illustration);
     assert.equal((await dailyArchive(pool, '3')).status, 404);
     assert.equal((await dailyArchive(pool, 'oops')).status, 400);
