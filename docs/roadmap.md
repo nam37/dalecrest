@@ -25,12 +25,12 @@
 | 4a. Lead characters | Proposed, Robin first | 0 | 0 | 7 |
 | 5. Worth watching | In hand | 8 | 0 | 0 |
 | 6. Worth following | In hand | 1 | 1 | 2 |
-| 6a. Admin control panel | First release on the live site | 4 | 0 | 4 |
+| 6a. Admin control panel | First release on the live site | 4 | 1 | 4 |
 | 7. A living village culture (A–C) | Clock built, live trial pending | 3 | 0 | 7 |
 | 8. The world comes to Dalecrest (A–C) | Proposed, not begun | 0 | 0 | 9 |
 | 9. Taking part | Groundwork only | 0 | 1 | 4 |
 | 10. A wider world | Not begun | 0 | 0 | 1 |
-| All stages | | 66 | 7 | 35 |
+| All stages | | 66 | 8 | 35 |
 
 **Reading the live village.** `readout.mjs` reads every "Done when" measure the database can answer, stage by stage, and marks it met, not met, no data or needing a viewer. On the server: `docker exec dalecrest-app node readout.mjs`, for the last 168 real hours by default. It does not replace `tools/pilot-report.mjs`, which breaks Stage 0 down further.
 
@@ -529,6 +529,7 @@ Done when: in a small pilot, people voluntarily return to check on a resident, a
 - [x] **Operator access.** Named accounts have password-protected sign-in, expiring sessions and rate limits. Operator permissions are checked on every clock change. Monitors have read-only access. Agents use a separate read-only JSON URL with a bearer key.
 - [x] **Live status.** The dashboard shows the village minute and pace, deployed revision, last successful backup, provider health and oldest pending decision. Charts report daily OpenAI and Anthropic tokens, activity starts by resident and decision waits. The dashboard dates its last health check and credentials stay in protected server configuration.
 - [x] **Clock controls.** Select 1×, fixed 2× or day/night and see how long a village day takes. The [clock helper](../deploy/dalecrest-set-clock) applies and verifies a preset, with rollback on failure. A restricted host permission covers the helper’s approved operations. The panel shows the effective pace and the recorded request while the village app restarts.
+- [ ] **Agent reports.** Under way. Agents read the panel’s charts and four decision reports through `GET /admin/api/agent/metrics` with their read-only key: why fresh choices were needed, how often a fresh choice repeated what had just finished, how often the model’s two likeliest options were close for each resident, and how often each menu position was chosen. The reports cover the last real day and contain totals only, never requests or replies. The village image carries the reports, and the host admin service must be reinstalled to serve the agent address.
 - [ ] **Timed trials.** Schedule a start and end in real time and show both in the operator’s time zone. Require the agreed baseline before starting and show the reason if the trial is held. Capture decision waits, discarded replies and token use before and after. Keep the schedule through an app restart, flag conflicts with manual changes and restore the previous pace once at the end.
 - [ ] **Separate pause controls.** A simulation pause holds the committed village minute and resumes from it. A planner pause stops new model requests while the clock and valid standing instructions continue. Show which pause is active and what happens to replies already in flight.
 - [ ] **Rollout checks and budget limits.** Offer approved feature switches and spending caps with their effective values and restart requirements. Before enabling family arrivals, show spare cottages, hall beds and the bread reserve. State which changes apply only to future arrivals.

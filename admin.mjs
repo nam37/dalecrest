@@ -156,7 +156,7 @@ export async function createAdminServer({ publicOrigin, basePath = '', preview =
       }
       if (!pathname.startsWith(panelPath)) throw new RequestError(404, 'This admin address does not exist.');
       const path = pathname.slice(basePath.length);
-      if (path === '/api/agent') {
+      if (path === '/api/agent' || path === '/api/agent/metrics') {
         if (req.headers.origin && !validOrigin(req)) throw new RequestError(403, 'This request is outside the admin origin.');
         if (!auth.agent(req)) {
           res.setHeader('WWW-Authenticate', 'Bearer');
@@ -166,6 +166,8 @@ export async function createAdminServer({ publicOrigin, basePath = '', preview =
           res.setHeader('Allow', 'GET');
           throw new RequestError(405, 'Agent access is read-only.');
         }
+        // The same aggregates the panel's charts read, plus the decision reports.
+        if (path === '/api/agent/metrics') return json(res, 200, await recentMetrics());
         const changes = audit.recent().map(({ reason, ...entry }) => entry);
         return json(res, 200, { villageName, preview, health: await health(), active: changes.find(entry => entry.id === active?.id) ?? null, changes });
       }

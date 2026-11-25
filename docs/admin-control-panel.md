@@ -53,6 +53,23 @@ Restart the admin service after adding or revoking credentials. The audit journa
 
 Send `GET /admin/api/agent` with the issued key in the header `Authorization: Bearer <name>.<key>`. The response contains village health, the active change if any, and the last 30 clock changes. Agent keys are read-only. Operator sign-in is required for clock changes. [Live agent endpoint](https://dalecrest.trinsicstudios.com/admin/api/agent)
 
+Send `GET /admin/api/agent/metrics` with the same header for the chart data described under [Village trends](#village-trends) and the decision reports below. The panel reads the village at most once a minute, so agents calling more often receive the same figures. The address answers 401 with `An agent key is required.` when the installed admin service supports it. An older installation answers `Sign in to the admin panel.`
+
+## Decision reports
+
+The `decisions` section of the metrics covers the last 24 real hours. It holds totals only, never a request, reply or resident's memory.
+
+| Field | What it counts |
+| --- | --- |
+| `freshReasons` | Why each resident needed a fresh choice instead of following a standing instruction. Reasons that name a promise are grouped as `would run into a promise`. |
+| `repeats` | For each kind of finished activity, the fresh choices that followed it, and how many chose the same kind of activity with the same job or place again. A high share points to a standing-instruction rule that sends residents back for a choice they already made. |
+| `closeCalls` | The gap between the model's two likeliest options in each stored reply, for all residents and for each one: how many fell within 0.1, 0.2 and 0.3, and the median gap. `withoutOdds` counts replies with no probabilities and `unreadable` counts records that could not be read. |
+| `menuPosition` | For each place in the menu, how many menus offered an option there and how many times the option there was chosen. Tests of the decisions service showed option order can change its answer. |
+
+`truncated` is true when the day held more than 8,000 decisions and only the most recent were read.
+
+The village image carries the reports, so they reach `GET /admin/api/metrics` with an ordinary deploy. The agent address is served by the host admin service. Reinstall `admin.mjs` from the same release in `/opt/dalecrest-admin/` and restart `dalecrest-admin.service` to enable it.
+
 ## Village trends
 
 - **Daily model tokens** uses real dates in America/New_York. OpenAI totals come from decision traces. Anthropic totals combine goal reviews, civic accounts, and provider-reported Daily editor usage from the charts release onward. Decision traces, goal reviews and civic accounts can retain estimates where a call did not report usage.

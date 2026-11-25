@@ -175,6 +175,15 @@ test('the admin prefix scopes the page, browser session and agent API', async ()
     assert.equal((await request('/admin/api/agent', { headers, method: 'POST' })).status, 405);
     assert.equal((await request('/admin/api/status', { headers })).status, 401);
     assert.equal((await request('/admin/api/metrics', { headers })).status, 401);
+    const agentMetrics = await request('/admin/api/agent/metrics', { headers });
+    assert.equal(agentMetrics.status, 200);
+    assert.deepEqual(await agentMetrics.json(), { tokens: [{ openai: 20 }] });
+    assert.equal((await request('/admin/api/agent/metrics', { headers, method: 'POST' })).status, 405);
+    assert.equal((await request('/admin/api/agent/metrics')).status, 401);
+    assert.equal((await request('/admin/api/agent/metrics', { headers: session })).status, 401);
+    // The agent key opens only its own two addresses.
+    assert.equal((await request('/admin/api/agent/metrics/extra', { headers })).status, 401);
+    assert.equal((await request('/api/agent/metrics', { headers })).status, 404);
   } finally {
     if (server?.listening) await new Promise(resolve => server.close(resolve));
     await rm(directory, { recursive: true, force: true });
