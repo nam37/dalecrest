@@ -41,7 +41,7 @@ test('the editor is given the day as a neighbour would tell it, without the arch
   const request = async (_url, options) => {
     const body = JSON.parse(options.body);
     assert.match(body.system, /Robin Marsh/);
-    assert.equal(body.max_tokens, 8192);
+    assert.equal(body.max_tokens, 16384);
     input = JSON.parse(body.messages[0].content);
     const copy = { headline: 'Five Loaves', lead: [{ text: 'Mabel baked.', sources: ['12'] }],
       briefs: [{ text: 'I saw Hugh at the stones.', sources: ['13'] }],

@@ -4,7 +4,7 @@ import { eventRequestKey } from './request-archive.mjs';
 const dayLength = 1440;
 const dawn = 360;
 const latestDue = minute => Math.max(0, Math.floor((minute - dawn) / dayLength));
-const outputTokenLimit = 8192;
+const outputTokenLimit = 16384;
 export const dailyModel = process.env.DALECREST_DAILY_MODEL?.trim() || 'claude-sonnet-5-5';
 
 export const dailySchema = `
@@ -104,7 +104,7 @@ async function writeCopy({ day, records, prior }, model, key, request, recordUsa
     villageRecords: records.filter(r => r.kind !== 'fieldnote').map(dated),
     previousEdition: prior && { ...prior, sources: prior.sources.map(dated) } };
   const response = await request('https://api.anthropic.com/v1/messages', {
-    method: 'POST', signal: AbortSignal.timeout(120000),
+    method: 'POST', signal: AbortSignal.timeout(180000),
     headers: { 'content-type': 'application/json', 'anthropic-version': '2023-06-01', 'x-api-key': key },
     body: JSON.stringify({ model, max_tokens: outputTokenLimit, system: editorInstructions,
       messages: [{ role: 'user', content: JSON.stringify(input) }],
