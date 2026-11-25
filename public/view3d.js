@@ -7,6 +7,8 @@ import { createMotion } from '/motion.js';
 import { chains } from '/map.js';
 import { makeFigure, poseFigure } from '/figure.js';
 import { light, hearths, indoors, yearLook, skyOver, blend } from '/ambient.js';
+import { windAt } from '/engine/seasons.mjs';
+import { cloudField, cloudsOver, cloudOverhead, cloudShade, cloudDrift } from './clouds.js';
 import { kinds } from '/card.js';
 import { animalCoats, animalPose, fenceSpans, logsIn, parishLayout, strayCattle, visibleSheep, workHeading } from './parish.js';
 import { isFarmSite } from '../engine/smallholding.mjs';
@@ -260,21 +262,11 @@ export function createWalk(container, onSelect, onNote) {
   sunHalo.material.opacity = 0.16; moonHalo.material.opacity = 0.14;
   heavens.add(dome, stars, sunHalo, sunDisc, moonHalo, moonDisc);
   scene.add(heavens);
-  // A few flat-bottomed clouds drift east, high over the parish.
-  const clouds = new THREE.Group(), puff = new THREE.IcosahedronGeometry(1, 1), cloudMat = new THREE.MeshLambertMaterial({ color: '#ffffff', transparent: true, opacity: 0.9, flatShading: true });
-  const drift = rng(31);
-  for (let i = 0; i < 11; i++) {
-    const cloud = new THREE.Group();
-    for (let j = 0, n = 3 + Math.floor(drift() * 4); j < n; j++) {
-      const ball = new THREE.Mesh(puff, cloudMat), r = 5 + drift() * 6;
-      ball.position.set((j - n / 2) * 6 + drift() * 3, drift() * 2, drift() * 6 - 3); ball.scale.set(r, r * 0.42, r * 0.8);
-      cloud.add(ball);
-    }
-    cloud.position.set(-260 + drift() * 680, 46 + drift() * 26, -200 + drift() * 520);
-    cloud.userData.speed = 0.5 + drift() * 0.7;
-    clouds.add(cloud);
-  }
-  scene.add(clouds);
+  // Clouds drift high over the parish on the wind. They are the clouds whose shadows cross the plan,
+  // so each lobe drawn there is a puff here.
+  const CLOUDS = 900, cloudMat = new THREE.MeshLambertMaterial({ color: '#ffffff', transparent: true, opacity: 0.9, flatShading: true });
+  const clouds = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), cloudMat, CLOUDS);
+  clouds.frustumCulled = false; clouds.count = 0; scene.add(clouds);
   // Hearth smoke and the glow of lit windows, drawn from small pools.
   const smoke = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 0), new THREE.MeshLambertMaterial({ color: '#efe9da', transparent: true, opacity: 0.3, depthWrite: false, flatShading: true }), 240);
   smoke.frustumCulled = false; smoke.count = 0; scene.add(smoke);
@@ -316,6 +308,10 @@ export function createWalk(container, onSelect, onNote) {
   let map = null, actors = [], selectedId = null, active = false, frame = 0, last = 0, clock = 600;
   // The weather now, the houses with no fire today, and the parts of the scene the season recolours.
   let wx = null, cold = [], seasonKey = '', landSeasonKey = '', world = null, parish = null, cattle = [];
+  // The wind, the cloud cover as it is drawn, the cloud there is to draw, and how far the spot being watched lies under it.
+  let wind = null, cover = null, field = null, fieldSeed = null, under = 0;
+  // How far the wind has carried the rain and the snow, kept as a running sum so a shift of wind bends their path without a jump.
+  const blown = [0, 0];
   const piles = [], sheepModels = [], cattleModels = [];
   const dressed = { land: null, base: null, wet: null, fields: [], green: null, crowns: null, crownTones: [], cones: null, coneTones: [] };
   // Rain is drawn as short falling strokes and snow as drifting points, both in a box that travels with the camera.
@@ -728,31 +724,58 @@ export function createWalk(container, onSelect, onNote) {
   }
 
   // Rain and snow fall through a box around the camera and wrap from its floor to its top.
-  function precipitation(now) {
+  function precipitation(now, dt) {
     rain.visible = wx.rain > 0; snowfall.visible = wx.snow > 0;
     if (!rain.visible && !snowfall.visible) return;
+    const push = 0.15 + wind.strength, across = wind.toward[0] * push, along = wind.toward[1] * push;
+    blown[0] += across * dt; blown[1] += along * dt;
     const wrap = (v, span) => ((v % span) + span) % span;
     const ox = camera.position.x - SPAN / 2, oy = camera.position.y - TALL * 0.35, oz = camera.position.z - SPAN / 2, t = now / 1000;
     if (rain.visible) {
       const a = rain.geometry.attributes.position.array, n = Math.round(DROPS * (0.3 + 0.7 * wx.rain));
       for (let i = 0; i < n; i++) {
-        const x = ox + wrap(dropAt[i * 3] - ox + t * 1.6, SPAN), y = oy + wrap(dropAt[i * 3 + 1] - oy - t * 13, TALL), z = oz + wrap(dropAt[i * 3 + 2] - oz, SPAN);
-        a[i * 6] = x; a[i * 6 + 1] = y; a[i * 6 + 2] = z; a[i * 6 + 3] = x + 0.05; a[i * 6 + 4] = y - 0.42; a[i * 6 + 5] = z;
+        const x = ox + wrap(dropAt[i * 3] - ox + blown[0] * 5, SPAN), y = oy + wrap(dropAt[i * 3 + 1] - oy - t * 13, TALL), z = oz + wrap(dropAt[i * 3 + 2] - oz + blown[1] * 5, SPAN);
+        // Each stroke lies along the way the drop is falling: 13 units a second down, and sideways with the wind.
+        a[i * 6] = x; a[i * 6 + 1] = y; a[i * 6 + 2] = z; a[i * 6 + 3] = x + across * 5 / 13 * 0.42; a[i * 6 + 4] = y - 0.42; a[i * 6 + 5] = z + along * 5 / 13 * 0.42;
       }
       rain.geometry.setDrawRange(0, n * 2); rain.geometry.attributes.position.needsUpdate = true;
     } else {
       const a = snowfall.geometry.attributes.position.array, n = Math.round(FLAKES * (0.3 + 0.7 * wx.snow));
       for (let i = 0; i < n; i++) {
-        a[i * 3] = ox + wrap(flakeAt[i * 3] - ox + t * 0.35 + Math.sin(t * 0.9 + i) * 0.25, SPAN);
+        a[i * 3] = ox + wrap(flakeAt[i * 3] - ox + blown[0] * 1.3 + Math.sin(t * 0.9 + i) * 0.25, SPAN);
         a[i * 3 + 1] = oy + wrap(flakeAt[i * 3 + 1] - oy - t * (0.9 + (i % 5) * 0.12), TALL);
-        a[i * 3 + 2] = oz + wrap(flakeAt[i * 3 + 2] - oz, SPAN);
+        a[i * 3 + 2] = oz + wrap(flakeAt[i * 3 + 2] - oz + blown[1] * 1.3, SPAN);
       }
       snowfall.geometry.setDrawRange(0, n); snowfall.geometry.attributes.position.needsUpdate = true;
     }
   }
 
+  // The clouds within sight, a puff for each lobe. Returns how far the spot being watched lies under one.
+  function overhead(now) {
+    const drift = cloudDrift(calm.matches ? 0 : now, wind), far = 250, cx = camera.position.x, cz = camera.position.z;
+    const near = cloudsOver(field, cover, drift, cx - far, cz - far, cx + far, cz + far);
+    let n = 0;
+    for (const { id, lobes } of near) {
+      const base = 48 + hash2(map.seed, id, 311) * 24;
+      for (const [x, z, r] of lobes) {
+        if (n >= CLOUDS) break;
+        const tall = r * 0.46;
+        puffAt.compose(puffPos.set(x, base + tall * 0.55, z), puffTurn, puffSize.set(r * 1.08, tall, r * 1.08));
+        clouds.setMatrixAt(n++, puffAt);
+      }
+    }
+    clouds.count = n; clouds.instanceMatrix.needsUpdate = true;
+    return cloudOverhead(near, look.target.x, look.target.z);
+  }
+
   function sky(now, dt) {
     wx = skyOver(clock, map.seed);
+    wind = windAt(clock, map.seed);
+    if (fieldSeed !== map.seed) { fieldSeed = map.seed; field = cloudField(map.seed); }
+    // The cover eases from one spell of weather to the next, and the light dims as a cloud comes over.
+    cover = cover === null ? wx.cloud : cover + (wx.cloud - cover) * (1 - Math.exp(-dt * 0.3));
+    const shaded = overhead(now) * cloudShade(cover);
+    under += (shaded - under) * (1 - Math.exp(-Math.min(0.25, dt) * 2.5));
     const key = Math.floor(clock / 1440) + ':' + Math.round(wx.lying * 4);
     if (key !== seasonKey) { seasonKey = key; dress(); }
     const L = light(clock), lit = hearths(map, actors, cold);
@@ -776,7 +799,7 @@ export function createWalk(container, onSelect, onNote) {
     sunDisc.material.color.copy(col('#ffb070').lerp(col('#fff6d2'), 1 - L.dusk));
     // By day the sun lights the parish. By night the same lamp is the moon, cool and bright enough to see by.
     // Under cloud the sun is weaker and the sky itself does more of the lighting.
-    if (L.day > 0) { sun.position.copy(sunWay); sun.color.copy(col('#ffb877').lerp(col('#fff4dc'), 1 - L.dusk)); sun.intensity = (0.7 + 2.5 * L.bright) * (1 - murk * 0.7); }
+    if (L.day > 0) { sun.position.copy(sunWay); sun.color.copy(col('#ffb877').lerp(col('#fff4dc'), 1 - L.dusk)); sun.intensity = (0.7 + 2.5 * L.bright) * (1 - murk * 0.7) * (1 - 0.5 * under); }
     else { sun.position.copy(moonWay); sun.color.set('#9fb6ee'); sun.intensity = 1.25 * (1 - murk * 0.6); }
     hemi.color.copy(col('#8094cc').lerp(col('#f3f1e4'), L.bright).lerp(col('#c4cace'), murk * 0.5 * L.bright));
     hemi.groundColor.copy(col('#2c3554').lerp(col('#8f8a66'), L.bright).lerp(col('#d9dcd8'), wx.lying * 0.6 * L.bright));
@@ -785,17 +808,17 @@ export function createWalk(container, onSelect, onNote) {
     glow.emissiveIntensity = 1.15 * nightly;
     cloudMat.opacity = 0.9 - 0.35 * L.dark;
     cloudMat.color.copy(col('#ffffff').lerp(col('#9aa2a8'), murk * 0.8));
-    clouds.visible = wx.cloud > 0.12;
-    precipitation(now);
-    for (const cloud of clouds.children) { cloud.position.x += cloud.userData.speed * dt; if (cloud.position.x > 430) cloud.position.x = -270; }
+    precipitation(now, dt);
     // Smoke rises from every hearth with someone at it, and its window glows after dark.
     let n = 0;
     lit.forEach((p, i) => {
       const side = (p.at[0] - p.x) * -Math.sin(p.a) + (p.at[1] - p.y) * Math.cos(p.a) > 0 ? 1 : -1;
       const base = heightAt(map, p.x, p.y), cx = p.x + Math.cos(p.a) * p.w * 0.28, cz = p.y + Math.sin(p.a) * p.w * 0.28;
+      // Smoke stands nearly straight up in still air and lies along the wind when it blows.
+      const lean = 0.4 + 2.6 * wind.strength, rise = 2.9 * (1 - 0.5 * wind.strength);
       for (let j = 0; j < 5 && n < 240; j++) {
         const f = (now * 0.00012 + j / 5 + (i % 7) / 7) % 1, size = (0.07 + f * 0.3) * (1 - f * f);
-        puffAt.compose(puffPos.set(cx + f * 1.5 + Math.sin(f * 6 + j) * 0.12, base + 1.5 + f * 2.6, cz - f * 0.7), puffTurn, puffSize.set(size, size, size));
+        puffAt.compose(puffPos.set(cx + f * lean * wind.toward[0] + Math.sin(f * 6 + j) * 0.12, base + 1.5 + f * rise, cz + f * lean * wind.toward[1]), puffTurn, puffSize.set(size, size, size));
         smoke.setMatrixAt(n++, puffAt);
       }
       const halo = halos[i];

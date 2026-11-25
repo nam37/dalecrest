@@ -4,6 +4,8 @@ import { heightAt, TREE_LINE } from '/engine/terrain.mjs';
 import { rectPoly, rng, hash2, smooth, TAU } from '/engine/geom.mjs';
 import { createMotion } from '/motion.js';
 import { light, hearths, indoors, yearLook, skyOver, sunOver, blend, PLAIN_LIGHT } from '/ambient.js';
+import { windAt } from '/engine/seasons.mjs';
+import { cloudField, cloudsOver, cloudShade, cloudDrift, SHADE_EDGE } from './clouds.js';
 
 import { drawMapFigure } from './map-figure.js';
 import { drawAnimal, drawGarden, drawWoodpile } from './map-parish.js';
@@ -576,11 +578,17 @@ export function createMap(canvas, onSelect, cards) {
   }
   // The weather over the village now, and the houses that got no firewood this morning.
   let wx = null, cold = [], world = null, cattle = [];
+  // The wind now blowing, and the cloud cover as it is drawn, which eases from one spell of weather to the next.
+  let wind = null, cover = null, coverAt = 0;
+  // How far the wind has carried the rain or snow sideways, kept as a running sum so a shift of wind bends its path without a jump.
+  let blown = 0, blownAt = 0;
+  const veil = document.createElement('canvas');
   const view = { x: 80, y: 60, scale: 6 };
   // The sheet is repainted when the day changes, when snow settles or goes, and as the sun moves.
   function seasonal() {
     if (!map || !look) return;
     wx = skyOver(clock, map.seed);
+    wind = windAt(clock, map.seed);
     // Shadows move with the sun, a few minutes at a time, and soften as cloud comes over.
     const sunKey = Math.floor(clock / 5) + ':' + Math.round(wx.cloud * 6);
     if (sunKey !== look.sunKey) { look.sunKey = sunKey; look.sun = sunOver(clock, wx.cloud); stale = true; }
@@ -663,7 +671,9 @@ export function createMap(canvas, onSelect, cards) {
   // Everything that moves or changes with the hour, drawn over the paper and under the residents.
   function ambient(time, sky, lit) {
     const k = view.scale;
-    const cover = wx ? wx.cloud : 0.3;
+    const want = wx ? wx.cloud : 0.3;
+    cover = cover === null || !time ? want : cover + (want - cover) * (1 - Math.exp(-Math.min(0.25, Math.max(0, (time - coverAt) / 1000)) * 0.3));
+    coverAt = time;
     // The current: long broken lines that travel downstream, each at its own pace.
     const rw = map.terrain.riverWidth, calm = 0.5 + 0.5 * sky.bright;
     c.lineCap = 'round';
@@ -707,16 +717,7 @@ export function createMap(canvas, onSelect, cards) {
       c.closePath();
     }
     c.clip(); c.drawImage(paper, 0, 0, w, h); c.restore();
-    if (sky.bright > 0.05 && cover > 0.05) {
-      // Cloud shadows cross the parish from the west, heavier the more cloud there is.
-      for (let i = 0; i < 3; i++) {
-        const cx = ((i * 71 + time * 0.0016 * (1 + i * 0.3)) % (map.w + 90)) - 45, cy = 18 + i * 37 + Math.sin(time * 0.00004 + i * 2) * 8;
-        const [x, y] = toScreen(cx, cy), r = (24 + i * 5) * k;
-        const g = c.createRadialGradient(x, y, 0, x, y, r);
-        g.addColorStop(0, 'rgba(58,52,34,' + (0.13 * sky.bright * (0.45 + cover * 1.1)).toFixed(3) + ')'); g.addColorStop(1, 'rgba(58,52,34,0)');
-        c.save(); c.translate(x, y); c.scale(1, 0.55); c.translate(-x, -y); c.fillStyle = g; c.fillRect(x - r, y - r, r * 2, r * 2); c.restore();
-      }
-    }
+    cloudShadows(time, sky);
     // Mist lies along the river as the light comes up, and the sun burns it off through the morning.
     const mist = wx?.rain || wx?.snow ? 0 : smooth(0, 0.05, sky.p) * (1 - smooth(0.1, 0.2, sky.p));
     if (mist > 0.02) {
@@ -743,13 +744,44 @@ export function createMap(canvas, onSelect, cards) {
     // Smoke from every hearth with someone at it.
     for (const p of lit) {
       const cx = p.x + Math.cos(p.a) * p.w * 0.32, cy = p.y + Math.sin(p.a) * p.w * 0.32;
+      // Smoke stands nearly straight up in still air and lies along the wind when it blows.
+      const lean = 0.9 + 2.6 * wind.strength, lift = 1.9 * (1 - 0.65 * wind.strength);
       for (let i = 0; i < 5; i++) {
         const f = (time * 0.00016 + i / 5 + (tag(p.id) % 10) / 10) % 1;
-        const [x, y] = toScreen(cx + f * 2.6 + Math.sin(f * 6 + i) * 0.25, cy - f * 2.1);
+        const [x, y] = toScreen(cx + f * lean * wind.toward[0] + Math.sin(f * 6 + i) * 0.25, cy + f * lean * wind.toward[1] - f * lift);
         c.fillStyle = 'rgba(246,240,224,' + ((1 - f) * 0.5).toFixed(3) + ')';
         c.beginPath(); c.arc(x, y, (0.22 + f * 0.75) * k, 0, TAU); c.fill();
       }
     }
+  }
+
+  // The shadows of the clouds, drifting over the parish with the wind. They are drawn small on a sheet of
+  // their own and laid over the plan in one piece, so their edges come out soft and two clouds that
+  // overlap are no darker than one. Each is filled at four sizes to give its edge a gradual falling-off.
+  function cloudShadows(time, sky) {
+    const drift = cloudDrift(time, wind), firm = sky.bright * cloudShade(cover);
+    if (firm < 0.02) return;
+    const k = view.scale, cell = Math.min(10, Math.max(2, k * 0.5));
+    const vw = Math.ceil(w / cell) + 1, vh = Math.ceil(h / cell) + 1;
+    if (veil.width !== vw || veil.height !== vh) { veil.width = vw; veil.height = vh; }
+    const v = veil.getContext('2d'), [x0, y0] = toWorld(0, 0), [x1, y1] = toWorld(w, h);
+    v.setTransform(1, 0, 0, 1, 0, 0); v.clearRect(0, 0, vw, vh);
+    v.globalCompositeOperation = 'lighter'; v.fillStyle = 'rgba(104,110,118,.25)';
+    const clouds = cloudsOver(look.clouds ??= cloudField(map.seed), cover, drift, x0, y0, x1, y1);
+    for (const step of [0, 1, 2, 3]) {
+      const edge = SHADE_EDGE[0] + (SHADE_EDGE[1] - SHADE_EDGE[0]) * step / 3;
+      v.beginPath();
+      for (const { lobes } of clouds) {
+        for (const [lx, ly, r] of lobes) {
+          const [x, y] = toScreen(lx, ly);
+          v.moveTo((x + r * edge * k) / cell, y / cell); v.arc(x / cell, y / cell, r * edge * k / cell, 0, TAU);
+        }
+      }
+      v.fill();
+    }
+    c.save(); c.globalCompositeOperation = 'multiply'; c.globalAlpha = 0.36 * firm; c.imageSmoothingEnabled = true;
+    c.drawImage(veil, 0, 0, vw * cell, vh * cell);
+    c.restore();
   }
 
   // Cloud takes the warmth out of the light, and rain or snow greys it further.
@@ -762,18 +794,20 @@ export function createMap(canvas, onSelect, cards) {
     c.restore();
   }
 
-  // Rain slants across the sheet from the west. Snow drifts down and sways.
+  // Rain slants across the sheet with the wind. Snow drifts down, sways and is carried along by it.
   function falling(time) {
     if (!wx || !(wx.rain || wx.snow)) return;
-    const spanX = w + 80, spanY = h + 60;
+    const spanX = w + 80, spanY = h + 60, wrap = v => ((v % spanX) + spanX) % spanX;
+    const slant = wind.toward[0] * (0.05 + 0.55 * wind.strength);
+    blown += slant * Math.min(250, Math.max(0, time - blownAt)); blownAt = time;
     if (wx.rain) {
       const n = Math.round(w * h / 4200 * (0.3 + wx.rain)), len = 9 + wx.rain * 10;
       c.strokeStyle = 'rgba(58,80,102,' + (0.3 + wx.rain * 0.22).toFixed(2) + ')'; c.lineWidth = 1.1; c.lineCap = 'round';
       c.beginPath();
       for (let i = 0; i < n; i++) {
         const speed = 0.5 + hash2(7, i, 1) * 0.35;
-        const y = (hash2(7, i, 2) * spanY + time * speed) % spanY - 30, x = (hash2(7, i, 3) * spanX + time * speed * 0.24) % spanX - 40;
-        c.moveTo(x, y); c.lineTo(x + len * 0.24, y + len);
+        const y = (hash2(7, i, 2) * spanY + time * speed) % spanY - 30, x = wrap(hash2(7, i, 3) * spanX + blown * speed) - 40;
+        c.moveTo(x, y); c.lineTo(x + len * slant, y + len);
       }
       c.stroke();
       return;
@@ -782,7 +816,7 @@ export function createMap(canvas, onSelect, cards) {
     c.fillStyle = 'rgba(255,255,255,.96)'; c.strokeStyle = 'rgba(96,108,130,.42)'; c.lineWidth = 0.8;
     for (let i = 0; i < n; i++) {
       const speed = 0.026 + hash2(9, i, 1) * 0.03, sway = Math.sin(time * 0.0011 + i) * 9;
-      const y = (hash2(9, i, 2) * spanY + time * speed) % spanY - 30, x = (hash2(9, i, 3) * spanX + time * speed * 0.3) % spanX - 40 + sway;
+      const y = (hash2(9, i, 2) * spanY + time * speed) % spanY - 30, x = wrap(hash2(9, i, 3) * spanX + blown * speed * 3) - 40 + sway;
       c.beginPath(); c.arc(x, y, 1.1 + hash2(9, i, 4) * 1.5, 0, TAU); c.fill(); c.stroke();
     }
   }

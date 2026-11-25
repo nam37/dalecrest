@@ -64,6 +64,17 @@ function damp(minute, seed) {
 }
 const RAIN_AT = 0.61;
 
+// The wind at a village minute. toward is the way it blows across the plan, as a unit vector with
+// north at the top of the sheet. strength runs from 0 (still air) to 1 (a gale). It comes mostly out
+// of the west, backs and veers over a few days, and freshens as the air turns wet.
+export function windAt(minute, seed) {
+  const t = minute / DAY;
+  const angle = 0.12 + (drift(seed, 91, t / 2.7) - 0.5) * 3.4 + (drift(seed, 92, t / 0.7) - 0.5) * 0.9;
+  const wet = drift(seed, 81, t / 3.1) * 0.6 + drift(seed, 82, t / 0.8) * 0.4;
+  const strength = clamp(0.1 + drift(seed, 93, t / 0.45) * 0.6 + clamp((wet - 0.5) / 0.3) * 0.3);
+  return { toward: [Math.cos(angle), Math.sin(angle)], strength };
+}
+
 function spellAt(index, seed) {
   const minute = index * SPELL + SPELL / 2, wet = damp(minute, seed);
   const cloud = smooth(0.36, 0.58, wet), falling = clamp((wet - RAIN_AT) / 0.2);
