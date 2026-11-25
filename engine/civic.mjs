@@ -1,7 +1,7 @@
 // How the village changes itself. Residents voice concerns that come from their own circumstances,
 // win neighbours over in conversation, settle the matter at a moot, and then build what was agreed.
 import { dist, clamp } from './geom.mjs';
-import { place, placesOf, addNode, addEdge, walkLength, clearWalk, touch } from './roads.mjs';
+import { place, placesOf, addNode, addEdge, walkLength, clearWalk, touch, route, walkingSegment } from './roads.mjs';
 import { FIELD_NAMES, addPlace, pickLot, extendLane, fieldSite } from './sites.mjs';
 import { prepareCottage } from './village-work.mjs';
 import { GRANARY, foodDays, keepStores, mouths, ripen, storeDays } from './stores.mjs';
@@ -20,6 +20,9 @@ export const WORKS = {
 };
 const ALEHOUSES = ['The Barley Mow', 'The Plough', 'The Green Man', 'The Wheatsheaf'];
 const PATH_WEAR = 12;
+const dayLength = 1440;
+const attendanceWindow = 40;
+const eveningMoot = minute => minute - minute % dayLength + 19 * 60;
 
 export const BYLAWS = { allowance: { a: 'a daily bread allowance of one and a half loaves per adult', adultBread: 1.5 } };
 export const isLodger = (actor, map) => place(map, actor.home)?.kind !== 'cottage';
@@ -262,7 +265,7 @@ function closeMoot(state, emit, random) {
   }
   world.moot = null;
   if (ids.length < moot.quorum && !moot.tries) {
-    world.moot = { at: moot.at + 1440, tries: 1 };
+    world.moot = { at: eveningMoot(moot.at + dayLength), tries: 1 };
     emit('civic', 'Only ' + ids.length + ' came to the hall. The moot will meet again tomorrow evening.', ids,
       { mootId: moot.id, civic: 'closing', status: 'postponed', quorum: moot.quorum }, 'hall');
   } else if (!items.length) emit('civic', 'The moot met at the hall but found nothing left to settle.', ids,
@@ -295,37 +298,45 @@ export function affairs(state) {
 
 // Called once a simulated minute.
 export function tick(state, emit, random, onMootInterruption, { externalBallots = false } = {}) {
-  const { world, actors } = state, minute = world.minute, day = minute % 1440;
+  const { world, actors } = state, minute = world.minute;
   if (minute % 20 === 0 && !world.moot) {
     world.proposals = world.proposals.filter(p => minute - p.since < 8640
       && (p.kind !== 'cottage' || (isFamilyCottage(p.key) ? familyCottageNeeded(state) === p.key
         : actors.some(a => a.id === p.key.split(':')[1] && isLodger(a, state.map)))));
     if (world.proposals.some(p => eligible(p, state))) {
-      let at = minute - day + 1110;
-      if (at - minute < 90) at += 1440;
+      let at = eveningMoot(minute);
+      if (at - minute < 90) at += dayLength;
       world.moot = { at, tries: 0 };
       emit('civic', 'Word goes round Dalecrest: a moot will meet at the hall ' + (at - minute < 720 ? 'this evening' : 'tomorrow evening') + '.',
         [], { mootId: 'moot-' + at, civic: 'scheduled' });
     }
   }
   if (!world.moot) return;
-  // Shortly before the moot everyone awake reconsiders what they are doing.
+  // Shortly before the moot, wakeful residents reconsider unless they have already chosen to attend.
   if (minute === world.moot.at - 35) {
     for (const actor of actors) {
-      if (actor.action.remaining <= 0 || (actor.action.kind === 'rest' && actor.needs.fatigue >= 60)) continue;
+      const { action } = actor;
+      if (action.kind === 'meeting' || action.remaining <= 0 || (action.kind === 'rest' && actor.needs.fatigue >= 60)) continue;
       onMootInterruption?.(actor);
-      actor.action.remaining = 0;
+      action.remaining = 0;
     }
   }
   if (minute < world.moot.at) return;
   const moot = world.moot;
   if (!moot.agenda) openMoot(state);
-  if (minute <= moot.at + 40) enroll(state, externalBallots);
-  if (minute >= moot.at + 40 && (moot.ballots.length === moot.agenda.length * moot.attendees.length ||
+  const attendanceCloses = moot.at + attendanceWindow;
+  if (minute <= attendanceCloses) enroll(state, externalBallots);
+  if (minute >= attendanceCloses && (moot.ballots.length === moot.agenda.length * moot.attendees.length ||
       minute >= moot.at + 100)) closeMoot(state, emit, random);
 }
 
-export const mootOpen = world => world.moot && world.minute >= world.moot.at - 40 && world.minute <= world.moot.at + 25;
+export function canAttendMoot(actor, { world: { moot, minute }, map }) {
+  if (!moot || minute < moot.at - 40 || minute > moot.at + 25 || moot.attendees?.includes(actor.id)) return false;
+  const path = route(map, [actor.position.x, actor.position.y], 'hall');
+  // Enrollment runs before movement, so even the last arrival needs one more tick to be counted.
+  const walkingMinutes = moot.at + attendanceWindow - minute - 1;
+  return Boolean(path && walkingSegment(actor, path.pts, walkingMinutes).passed === path.pts.length);
+}
 
 // The agreed work this resident would most readily put a shift into.
 export function buildChoice(actor, state) {

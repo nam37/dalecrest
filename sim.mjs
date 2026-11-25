@@ -331,7 +331,7 @@ function choose(actor, state, menu, diagnostics) {
   }
   const build = !ill && tradeOpen('build', world.minute) && civic.buildChoice(actor, { ...state, world: perceived });
   if (build) offer('work', build.label, build.project.id, 70, build.score + duty - weary, build.reason, { job: 'build' });
-  if (civic.mootOpen(world) && !world.moot.attendees?.includes(actor.id)) {
+  if (civic.canAttendMoot(actor, state)) {
     const backs = world.proposals.some(p => p.supporters.includes(actor.id));
     offer('meeting', 'Attending the moot', 'hall', 75, 82 + (backs ? 10 : 0), 'The moot meets at the hall this evening to settle what the village should build.');
   }

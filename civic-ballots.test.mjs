@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createVillage } from './sim.mjs';
+import { availableActions, createVillage, startChosen, stepVillage } from './sim.mjs';
 import { ballotOffers, recordBallot, tick, labour } from './engine/civic.mjs';
 import { issueAllowance } from './engine/storehouse.mjs';
-import { place } from './engine/roads.mjs';
+import { place, route, walkingSegment } from './engine/roads.mjs';
 
 const run = state => tick(state, () => {}, () => 0.43, undefined, { externalBallots: true });
 function meeting(agenda, attendance = 4) {
@@ -34,6 +34,63 @@ function close(state, elapsed = 40) {
   run(state);
   return state.world.mootHistory?.at(-1);
 }
+
+function beforeMoot() {
+  const village = createVillage(26111), { actors: [actor], world, map } = village;
+  const [x, y] = place(map, 'wood').at;
+  actor.position = { x, y };
+  world.moot = { at: 1110, tries: 0 };
+  world.minute = world.moot.at - 37;
+  actor.action = { kind: 'waiting', label: 'Choosing the next activity', target: 'wood', phase: 'waiting', remaining: 0, since: world.minute };
+  return { village, actor, world, map };
+}
+
+test('the call to the moot lets residents already travelling to the hall finish the walk', () => {
+  const { village, actor, world } = beforeMoot();
+  assert.ok(startChosen(actor, village, 'meeting:hall', { id: 'early' }));
+  stepVillage(village, { minutes: 2, externalActions: true });
+  assert.equal(actor.action.kind, 'meeting');
+  assert.equal(actor.action.phase, 'travelling');
+  stepVillage(village, { minutes: world.moot.at - world.minute, externalActions: true });
+  assert.ok(world.moot.attendees.includes(actor.id));
+});
+
+test('the last feasible departure is enrolled and a later reply cannot start the trip', () => {
+  const { village, actor, world, map } = beforeMoot();
+  const path = route(map, [actor.position.x, actor.position.y], 'hall').pts;
+  let walk = 1;
+  while (walkingSegment(actor, path, walk).passed < path.length) walk++;
+  assert.ok(walk > 15, 'the coppice is too far from the hall to use the entire invitation window');
+  const attendanceCloses = world.moot.at + 40;
+  world.minute = attendanceCloses - walk - 1;
+  actor.action.since = world.minute;
+  assert.ok(availableActions(actor, village).has('meeting:hall'));
+
+  const late = structuredClone(village);
+  late.world.minute++;
+  assert.equal(availableActions(late.actors[0], late).has('meeting:hall'), false);
+  assert.equal(startChosen(late.actors[0], late, 'meeting:hall', { id: 'late' }), null);
+  const [x, y] = place(late.map, 'hall').at;
+  late.actors[1].position = { x, y };
+  assert.ok(availableActions(late.actors[1], late).has('meeting:hall'));
+
+  assert.ok(startChosen(actor, village, 'meeting:hall', { id: 'in-time' }));
+  stepVillage(village, { minutes: walk + 1, externalActions: true });
+  const result = world.mootHistory.at(-1);
+  assert.equal(result.closedAt, attendanceCloses);
+  assert.ok(result.attendees.includes(actor.id));
+});
+
+test('moots are called for seven with at least ninety minutes of notice', () => {
+  for (const [minute, scheduled] of [[17 * 60 + 20, 19 * 60], [17 * 60 + 40, 1440 + 19 * 60]]) {
+    const village = createVillage(), { world, actors } = village;
+    world.minute = minute;
+    world.proposals.push({ key: 'field', kind: 'field', by: actors[0].id, since: minute,
+      supporters: actors.slice(0, 4).map(a => a.id), heard: [] });
+    run(village);
+    assert.deepEqual(world.moot, { at: scheduled, tries: 0 });
+  }
+});
 
 test('an enacted allowance changes dawn issues for cottages and lodgers and leaves issued bread alone', () => {
   const state = meeting('allowance');
@@ -83,7 +140,7 @@ test('the tally distinguishes opposition, abstention, an absent voter and an unr
   cast(state, 1, 'support');
   const result = close(state);
   assert.equal(result.items[0].reason, 'too few attended');
-  assert.equal(state.world.moot.at, result.at + 1440);
+  assert.deepEqual(state.world.moot, { at: 1440 + 19 * 60, tries: 1 });
 });
 
 test('an agreed well still costs wood, one bundle per shift, and increases capacity only when finished', () => {
