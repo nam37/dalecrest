@@ -4,6 +4,7 @@ import { eventRequestKey } from './request-archive.mjs';
 const dayLength = 1440;
 const dawn = 360;
 const latestDue = minute => Math.max(0, Math.floor((minute - dawn) / dayLength));
+const outputTokenLimit = 8192;
 export const dailyModel = process.env.DALECREST_DAILY_MODEL?.trim() || 'claude-sonnet-5-5';
 
 export const dailySchema = `
@@ -103,9 +104,9 @@ async function writeCopy({ day, records, prior }, model, key, request, recordUsa
     villageRecords: records.filter(r => r.kind !== 'fieldnote').map(dated),
     previousEdition: prior && { ...prior, sources: prior.sources.map(dated) } };
   const response = await request('https://api.anthropic.com/v1/messages', {
-    method: 'POST', signal: AbortSignal.timeout(90000),
+    method: 'POST', signal: AbortSignal.timeout(120000),
     headers: { 'content-type': 'application/json', 'anthropic-version': '2023-06-01', 'x-api-key': key },
-    body: JSON.stringify({ model, max_tokens: 4096, system: editorInstructions,
+    body: JSON.stringify({ model, max_tokens: outputTokenLimit, system: editorInstructions,
       messages: [{ role: 'user', content: JSON.stringify(input) }],
       output_config: { format: { type: 'json_schema', schema: copySchema } } })
   });
@@ -115,7 +116,7 @@ async function writeCopy({ day, records, prior }, model, key, request, recordUsa
   const tokens = (usage.input_tokens || 0) + (usage.output_tokens || 0)
     + (usage.cache_creation_input_tokens || 0) + (usage.cache_read_input_tokens || 0);
   if (recordUsage && Number.isSafeInteger(tokens) && tokens > 0) await recordUsage(tokens);
-  if (result.stop_reason !== 'end_turn') throw new Error('Daily editor did not finish the edition');
+  if (result.stop_reason !== 'end_turn') throw new Error(`Daily editor did not finish the edition (${result.stop_reason})`);
   return JSON.parse(result.content.find(block => block.type === 'text')?.text);
 }
 
