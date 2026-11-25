@@ -1,5 +1,5 @@
 import { formatDate } from './engine/calendar.mjs';
-import { chooseDailyIllustration } from './engine/daily-illustrations.mjs';
+import { chooseDailyIllustration, dailyIllustrationImage, dailyIllustrations } from './engine/daily-illustrations.mjs';
 import { eventRequestKey } from './request-archive.mjs';
 
 const dayLength = 1440;
@@ -158,6 +158,16 @@ export async function composeEdition(sources, { key, model = dailyModel, request
   return assembleEdition(await writeCopy(input, model, key, request, recordUsage), input);
 }
 
+async function selectEditionArtwork(db, day, illustration) {
+  const images = dailyIllustrations[illustration.subject];
+  const { rows: [earlier] } = await db.query(`SELECT day, edition->'illustration' AS illustration
+    FROM dalecrest.daily_editions WHERE day < $1 AND edition->'illustration'->>'subject' = $2
+    ORDER BY day DESC LIMIT 1`, [day, illustration.subject]);
+  const previous = earlier ? images.indexOf(dailyIllustrationImage(earlier.day, earlier.illustration)) : -1;
+  const image = previous < 0 ? dailyIllustrationImage(day, illustration) : images[(previous + 1) % images.length];
+  return { ...illustration, asset: image.src };
+}
+
 // A lease survives process restarts. Only the oldest unpublished edition can be
 // claimed, so an editor always has the preceding issue when it follows a story.
 export async function publishNextDaily(db, { key = process.env.CLAUDE_KEY?.trim(), model = dailyModel, request = fetch } = {}) {
@@ -173,6 +183,7 @@ export async function publishNextDaily(db, { key = process.env.CLAUDE_KEY?.trim(
       recordUsage: tokens => db.query(`INSERT INTO dalecrest.daily_model_usage(day,attempt,requested_at,token_charge)
         VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING`, [day, attempts, claim.requested_at, tokens]),
     });
+    if (edition.illustration) edition.illustration = await selectEditionArtwork(db, day, edition.illustration);
     await db.query(`UPDATE dalecrest.daily_editions SET edition=$3, model=$4, published_at=now()
       WHERE day=$1 AND attempts=$2 AND edition IS NULL`, [day, attempts, edition, model]);
   } catch (error) {

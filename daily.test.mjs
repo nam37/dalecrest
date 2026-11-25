@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { availableActions, createVillage, stepVillage } from './sim.mjs';
 import { composeEdition, dailyArchive, publishNextDaily, queueEditions, searchDaily } from './daily.mjs';
-import { chooseDailyIllustration } from './engine/daily-illustrations.mjs';
+import { chooseDailyIllustration, dailyIllustrationImage } from './engine/daily-illustrations.mjs';
 import { readAdminMetrics } from './admin-metrics.mjs';
 
 test('Robin takes the reporting job in a saved village and writes only about people at his beat', () => {
@@ -81,6 +81,24 @@ test('lead art favours corroborating citations and links to the strongest record
   assert.equal(chooseDailyIllustration([{ sources: ['5'] }], records), null);
 });
 
+test('lead artwork resolves the saved asset or picks a variant for older editions', () => {
+  const orchard = { id: '1', kind: 'work', placeId: 'apple-orchard', text: 'Agnes tended the trees.' };
+  const wood = { id: '2', kind: 'fieldnote', text: 'Robin visited workers in the coppice.' };
+  const cottage = { id: '3', kind: 'build', placeId: 'cottage-18', text: 'The roof went on.' };
+  const barn = { id: '4', kind: 'observation', text: 'Agnes tallied the barley in the barn.' };
+  const sources = [orchard, wood, cottage, barn];
+  assert.deepEqual(chooseDailyIllustration([{ sources: ['1'] }], sources), { subject: 'orchard', sourceId: '1' });
+  assert.deepEqual(chooseDailyIllustration([{ sources: ['2'] }], sources), { subject: 'wood', sourceId: '2' });
+  assert.deepEqual(chooseDailyIllustration([{ sources: ['3'] }], sources), { subject: 'cottage', sourceId: '3' });
+  assert.deepEqual(chooseDailyIllustration([{ sources: ['4'] }], sources), { subject: 'granary', sourceId: '4' });
+  const oven = { subject: 'oven', sourceId: '1' };
+  assert.equal(dailyIllustrationImage(1, oven).src, '/daily-art/oven.webp');
+  assert.equal(dailyIllustrationImage(2, oven).src, '/daily-art/oven-workbench.webp');
+  assert.equal(dailyIllustrationImage(3, oven).src, '/daily-art/oven-cooling-rack.webp');
+  assert.equal(dailyIllustrationImage(2, { ...oven, asset: '/daily-art/oven.webp' }).src, '/daily-art/oven.webp');
+  assert.equal(dailyIllustrationImage(1, null), null);
+});
+
 const adminUrl = process.env.DALECREST_TEST_ADMIN_URL;
 test('the morning press persists one sourced edition per day and follows yesterday across a restart', { skip: !adminUrl }, async () => {
   const admin = new pg.Client({ connectionString: adminUrl });
@@ -152,14 +170,15 @@ test('the morning press persists one sourced edition per day and follows yesterd
     assert.deepEqual(latest.publishedDays, [2, 1]);
     assert.equal(pending, 3);
     assert.equal(latest.edition.sinceYesterday[0].sources.length, 2);
-    assert.equal(latest.edition.illustration, null);
+    assert.deepEqual(latest.edition.illustration, { subject: 'well', sourceId: update, asset: '/daily-art/well-buckets.webp' });
     const { rows: [stored] } = await pool.query('SELECT edition FROM dalecrest.daily_editions WHERE day=1');
-    assert.deepEqual(stored.edition.illustration, { subject: 'oven', sourceId: note });
+    assert.deepEqual(stored.edition.illustration, { subject: 'oven', sourceId: note, asset: '/daily-art/oven.webp' });
     await pool.query("UPDATE dalecrest.daily_editions SET edition=edition-'illustration' WHERE day=1");
     const first = (await dailyArchive(pool, '1')).body.issue;
     assert.equal(first.newer, 2);
     assert.deepEqual(first.publishedDays, [2, 1]);
-    assert.deepEqual(first.edition.illustration, stored.edition.illustration);
+    assert.deepEqual(first.edition.illustration, { subject: 'oven', sourceId: note });
+    await pool.query('UPDATE dalecrest.daily_editions SET edition=$1 WHERE day=1', [stored.edition]);
     assert.equal((await dailyArchive(pool, '3')).status, 404);
     assert.equal((await dailyArchive(pool, 'oops')).status, 400);
     assert.deepEqual((await pool.query('SELECT day, attempt, token_charge FROM dalecrest.daily_model_usage ORDER BY day,attempt')).rows,
@@ -204,6 +223,14 @@ test('the morning press persists one sourced edition per day and follows yesterd
     assert.deepEqual(literal.map(hit => [hit.anchor, hit.match]), [['briefs-1', '%_']]);
     assert.equal((await searchDaily(pool, '   ')).status, 400);
     assert.equal((await searchDaily(pool, 'alehouse', '0')).status, 400);
+
+    const ovenAgain = await add(3600, 'fieldnote', 'Robin saw Mabel at the common oven again.');
+    const copy = { headline: 'Back at the oven', lead: [{ text: 'Mabel was at the oven again.', sources: [ovenAgain] }],
+      briefs: [], sinceYesterday: [] };
+    const request = async () => Response.json({ stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(copy) }] });
+    await publishNextDaily(pool, { key: 'fixture', request });
+    const repeated = (await dailyArchive(pool, '3')).body.issue;
+    assert.deepEqual(repeated.edition.illustration, { subject: 'oven', sourceId: ovenAgain, asset: '/daily-art/oven-workbench.webp' });
   } finally {
     if (db) await db.pool.end();
     if (created) await admin.query('DROP DATABASE ' + name);

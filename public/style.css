@@ -75,7 +75,7 @@ nav a[aria-current=page] { color: var(--rust); border-bottom-color: var(--rust);
 .daily-pager-links, .daily-edition-jump { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 16px; }
 .daily-pager a { display: inline-block; padding: 6px 0; border: 0; font: inherit; letter-spacing: normal; text-decoration: underline; text-underline-offset: .18em; }
 .daily-edition-jump { grid-column: 2; gap: 6px 8px; }
-.daily-search-trigger { grid-column: 3; display: inline-flex; align-items: center; justify-content: center; gap: .5em; min-height: 32px; padding: 4px 6px; border: 0; background: none; color: var(--ink-soft); }
+.daily-search-trigger { grid-column: 3; display: inline-flex; align-items: center; justify-content: center; gap: .5em; }
 .daily-search-trigger:hover, .daily-search-close:hover { color: var(--rust); }
 .daily-search-icon { position: relative; width: .67em; height: .67em; margin-right: .14em; border: 1.5px solid currentColor; border-radius: 50%; }
 .daily-search-icon::after { content: ''; position: absolute; top: .47em; left: .45em; width: .38em; height: 1.5px; background: currentColor; transform: rotate(45deg); transform-origin: left center; }
@@ -85,7 +85,7 @@ nav a[aria-current=page] { color: var(--rust); border-bottom-color: var(--rust);
 .daily-search-dialog-header h2 { font-size: 1.65rem; }
 .daily-search-close { min-width: 34px; min-height: 34px; padding: 0; background: none; border: 0; font-size: 1.45rem; line-height: 1; }
 .daily-edition-search { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; }
-.daily-edition-jump select, .daily-edition-jump button, .daily-edition-search input, .daily-edition-search button { background: var(--leaf); border: 1px solid var(--rule); padding: 4px 8px; }
+.daily-edition-jump select, .daily-edition-jump button, .daily-search-trigger, .daily-edition-search input, .daily-edition-search button { background: var(--leaf); border: 1px solid var(--rule); padding: 4px 8px; }
 .daily-edition-search input { width: 100%; min-width: 0; }
 .daily-edition-search input:focus-visible { outline: 2px solid var(--rust); outline-offset: 2px; }
 .daily-search-results { max-width: 46rem; margin-top: 26px; }

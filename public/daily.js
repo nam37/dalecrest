@@ -1,5 +1,5 @@
 import { formatDate } from '/engine/calendar.mjs';
-import { dailyIllustrations } from '/engine/daily-illustrations.mjs';
+import { dailyIllustrationImage } from '/engine/daily-illustrations.mjs';
 import { dayLink, promiseLink } from './record-links.js';
 
 const $ = id => document.getElementById(id);
@@ -56,10 +56,11 @@ function showIssue({ day, edition, older }) {
   $('headline').textContent = edition.headline;
   const numbers = new Map(edition.sources.map((source, index) => [source.id, index + 1]));
   const illustration = edition.illustration;
+  const artwork = dailyIllustrationImage(day, illustration);
   const figure = $('lead-illustration');
   figure.hidden = true;
-  if (illustration && Object.hasOwn(dailyIllustrations, illustration.subject) && numbers.has(illustration.sourceId)) {
-    const { src, alt, caption } = dailyIllustrations[illustration.subject];
+  if (artwork && numbers.has(illustration.sourceId)) {
+    const { src, alt, caption } = artwork;
     Object.assign($('lead-image'), { src, alt });
     Object.assign($('lead-image-caption'), { textContent: caption, href: address(day) + '#record-' + illustration.sourceId });
     figure.hidden = false;
@@ -200,8 +201,24 @@ async function refresh() {
 
 $('lead-image-caption').addEventListener('click', () => { $('records').open = true; });
 const searchTrigger = $('edition-search-trigger'), searchDialog = $('edition-search-dialog');
+let backdropPressed = false;
+function onSearchBackdrop({ target, clientX, clientY }) {
+  if (target !== searchDialog) return false;
+  const { left, right, top, bottom } = searchDialog.getBoundingClientRect();
+  return clientX < left || clientX >= right || clientY < top || clientY >= bottom;
+}
 searchTrigger.addEventListener('click', () => searchDialog.showModal());
-searchDialog.addEventListener('close', () => searchTrigger.focus());
+searchDialog.addEventListener('pointerdown', event => {
+  backdropPressed = event.button === 0 && onSearchBackdrop(event);
+});
+searchDialog.addEventListener('click', event => {
+  if (backdropPressed && onSearchBackdrop(event)) searchDialog.close();
+  backdropPressed = false;
+});
+searchDialog.addEventListener('close', () => {
+  backdropPressed = false;
+  searchTrigger.focus();
+});
 window.addEventListener('hashchange', showEditionLocation);
 const query = params.get('q');
 if (query === null) refresh();

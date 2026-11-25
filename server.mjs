@@ -23,7 +23,7 @@ const files = new Map([['/', new URL('./public/index.html', import.meta.url)], [
 for (const entry of await readdir(new URL('./public/', import.meta.url), { withFileTypes: true })) {
   if (entry.isFile()) files.set('/' + entry.name, new URL('./public/' + entry.name, import.meta.url));
 }
-for (const { src } of Object.values(dailyIllustrations)) files.set(src, new URL('./public' + src, import.meta.url));
+for (const { src } of Object.values(dailyIllustrations).flat()) files.set(src, new URL('./public' + src, import.meta.url));
 for (const name of await readdir(new URL('./engine/', import.meta.url))) files.set('/engine/' + name, new URL('./engine/' + name, import.meta.url));
 for (const name of ['three.module.min.js', 'three.core.min.js']) files.set('/vendor/' + name, new URL('./node_modules/three/build/' + name, import.meta.url));
 // The typefaces are npm dependencies too, so the page still loads nothing from another host.
