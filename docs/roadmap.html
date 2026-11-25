@@ -303,6 +303,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
       <li><a href="#stage-3c"><span class="n">3c</span> Families and village lessons <i class="pip built"></i></a></li>
       <li><a href="#stage-3d"><span class="n">3d</span> What feeds the village <i class="pip built"></i></a></li>
       <li><a href="#stage-4"><span class="n">4</span> Voices and the moot <i class="pip built"></i></a></li>
+      <li><a href="#stage-4a"><span class="n">4a</span> Lead characters <i class="pip"></i></a></li>
       <li><a href="#stage-5"><span class="n">5</span> Worth watching <i class="pip hand"></i></a></li>
       <li><a href="#stage-6"><span class="n">6</span> Worth following <i class="pip hand"></i></a></li>
       <li><a href="#stage-6a"><span class="n">6a</span> Admin control panel <i class="pip hand"></i></a></li>
@@ -354,6 +355,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
     <li class="built"><a href="#stage-3c"><span class="stone">3c</span><b>Families</b><small>Built · previewing</small></a></li>
     <li class="built"><a href="#stage-3d"><span class="stone">3d</span><b>Food supply</b><small>Built · measuring</small></a></li>
     <li class="built"><a href="#stage-4"><span class="stone">4</span><b>Voices</b><small>Built · measuring</small></a></li>
+    <li><a href="#stage-4a"><span class="stone">4a</span><b>Lead characters</b><small>Proposed</small></a></li>
     <li class="hand"><a href="#stage-5"><span class="stone">5</span><b>Watching</b><small>In hand</small></a></li>
     <li class="hand"><a href="#stage-6"><span class="stone">6</span><b>Following</b><small>In hand</small></a></li>
     <li class="hand"><a href="#stage-6a"><span class="stone">6a</span><b>Admin panel</b><small>First release live</small></a></li>
@@ -861,6 +863,62 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
     <p class="donewhen"><b>Done when</b> a ballot can be traced to the goals and observations its voter was given; a piece of news can be followed from the person who saw it to the person who acted on it; and a moot runs to a valid outcome on the production path with every ballot recorded.</p>
   </article>
 
+  <!-- ============ Stage 4a ============ -->
+  <article class="stage" id="stage-4a">
+    <header>
+      <span class="numeral">4a</span>
+      <h3>Lead characters</h3>
+      <span class="meta">Size L · Builds on the promise pilot and Stage 2</span>
+      <span class="stamp">Proposed<br>Robin first</span>
+    </header>
+    <div class="meter"><span class="bar"><i class="d"></i><i class="p"></i></span><span class="count"></span></div>
+    <p>Give one or two residents more memory and more developed motivations so their lives can be followed across several village days. Start with Robin Marsh. His rounds already take him through the parish, and his life outside the Daily gives him personal decisions to make. A later lead can be the resident who takes on regular teaching at the hall. The two viewpoints should have different concerns, relationships and projects.</p>
+    <p><strong>Proposed · 25 November 2026.</strong> This stage builds on the existing <a href="../goal-reviews.mjs">goal reviews</a>, <a href="../engine/memory.mjs">resident memories</a>, <a href="../engine/reporting.mjs">reporting rounds</a> and <a href="../engine/children.mjs">lesson records</a>. Robin already has a larger allowance for ordinary action requests. The proposed investment is in what he can remember, what he wants to pursue and how he revisits those concerns.</p>
+    <p><a href="https://pinos.world/brain">Pino’s Brain</a> is a reference for showing the projects, commitments and habits a character carries from one day to the next.</p>
+    <ul class="checks">
+      <li data-s="todo"><div class="what"><strong>Enable depth for a named resident.</strong> Use a per-resident setting keyed to the resident’s lifetime, using the same identity boundary as resident records. Enable Robin first in a preview. Give the setting an operator switch and log when it changes. A successor with the same identifier has their own memories and goals. The teacher becomes a second lead only after completed lessons with pupils establish who is regularly teaching. A dedicated school building is optional.</div></li>
+      <li data-s="todo"><div class="what"><strong>Give leads more durable personal memory.</strong> Let a lead retain a bounded set of consequential memories beyond the ordinary recent memory window. Start with links to their own recorded observations and relationship evidence, including earlier promises, setbacks, encounters and things that changed their mind. Each selection carries its original source, when the resident learned it and why it matters to a current concern. Keep conflicting accounts and later corrections so a more recent story can revise what the lead believes.</div></li>
+      <li data-s="todo"><div class="what"><strong>Give motives continuity and consequences.</strong> Keep the versioned goal book as the record of what a resident wants. For the pilot, let a lead develop a lasting personal concern and one concrete plan linked to a goal. A concern can be about a person, their calling, or something they value for its own sake. A plan records what they want to try next and when they would reconsider. A missed visit or a gift can change its course if the resident actually learns about it. Progress, revision and abandonment are all valid outcomes.</div></li>
+      <li data-s="todo"><div class="what"><strong>Let leads follow through on real plans.</strong> Start with actions the village can already resolve, such as following up on an unfinished story, visiting someone or trying to keep a promise. Add a one-off appointment to the same pilot. One resident proposes a person, place and time window, and the other chooses whether to accept. Use walking time and existing obligations to surface a fresh choice if a routine would make them late. Record who arrived, when, and what each participant learned afterward. Once this works, try a personal project whose time, materials and result the simulation can account for.</div></li>
+      <li data-s="todo"><div class="what"><strong>Give leads occasional deeper reviews.</strong> Extend the existing goal-review path to consider an older relevant memory, an active plan and what happened since the last review. Start with consequential triggers such as a plan being fulfilled, falling through or receiving credible new evidence. Try a stronger review model only as a measured variant. Keep the existing clock and action contract. The model sets or revises the intention, the action model chooses a feasible move, and the engine resolves what happened.</div></li>
+      <li data-s="todo"><div class="what"><strong>Show what the resident is carrying forward.</strong> Put a short On their mind section on the resident page, with one active concern or plan and a link to the relevant public record. Show confirmed outcomes separately from a resident’s stated intention or interpretation. Stage 5 can feature a lead when there is something to see. Stage 6 can use the same records to show what they knew, what they chose and what happened. Robin’s private reflections and public reporting serve separate purposes. The Daily continues to report sourced events.</div></li>
+      <li data-s="todo"><div class="what"><strong>Rehearse before adding the second lead.</strong> Pilot Robin in one preview village with a repeatable fixture for a plan that spans several activities and a night. Compare with an earlier decision trace from the same resident and with a resident on the ordinary profile. Measure reviews, input tokens, waits and the number of decisions where prior experience is relevant. Open the teacher pilot after the Robin trial yields a complete, readable example and the live lesson records support the choice of teacher.</div></li>
+    </ul>
+
+    <h4>Robin’s first pilot</h4>
+    <p>Give Robin a real unfinished matter to return to. For example, his notes might record that a cottage proposal was postponed. He could decide to ask its proposer what has changed, arrange a time to meet, and choose whether to keep that meeting when his reporting takes him elsewhere. These are possible outcomes for a rehearsal. The resident chooses the plan and the simulation establishes the result.</p>
+    <p>Include a personal concern alongside his reporting. Robin may want to keep an appointment with Agnes on a day when a close moot vote gives him a reason to go to the hall. If they miss each other, Agnes can remember waiting and Robin can remember the choice he made. Any later explanation follows from an encounter or report they actually receive.</p>
+    <p>The eventual teacher should have a concern drawn from their own lessons and household ties. A pupil can miss a lesson because of another obligation the teacher has yet to hear about. The teacher might ask the household, change what to teach next, or set it aside. Over time the teacher and Robin can reach different judgments about the same village events.</p>
+
+    <h4>Records and decision interfaces</h4>
+    <ul>
+      <li><strong>Lead settings.</strong> Record the resident’s identity, when depth is enabled, and the applicable recall and review limits. Keep presentation emphasis separate from decision depth so the observatory can follow any resident. Account for a departed resident, an actor identifier reused by a newcomer, and a role that passes to another teacher.</li>
+      <li><strong>Memory selection.</strong> Keep the live snapshot compact and reuse the observation archive. A lead’s retained memory can be a small list of observation or evidence keys. Resolve only the resident’s own keys within their lifetime. Use deterministic, relevance-based retrieval by the current plan, person or place, and record the exact keys in the trace. A starting experiment could retain up to 24 important references and show a few extra relevant memories in a deep review. Tune those values against the current 60-entry memory and the ordinary review context. Repeated routine should carry less weight than a relevant consequence.</li>
+      <li><strong>Motivation and plans.</strong> Extend the existing goal versions before considering a second goal store. A possible plan record holds its owner and version, goal reference, a stated next step, supporting evidence, a review or due time, and the outcome or reason it ended. Distinguish a wish from an accepted appointment. Validate counterparties, location, arrival window and transitions before applying a decision. Give changed plans new versions so a reply about an earlier plan can be recorded as stale.</li>
+      <li><strong>Model calls.</strong> Keep deeper reviews off the tick path. Reserve and measure them under a bounded allowance that leaves room for ordinary reviews and action calls. Coalesce new review triggers while an equivalent review is pending and compare trigger, resident lifetime and plan or goal version when applying a reply. Validate cited keys and use the last valid plan through delays, refusals or provider outages. Closing or reopening a request must be safe to repeat after a restart.</li>
+      <li><strong>Public record.</strong> Reuse the <a href="decision-tracing.md#follow-a-goal">goal and decision trace</a> to link observations offered, goal or plan versions, the chosen action and its observed outcome. The resident page can show a dated entry or a screened statement the resident chose to share. Keep the model exchange and private review material in the operator record. For the teacher, start with lesson outcomes and pupil participation already appropriate to the public chronicle.</li>
+    </ul>
+
+    <h4>Questions for technical review</h4>
+    <ul>
+      <li>Can retained memory use the existing observation keys and queries at decision time, or does a small index by lifetime, person and place need to be added? Which context limits preserve a useful distinction between the action menu and a deeper review?</li>
+      <li>Can appointments reuse the request archive’s version and participant rules while keeping arrival and notice as their own outcome? Which transitions need a shared record, and which belong only to each participant’s observations?</li>
+      <li>Can the goal-review queue add a bounded lead review without delaying ordinary reviews? Which baseline for token use and decision waits should govern enabling a second resident?</li>
+      <li>Which parts of the existing goal chain can be rendered publicly with their sources, and which need a dedicated projection so generated interpretations never appear as established events?</li>
+    </ul>
+
+    <h4>Acceptance checks</h4>
+    <ol>
+      <li>A lead retrieves an important older observation after ordinary entries have faded. The review cites it, the trace identifies it, and another resident with no record of hearing it receives a different context.</li>
+      <li>A plan remains available after a meal, a shift, sleep and a restart. A witnessed setback can revise it. A late or duplicated reply leaves a single consistent plan and outcome.</li>
+      <li>An appointment can be accepted or declined. An accepted appointment changes a choice when travel would make a routine run late. A missed meeting leaves records that reflect what each person witnessed or learned.</li>
+      <li>A viewer can follow one real Robin sequence from intention through action to consequence. The Daily and resident page distinguish observed facts, stated intentions and interpretations.</li>
+      <li>The pilot reports decision waits and token use for Robin and the ordinary residents. Turning off the lead setting stops the extra review path while existing goals and accepted commitments can be handled by the regular systems. A second lead can be enabled independently in a rehearsal.</li>
+    </ol>
+
+    <p class="donewhen"><b>Done when</b> Robin has a traceable concern that changes or progresses over several village days, with a real choice and a recorded consequence. A viewer can tell what mattered to him and what happened next. The operator can compare decision waits and cost against a baseline and can use the same settings for a later teacher pilot.</p>
+  </article>
+
   <!-- ============ Stage 5 ============ -->
   <article class="stage" id="stage-5">
     <header>
@@ -1023,6 +1081,7 @@ footer { margin-top: 56px; padding-top: 16px; border-top: 3px double var(--ink);
     <li>Stage 3c builds on the households and lives in Stage 3 and the Storehouse allowance in Stage 3a. Begin with family arrivals, then add children's routines and lessons before opening the live rollout.</li>
     <li>Stage 3d builds on the meals and larders from Stages 3 and 3a. Harvests, hay and lambing use Stage 3’s seasonal calendar.</li>
     <li>Stage 4 needs Stage 2's goals and observations.</li>
+    <li>Stage 4a builds on Stage 2’s goals and memories and extends the Stage 1 promise pilot to personal plans. Robin can go first. The teacher pilot follows evidence from Stage 3c’s lessons. Stages 5 and 6 can present the same records, and repeated voluntary meetings can later inform Stage 7B.</li>
     <li>Stage 6 needs the records from Stages 1 and 2 and reads best after Stage 5's daily account.</li>
     <li>Stage 6a can start with Stage 0’s activity records and the clock helper from Stage 7A. Rehearse the panel in a preview before connecting it to the live village.</li>
     <li>Stage 7 measures how clock speed affects decision waits and costs in a single village.</li>
