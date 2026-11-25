@@ -862,11 +862,6 @@ export function createWalk(container, onSelect, onNote) {
       const p = motion.at(actor.id, now);
       if (!p) return;
       let f = figures.get(actor.id);
-      if (f && f.userData.child !== Boolean(actor.child)) {
-        people.remove(f);
-        names.remove(f.userData.label);
-        f = null;
-      }
       if (!f) {
         f = makeFigure(actor, index);
         // The sun's shadow is too coarse to reach the feet from far off, so a soft patch marks where they stand.
@@ -874,6 +869,7 @@ export function createWalk(container, onSelect, onNote) {
         patch.rotation.x = -Math.PI / 2; patch.position.y = 0.006; patch.renderOrder = 1; f.add(patch);
         f.userData.id = actor.id;
         f.userData.child = Boolean(actor.child);
+        f.userData.appearanceKey = JSON.stringify(actor.appearance);
         f.userData.label = textSprite(actor.name, false);
         f.userData.label.userData.reach = 14; f.userData.label.userData.size = 0.105;
         names.add(f.userData.label);
@@ -1068,6 +1064,13 @@ export function createWalk(container, onSelect, onNote) {
       world = extras?.world;
       updateParish();
       actors = (rows || []).filter(a => Number.isFinite(a.position?.x));
+      for (const actor of actors) {
+        const figure = figures.get(actor.id);
+        if (!figure || (figure.userData.child === Boolean(actor.child) && figure.userData.appearanceKey === JSON.stringify(actor.appearance))) continue;
+        people.remove(figure);
+        names.remove(figure.userData.label);
+        figures.delete(actor.id);
+      }
       motion.update(actors, performance.now(), motionMs, extras?.liveTick);
       // extras.events are the latest chronicle entries that have a place, newest first, as on the map.
       marks = [];

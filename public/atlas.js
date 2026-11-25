@@ -14,7 +14,7 @@ const $ = id => document.getElementById(id);
 const asked = new URLSearchParams(location.search);
 const el = (tag, cls, value) => { const node = document.createElement(tag); if (cls) node.className = cls; if (value !== undefined) node.textContent = value; return node; };
 const map = createMap($('map'), id => { selected = id; show(); }, { resident: (actor, others) => residentCard(actor, {
-  index: people.findIndex(a => a.id === actor.id), names: locationsOf(village.map, village.actors), minute: village.world.minute, others }) });
+  names: locationsOf(village.map, village.actors), minute: village.world.minute, others }) });
 let village, selected, walk = null, mode = 'plan', revision = -1, log = [], running = 0;
 let people = [], dial = null;
 

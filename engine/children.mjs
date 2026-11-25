@@ -3,6 +3,7 @@ import { ageOf, COMES_OF_AGE, tooIll } from './lives.mjs';
 import { WOODPILE_HOLDS } from './households.mjs';
 import { place, route, walkingSegment, walkingSpeed } from './roads.mjs';
 import { restDay } from './workday.mjs';
+import { appearanceOf, createAppearance } from './appearance.mjs';
 
 const DAY = 1440;
 const LESSON_MINUTES = 75;
@@ -14,7 +15,7 @@ const fullName = child => [child.name, child.surname].filter(Boolean).join(' ');
 
 export function childView(child, home, minute) {
   return { id: child.id, name: fullName(child), child: true, age: ageOf(child, minute), born: child.born,
-    role: 'Child', home, action: child.action, position: child.position };
+    appearance: appearanceOf(child), role: 'Child', home, action: child.action, position: child.position };
 }
 
 export function childResidents(world) {
@@ -26,17 +27,19 @@ export function childResidents(world) {
 export function prepareChildren({ world, actors, map }) {
   for (const [home, cottage] of Object.entries(world.cottages || {})) {
     for (const child of cottage.children || []) {
-      if (child.id && child.action) continue;
-      const site = place(map, home);
-      if (!site) continue;
-      if (!child.id) {
-        world.nextChildId = (world.nextChildId || 0) + 1;
-        child.id = 'child-' + world.nextChildId;
+      if (!child.id || !child.action) {
+        const site = place(map, home);
+        if (!site) continue;
+        if (!child.id) {
+          world.nextChildId = (world.nextChildId || 0) + 1;
+          child.id = 'child-' + world.nextChildId;
+        }
+        const guardian = actors.find(actor => child.parents?.includes(actor.id));
+        child.surname ??= guardian?.name.split(' ').at(-1) || '';
+        child.position ??= { x: site.at[0], y: site.at[1] };
+        child.action ??= { kind: 'rest', label: 'Staying at home', target: home, phase: 'working', remaining: 0 };
       }
-      const guardian = actors.find(actor => child.parents?.includes(actor.id));
-      child.surname ??= guardian?.name.split(' ').at(-1) || '';
-      child.position ??= { x: site.at[0], y: site.at[1] };
-      child.action ??= { kind: 'rest', label: 'Staying at home', target: home, phase: 'working', remaining: 0 };
+      child.appearance ??= createAppearance(child);
     }
   }
 }

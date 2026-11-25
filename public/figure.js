@@ -3,10 +3,10 @@
 // they are doing. poseFigure moves it: a stride, a movement for each trade, and a thoughtful stance
 // while deciding. The figure faces +x and stands on y = 0. About 0.47 units tall, which is 1.9 m.
 import * as THREE from '/vendor/three.module.min.js';
-import { aprons, residentPose, skins, toolFor, villageColors } from './resident-pose.js';
+import { appearanceOf, appearanceVariation } from '../engine/appearance.mjs';
+import { aprons, residentPose, toolFor } from './resident-pose.js';
 
 const TAU = Math.PI * 2;
-const hairs = ['#62503c', '#65594b', '#6b4733', '#584d3c', '#765c4a', '#67492e', '#524633', '#795b3c'];
 const hose = ['#5b4d3c', '#4f5546', '#6b5a43', '#4d4c56'];
 
 const materials = new Map();
@@ -15,8 +15,6 @@ function soft(color, extra) {
   if (!materials.has(key)) materials.set(key, new THREE.MeshLambertMaterial({ color, ...extra }));
   return materials.get(key);
 }
-const shade = (hex, k) => '#' + new THREE.Color(hex).multiplyScalar(k).getHexString();
-
 // Geometry is shared by every figure.
 const shapes = {
   leg: new THREE.CapsuleGeometry(0.021, 0.135, 3, 8),
@@ -27,6 +25,7 @@ const shapes = {
   head: new THREE.SphereGeometry(0.046, 14, 10),
   eye: new THREE.SphereGeometry(0.0062, 6, 5),
   cap: new THREE.SphereGeometry(0.0495, 14, 8, 0, TAU, 0, 1.9),
+  capBand: new THREE.CylinderGeometry(0.044, 0.048, 0.009, 14),
   cowl: new THREE.SphereGeometry(0.054, 14, 8, 0, TAU, 0, 2.05),
   cape: new THREE.CylinderGeometry(0.034, 0.082, 0.07, 14, 1, true),
   brim: new THREE.CylinderGeometry(0.084, 0.09, 0.008, 18),
@@ -76,18 +75,20 @@ function tool(kind) {
 }
 
 export function makeFigure(actor, index) {
-  const g = new THREE.Group(), cloth = villageColors[index % villageColors.length], skin = soft(skins[index % 8]), hair = soft(hairs[index % 8]);
-  const tunicColor = soft(cloth), trim = soft(shade(cloth, 0.72));
+  const g = new THREE.Group(), appearance = appearanceOf(actor);
+  const { cloth: [cloth, clothShade], skin: [skinColor], hair: [hairColor], headwear } = appearance;
+  const skin = soft(skinColor), hair = soft(hairColor), tunicColor = soft(cloth);
+  const hoseColor = soft(hose[Math.floor(appearanceVariation(appearance, 'hose') * hose.length)]);
   // Legs hang from the hips and carry a shoe that points the way the figure faces.
   const legs = [0.031, -0.031].map(z => {
     const pivot = new THREE.Group(); pivot.position.set(0, 0.2, z);
-    pivot.add(mesh(shapes.leg, soft(hose[index % hose.length]), 0, -0.098, 0), mesh(shapes.shoe, soft('#3a2f25'), 0.016, -0.187, 0));
+    pivot.add(mesh(shapes.leg, hoseColor, 0, -0.098, 0), mesh(shapes.shoe, soft('#3a2f25'), 0.016, -0.187, 0));
     g.add(pivot);
     return pivot;
   });
   // Everything above the hips leans and turns together.
   const body = new THREE.Group(); body.position.y = 0.2; g.add(body);
-  const hem = index % 2 ? -0.118 : -0.086;
+  const hem = appearanceVariation(appearance, 'hem') < 0.5 ? -0.118 : -0.086;
   if (!tunics.has(hem)) tunics.set(hem, shapes.tunic(hem));
   const tunic = mesh(tunics.get(hem), tunicColor); tunic.scale.set(0.8, 1, 1); body.add(tunic);
   const belt = mesh(shapes.belt, soft('#4a3a2a'), 0, 0.058, 0, false); belt.scale.set(0.8, 1, 1); body.add(belt);
@@ -103,18 +104,25 @@ export function makeFigure(actor, index) {
   const head = new THREE.Group(); head.position.y = 0.238; body.add(head);
   const face = mesh(shapes.head, skin); face.scale.set(0.95, 1.08, 0.92); head.add(face);
   for (const z of [0.0165, -0.0165]) head.add(mesh(shapes.eye, soft('#2e2620'), 0.0395, 0.006, z, false));
-  // Hair, tipped back so the face shows, and over it a straw hat, a hood or a linen coif.
+  // Hair and headwear are tipped back so the face shows.
   const tipped = (geometry, material, tilt) => { const m = mesh(geometry, material, -0.003, 0.004, 0); m.rotation.z = tilt; return m; };
-  const kind = index % 3;
-  if (kind === 0) {
+  if (headwear === 'straw') {
     head.add(tipped(shapes.cap, hair, 0.5));
-    const brim = mesh(shapes.brim, soft('#c9ad6b'), -0.004, 0.036, 0), crown = mesh(shapes.crown, soft('#bf9d58'), -0.004, 0.058, 0);
+    const brim = mesh(shapes.brim, soft('#d6b477'), -0.004, 0.036, 0), crown = mesh(shapes.crown, soft('#ba9053'), -0.004, 0.058, 0);
     brim.rotation.z = crown.rotation.z = 0.08; head.add(brim, crown);
-  } else if (kind === 1) {
-    head.add(tipped(shapes.cowl, trim, 0.52));
-    const cape = mesh(shapes.cape, soft(shade(cloth, 0.72), { side: THREE.DoubleSide }), 0, 0.158, 0); cape.scale.set(0.84, 1, 1); body.add(cape);
+  } else if (headwear === 'hood') {
+    head.add(tipped(shapes.cowl, tunicColor, 0.52));
+    const cape = mesh(shapes.cape, soft(clothShade, { side: THREE.DoubleSide }), 0, 0.158, 0); cape.scale.set(0.84, 1, 1); body.add(cape);
+  } else if (headwear === 'coif') {
+    head.add(tipped(shapes.cap, soft('#e6d9b8'), 0.62), mesh(shapes.bun, hair, -0.044, -0.012, 0, false));
+  } else if (headwear === 'cap') {
+    head.add(tipped(shapes.cap, hair, 0.5));
+    const cap = mesh(shapes.cap, soft(clothShade), -0.004, 0.013, 0);
+    cap.scale.y = 0.8;
+    const band = mesh(shapes.capBand, tunicColor, -0.004, 0.025, 0);
+    head.add(cap, band);
   } else {
-    head.add(tipped(shapes.cap, soft('#ece5cf'), 0.62), mesh(shapes.bun, hair, -0.044, -0.012, 0, false));
+    head.add(tipped(shapes.cap, hair, 0.5));
   }
   g.userData.rig = { legs, arms, body, head, tools: new Map(), held: null, index };
   return g;

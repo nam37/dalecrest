@@ -238,7 +238,7 @@ h3 { font-size: 1.75rem; line-height: 1.1; }
 #pick-resident, .chronicle-head select, .atlas-form select, .atlas-form input { border: 1px solid var(--rule); border-radius: 2px; background: #fffaea; padding: 4px 6px; font-size: .95rem; }
 #pick-resident { max-width: 50%; }
 .profile-top { display: flex; align-items: center; gap: 14px; padding: 18px 18px 10px; }
-.portrait { width: 56px; height: 60px; flex-shrink: 0; image-rendering: pixelated; background: #e6e2cf; border: 1px solid var(--rule); box-shadow: 0 0 0 3px var(--leaf), 0 0 0 4px var(--rule); }
+.portrait { width: 56px; height: 60px; flex-shrink: 0; background: #e6e2cf; border: 1px solid var(--rule); box-shadow: 0 0 0 3px var(--leaf), 0 0 0 4px var(--rule); }
 .role { margin-top: 2px; font-style: italic; color: var(--muted); }
 .trait-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 18px 14px; }
 .trait { border: 1px solid var(--rule); background: #f3ecd4; color: var(--ink-soft); padding: 1px 8px; font-size: .86rem; font-style: italic; text-transform: lowercase; }

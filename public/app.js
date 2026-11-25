@@ -3,7 +3,8 @@ import { bindMapFullscreen } from './map-fullscreen.js';
 import { dateOf, formatDate } from '/engine/calendar.mjs';
 import { light, skyOver } from '/ambient.js';
 import { createDial } from './clock-dial.js';
-import { residentCard, eventCard, kinds, portrait as likeness, whyText, residentCaption, choiceExplanation, doing as doingAt } from '/card.js';
+import { residentCard, eventCard, kinds, whyText, residentCaption, choiceExplanation, doing as doingAt } from '/card.js';
+import { portrait } from './portrait.js';
 import { createDirector } from '/director.js';
 import { ageOf } from '/engine/lives.mjs';
 import { conditionWords } from '/engine/goals.mjs';
@@ -41,7 +42,7 @@ const recall = key => { try { return localStorage.getItem(key); } catch { return
 const keep = (key, value) => { try { localStorage.setItem(key, value); } catch { /* private window */ } };
 let watching = !location.hash.includes('/') && recall('dalecrest.watch') !== 'off', scene = null;
 const map = createMap($('map'), choose, {
-  resident: (actor, others) => residentCard(actor, { index: villagePeople.findIndex(a => a.id === actor.id), names: state.locations, minute: state.world.minute, others }),
+  resident: (actor, others) => residentCard(actor, { names: state.locations, minute: state.world.minute, others }),
   event: (events, spot) => eventCard(events, { names: state.locations, minute: state.world.minute, place: spot.id }),
   steered: () => watch(false),
 });
@@ -156,8 +157,6 @@ function date(minute) {
   const other = state && dateOf(minute).year !== dateOf(state.world.minute).year;
   return formatDate(minute, other ? 'full' : 'day');
 }
-
-const portrait = actor => likeness(villagePeople.findIndex(a => a.id === actor.id));
 
 function who(actor) {
   const row=el('div','profile-top'), text=el('div');
@@ -491,7 +490,7 @@ function residentDirectory() {
 }
 function roster() {
   residentDirectory();
-  const signature=state.actors.map(a=>[a.id,a.arrived,a.name,a.role,a.backstory,doing(a)]).join('|');
+  const signature=JSON.stringify(state.actors.map(a=>[a.id,a.arrived,a.name,a.role,a.backstory,doing(a),a.sex,a.appearance]));
   if(signature===rosterSignature)return;
   rosterSignature=signature;
   const cards=state.actors.map(a=>{

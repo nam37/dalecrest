@@ -30,6 +30,7 @@ test('PostgreSQL moves an old village onto a map, then stores a newcomer and the
     const world = { minute: 2 * 1440 + 500, seed: founded.world.seed, supplies: founded.world.supplies };
     await old.query('INSERT INTO dalecrest.world(id, state) VALUES (1, $1)', [world]);
     for (const [ordinal, actor] of founded.actors.entries()) {
+      delete actor.appearance;
       Object.assign(actor, { home: 'cottages', position: { x: 31, y: 58 } });
       actor.action = { kind: 'rest', label: 'Resting at home', reason: 'Tired.', target: 'cottages', phase: 'working', remaining: 5 };
       await old.query('INSERT INTO dalecrest.actors(id, ordinal, state) VALUES ($1, $2, $3)', [actor.id, ordinal, actor]);
@@ -46,6 +47,7 @@ test('PostgreSQL moves an old village onto a map, then stores a newcomer and the
     assert.ok(Number.isFinite(initialObserver.nextTickInMs));
     assert.equal((await db.snapshot({ withMap:true })).map,initialObserver.map);
     assert.ok(snapshot.actors.every(a => /^cottage-\d$/.test(a.home) && a.action.target === a.home));
+    assert.ok(snapshot.actors.every(a => a.appearance?.seed === a.id));
     assert.equal(snapshot.world.minute, world.minute);
     assert.deepEqual(await mapRevisions(db.pool), [{ revision: first, minute: world.minute }]);
     assert.deepEqual((await mapRevision(db.pool, first)).map, initialObserver.map);
@@ -61,6 +63,7 @@ test('PostgreSQL moves an old village onto a map, then stores a newcomer and the
     }
     snapshot = await db.snapshot();
     assert.ok(snapshot.actors.length > 8, 'no newcomer was stored');
+    assert.ok(snapshot.actors.every(a => a.appearance?.seed === (a.arrived == null ? a.id : `${a.id}@${a.arrived}`)));
     const rows = (await db.pool.query('SELECT id, ordinal FROM dalecrest.actors ORDER BY ordinal')).rows;
     assert.deepEqual(rows.map(r => r.ordinal), rows.map((_, i) => i));
     assert.deepEqual(rows.map(r => r.id), snapshot.actors.map(a => a.id));

@@ -13,6 +13,7 @@ import { vacantCottages, waitingLodgers } from './households.mjs';
 import { eatsFromLarder } from './storehouse.mjs';
 import { cottageBatches, larderFoods, produceFoods, takeFoodBatches } from './fresh-food.mjs';
 import { CHILD_NEED, HUNGER, HUNGRY_AT_DAWN, mealRecord } from './nutrition.mjs';
+import { appearanceOf, createAppearance } from './appearance.mjs';
 
 const DAY = 1440;
 export const YEAR = 365.25 * DAY;
@@ -35,6 +36,7 @@ const first = a => a.name.split(' ')[0];
 
 // Gives a resident from before lives an age and a sex. Safe to repeat.
 export function normalizeLife(actor, minute) {
+  actor.appearance ??= createAppearance(actor);
   const known = FOUNDERS[actor.id];
   actor.sex ??= known?.[0] ?? sexOfName(first(actor)) ?? (hashed(actor.id) % 2 ? 'f' : 'm');
   if (actor.born == null) {
@@ -145,7 +147,7 @@ export function removeResident(state, actor, how, emit, why) {
   world.weddings = (world.weddings || []).filter(w => w.a !== actor.id && w.b !== actor.id);
   world.departed ??= [];
   world.departed.push({ id: actor.id, name: actor.name, arrived: actor.arrived ?? 0, role: actor.role, home: actor.home,
-    how, minute, age, ...(children.length && { children: children.map(c => c.name) }) });
+    appearance: appearanceOf(actor), how, minute, age, ...(children.length && { children: children.map(c => c.name) }) });
   emit('life', text + (children.length ? ' ' + (children.length === 1 ? children[0].name + ' went too.' : children.map(c => c.name).join(' and ') + ' went too.') : ''),
     [actor.id], { life: how === 'died' ? 'died' : 'left', how }, actor.home);
   return true;

@@ -1,6 +1,7 @@
 // The card that opens over a resident on the map: who they are, what they are doing, and what the
 // village records say about why. It reports what is stored and does not guess at motives.
 import { dateOf, formatDate } from '../engine/calendar.mjs';
+import { portrait } from './portrait.js';
 
 const el = (tag, cls, value) => {
   const node = document.createElement(tag);
@@ -8,29 +9,6 @@ const el = (tag, cls, value) => {
   if (value !== undefined) node.textContent = value;
   return node;
 };
-const CLOTH = ['#946344', '#68764f', '#a8654c', '#456d65', '#827892', '#7c6043', '#567895', '#946e46'];
-const SKIN = ['#c99873', '#bb9270', '#ce9d78', '#bc8e6c', '#bf926d', '#aa7a55', '#d6a77d', '#c59a70'];
-const HAIR = ['#62503c', '#65594b', '#6b4733', '#584d3c', '#765c4a', '#67492e', '#524633', '#795b3c'];
-
-// A small likeness, told apart by the resident's place in the register.
-export function portrait(i) {
-  const canvas = el('canvas', 'portrait');
-  canvas.width = 30; canvas.height = 32; canvas.setAttribute('aria-hidden', 'true');
-  const ctx = canvas.getContext('2d');
-  const cloth = CLOTH[i % CLOTH.length], skin = SKIN[i % 8], hair = HAIR[i % 8];
-  const r = (x, y, w, h, color) => { ctx.fillStyle = color; ctx.fillRect(x, y, w, h); };
-  r(0, 0, 30, 32, '#e3e1cd');
-  for (let x = 0; x < 30; x += 3) r(x, 24 + (x % 4), 1, 8, '#d1d3b8');
-  r(3, 28, 24, 4, cloth); r(6, 25, 18, 6, cloth); r(10, 23, 10, 6, cloth); r(12, 21, 6, 4, skin);
-  r(8, 9, 14, 11, hair); r(10, 7, 11, 4, hair); r(10, 12, 11, 9, skin); r(12, 21, 7, 2, skin);
-  r(18, 14, 4, 4, skin); r(19, 15, 1, 1, '#4e4538'); r(17, 20, 3, 1, '#996e53');
-  r(8, 12, 3, 7, hair); r(11, 11, 6, 2, hair); r(10, 25, 2, 7, '#ddd0ad'); r(18, 25, 2, 7, '#ddd0ad');
-  if (i % 3 === 0) { r(7, 9, 16, 3, '#bc985a'); r(9, 7, 12, 3, '#c3a467'); r(11, 5, 8, 3, '#c3a467'); }
-  if (i % 3 === 1) { r(7, 9, 15, 3, cloth); r(9, 6, 11, 4, cloth); r(10, 18, 3, 5, hair); }
-  if (i % 3 === 2) { r(8, 9, 12, 4, '#dfd7bb'); r(10, 7, 9, 3, '#e9e2cb'); r(7, 12, 4, 10, '#d2c7a8'); }
-  return canvas;
-}
-
 export const kinds = { village: 'Village', work: 'Work', meal: 'Meal', social: 'Encounter', observation: 'Observation', fieldnote: 'Robin’s notebook', plan: 'Decision', civic: 'Affairs', build: 'Building', arrival: 'Arrival',
   life: 'Lives', visit: 'Visitors', storm: 'Weather', herd: 'Strays', feast: 'Feast day', intention: 'In their words', goal: 'Goals' };
 
@@ -131,11 +109,11 @@ export function residentCaption(actor, names = {}) {
 }
 
 // others are the residents under the same roof, when this one is indoors.
-export function residentCard(actor, { index = 0, names = {}, minute = 0, others = [] } = {}) {
+export function residentCard(actor, { names = {}, minute = 0, others = [] } = {}) {
   const card = document.createDocumentFragment(), a = actor.action || {};
   const head = el('div', 'map-card-head'), title = el('div');
   title.append(el('h3', '', actor.name), el('p', 'role', actor.child ? 'Age ' + actor.age : actor.role));
-  head.append(portrait(index), title);
+  head.append(portrait(actor), title);
 
   const at = names[a.target]?.name || a.target, deciding = a.kind === 'waiting';
   const travelling = !deciding && a.phase === 'travelling', inside = (a.kind === 'rest' || a.indoors) && a.phase === 'working';

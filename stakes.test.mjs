@@ -10,6 +10,7 @@ import { restDay, tradeOpen } from './engine/workday.mjs';
 import { dateOf } from './engine/calendar.mjs';
 import { concerns } from './engine/civic.mjs';
 import { actionBody } from './decisions.mjs';
+import { childResidents } from './engine/children.mjs';
 
 const DAY = 1440;
 const tick = (village, minutes = 1, externalActions = false) => stepVillage(village, { minutes, externalActions });
@@ -248,6 +249,9 @@ test('a married couple can have a child, who eats from the larder and comes of a
   const cottage = world.cottages[mabel.home];
   assert.equal(cottage.children.length, 1);
   assert.ok(born.some(e => e.type === 'life' && / have a (son|daughter), /.test(e.text)));
+  const [child] = cottage.children;
+  assert.ok(child.appearance);
+  assert.deepEqual(childResidents(world).find(person => person.id === child.id).appearance, child.appearance);
   // A year on the child eats a loaf a day from the larder, and goes hungry when it is empty.
   cottage.children[0].born -= 400 * DAY;
   world.minute = 4 * DAY + 359;
@@ -263,7 +267,9 @@ test('a married couple can have a child, who eats from the larder and comes of a
   // The day may also bring the storekeeper up the road.
   assert.equal(village.actors.length, count + 1 + grown.filter(e => e.type === 'arrival').length);
   assert.ok(grown.some(e => /has come of age/.test(e.text)));
-  assert.equal(village.actors.find(a => a.backstory.includes('was born in Dalecrest')).home, mabel.home);
+  const adult = village.actors.find(a => a.id === child.id);
+  assert.equal(adult.home, mabel.home);
+  assert.deepEqual(adult.appearance, child.appearance);
 });
 
 test('a lodger moves into a cottage that stands empty', () => {

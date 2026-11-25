@@ -6,6 +6,7 @@ import { fieldsFeed } from './civic.mjs';
 import { dateOf } from './calendar.mjs';
 import { daysToHarvest, foodDays, mouths } from './stores.mjs';
 import { NAMES, YEAR } from './lives.mjs';
+import { createAppearance } from './appearance.mjs';
 
 export const POPULATION_LIMIT = 36;
 export function travelSeason(minute) {
@@ -81,6 +82,7 @@ export function grownChild(state, child, home, random) {
   const at = map.places.find(p => p.id === home)?.at || [map.w / 2, map.h / 2];
   return {
     id, name: child.name + ' ' + surname, role: pick(roles), home, workplace, trade, traits, born: child.born, sex: child.sex,
+    appearance: child.appearance ?? createAppearance({ id: child.id ?? id }),
     backstory: child.name + ' was born in ' + (child.birthplace || 'Dalecrest') + (parents.length ? ' to ' + parents.map(p => p.name).join(' and ') : '')
       + (child.birthplace ? ', and came to Dalecrest with their family.' : ', and has grown up among its lanes and fields.'),
     goals: [goal, 'Make a life of my own in Dalecrest'],
@@ -129,6 +131,7 @@ export function newcomer(state, random, wanted, family) {
     : 'Word on the road was that Dalecrest had bread and work to spare.';
   return {
     id, name: full, role, home, workplace, trade, traits,
+    appearance: createAppearance({ id, arrived: world.minute }),
     ...(family && { sex: family.sex, born: world.minute - family.age * YEAR }),
     backstory: story + ' ' + name + ' ' + craft + '.',
     goals: [goal, 'Find a place among the households of Dalecrest'],

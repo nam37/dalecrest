@@ -1,4 +1,5 @@
-import { aprons, residentPose, skins, toolFor, villageColors } from './resident-pose.js';
+import { appearanceOf } from '../engine/appearance.mjs';
+import { aprons, residentPose, toolFor } from './resident-pose.js';
 
 const outline = '#423628', wood = '#89633f', iron = '#b8c3c3', tau = Math.PI * 2;
 
@@ -81,7 +82,7 @@ function drawTool(c, tool, angle) {
 }
 
 export function drawMapFigure(c, { x, y, size, actor, activity, index, moving, gone, now, facing, still }) {
-  const cloth = villageColors[index % villageColors.length], skin = skins[index % skins.length];
+  const { cloth: [cloth, clothShade], skin: [skin], hair: [hair], headwear } = appearanceOf(actor);
   const pose = residentPose({ ...activity, moving, gone, now, index, still });
   const tool = toolFor(activity);
   const step = pose.legSwing * 0.26;
@@ -119,13 +120,17 @@ export function drawMapFigure(c, { x, y, size, actor, activity, index, moving, g
   const hx = 0.025 + pose.nod * 0.13, hy = -0.55 + pose.nod * 0.065;
   oval(c, hx, hy, 0.16, 0.17, skin);
   oval(c, hx + 0.103, hy - 0.012, 0.022, 0.025, outline, null);
-  if (index % 3 === 0) {
-    oval(c, hx, hy - 0.13, 0.128, 0.092, '#bd9c61');
-    oval(c, hx, hy - 0.09, 0.245, 0.057, '#cfb178');
+  if (headwear === 'straw') {
+    oval(c, hx, hy - 0.13, 0.128, 0.092, '#ba9053');
+    oval(c, hx, hy - 0.09, 0.245, 0.057, '#d6b477');
+  } else if (headwear === 'cap') {
+    oval(c, hx - 0.012, hy - 0.13, 0.17, 0.092, clothShade);
+    stroke(c, [[hx - 0.17, hy - 0.1], [hx + 0.15, hy - 0.12]], cloth, 0.045);
   } else {
+    const color = headwear === 'hood' ? cloth : headwear === 'coif' ? '#e6d9b8' : hair;
     c.beginPath(); c.arc(hx - 0.028, hy, 0.173, Math.PI * 0.9, Math.PI * 1.95);
-    c.lineTo(hx - 0.076, hy + 0.09); c.closePath();
-    c.fillStyle = index % 3 === 1 ? cloth : '#ece5cd'; c.fill(); c.stroke();
+    c.lineTo(hx - 0.076, hy + (headwear === 'bare' ? 0.03 : 0.09)); c.closePath();
+    c.fillStyle = color; c.fill(); c.stroke();
   }
   arm(-0.116, pose.armR, tool, -pose.spreadR * 0.10);
   c.restore();
