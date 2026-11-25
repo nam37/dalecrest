@@ -12,7 +12,7 @@
     <header class="paper-name"><h1>Dalecrest Daily</h1>
       <div class="paper-dateline"><span>Morning edition</span><a id="edition-date" hidden></a><span>By <a href="/residents/robin">Robin Marsh</a></span></div>
     </header>
-    <nav id="edition-navigation" class="daily-pager" aria-label="Edition archive" hidden>
+    <nav id="edition-navigation" class="daily-pager" aria-label="Edition archive">
       <div class="daily-pager-links">
         <a id="previous-edition" rel="prev" hidden>← Previous edition</a>
         <a id="next-edition" rel="next" hidden>Next edition →</a>
@@ -23,12 +23,10 @@
         <select id="edition-picker" name="day"></select>
         <button type="submit">Go</button>
       </form>
+      <button id="edition-search-trigger" class="daily-search-trigger" type="button" aria-label="Search editions" aria-haspopup="dialog" aria-controls="edition-search-dialog">
+        <span class="daily-search-icon" aria-hidden="true"></span><span class="daily-search-label">Search</span>
+      </button>
     </nav>
-    <form class="daily-edition-search" role="search" action="/daily.html" method="get">
-      <label for="edition-search-query">Search editions</label>
-      <input id="edition-search-query" name="q" type="search" placeholder="Word or phrase" maxlength="120" required>
-      <button type="submit">Search</button>
-    </form>
     <p id="press-status" role="status">Reading the village press…</p>
     <section id="edition-search-results" class="daily-search-results" aria-labelledby="search-results-title" hidden>
       <h2 id="search-results-title">Search results</h2>
@@ -49,6 +47,16 @@
       </div>
       <details class="paper-records" id="records"><summary>Reporting notes and village records</summary><ol id="sources"></ol></details>
     </article>
+    <dialog id="edition-search-dialog" class="daily-search-dialog" aria-labelledby="edition-search-heading">
+      <header class="daily-search-dialog-header">
+        <h2 id="edition-search-heading">Search editions</h2>
+        <form method="dialog"><button class="daily-search-close" type="submit" aria-label="Close search">×</button></form>
+      </header>
+      <form class="daily-edition-search" role="search" action="/daily.html" method="get">
+        <input id="edition-search-query" name="q" type="search" aria-labelledby="edition-search-heading" placeholder="Word or phrase" maxlength="120" required autofocus>
+        <button type="submit">Search</button>
+      </form>
+    </dialog>
     <noscript>Enable JavaScript to read the newspaper.</noscript>
   </main>
   <script type="module" src="/daily.js"></script>

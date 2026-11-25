@@ -42,9 +42,7 @@ function showEditionNavigation(issue) {
     const choice = selected !== displayedDay && publishedDays.includes(selected) ? selected : day;
     if (Number(picker.value) !== choice) picker.value = choice;
   }
-  const jump = $('edition-jump');
-  jump.hidden = publishedDays.length < 2;
-  $('edition-navigation').hidden = previous.hidden && next.hidden && latest.hidden && jump.hidden;
+  $('edition-jump').hidden = publishedDays.length < 2;
 }
 
 function showIssue({ day, edition, older }) {
@@ -201,6 +199,9 @@ async function refresh() {
 }
 
 $('lead-image-caption').addEventListener('click', () => { $('records').open = true; });
+const searchTrigger = $('edition-search-trigger'), searchDialog = $('edition-search-dialog');
+searchTrigger.addEventListener('click', () => searchDialog.showModal());
+searchDialog.addEventListener('close', () => searchTrigger.focus());
 window.addEventListener('hashchange', showEditionLocation);
 const query = params.get('q');
 if (query === null) refresh();
