@@ -11,7 +11,7 @@ import { drawMapFigure } from './map-figure.js';
 import { drawAnimal, drawGarden, drawWoodpile } from './map-parish.js';
 import { drawGame, drawFish } from './map-wildlife.js';
 import { wildlife } from './wildlife.js';
-import { parishLayout, strayCattle, visibleSheep, workHeading } from './parish.js';
+import { appleSpots, orchardFruit, parishLayout, strayCattle, visibleSheep, workHeading } from './parish.js';
 import { isFarmSite } from '../engine/smallholding.mjs';
 import { residentActivity, residentScale } from './resident-pose.js';
 
@@ -383,8 +383,8 @@ function paintPaper(c, map, look, scale) {
     c.beginPath(); treeShade(); c.fillStyle = shade; c.fill();
     c.restore();
   }
-  for (const [x, y, r, pine] of look.woods) {
-    const k = hash2(map.seed, x * 10, y * 10);
+  for (const tree of look.woods) {
+    const [x, y, r, pine] = tree, k = hash2(map.seed, x * 10, y * 10);
     if (pine) {
       const star = (cx, cy, size) => { c.beginPath(); for (let i = 0; i < 16; i++) { const a = i * TAU / 16 + k, rr = i % 2 ? size * 0.72 : size; c.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); } c.closePath(); };
       const tone = needle[Math.floor(k * 3)];
@@ -431,6 +431,14 @@ function paintPaper(c, map, look, scale) {
       }
       c.setLineDash([]);
       c.globalAlpha = 1;
+      // Apples on the orchard trees. They are kept large enough to see as red specks from far off.
+      if (look.fruit && look.orchardTrees?.has(tree)) {
+        const size = Math.min(r * 0.24, Math.max(r * 0.14 * look.fruit.size, 1.15 / scale));
+        c.fillStyle = blend('#a9b651', '#c8402c', look.fruit.red); c.strokeStyle = blend('#5f6b2c', '#74201a', look.fruit.red); c.lineWidth = Math.min(line * 0.7, size * 0.3);
+        for (const [round, out] of appleSpots(tree, map.seed, look.fruit.each)) {
+          c.beginPath(); c.arc(x + Math.cos(round) * out * r * 0.95, y + Math.sin(round) * out * r * 0.95, size, 0, TAU); c.fill(); c.stroke();
+        }
+      }
     }
   }
 }
@@ -589,6 +597,9 @@ export function createMap(canvas, onSelect, cards) {
     if (!map || !look) return;
     wx = skyOver(clock, map.seed);
     wind = windAt(clock, map.seed);
+    // The orchard is redrawn as its apples swell, colour and are picked.
+    const fruit = orchardFruit(world, clock), fruitKey = fruit ? [fruit.each, Math.round(fruit.red * 6), Math.round(fruit.size * 10)].join(':') : '';
+    if (fruitKey !== look.fruitKey) { look.fruitKey = fruitKey; look.fruit = fruit; stale = true; }
     // Shadows move with the sun, a few minutes at a time, and soften as cloud comes over.
     const sunKey = Math.floor(clock / 5) + ':' + Math.round(wx.cloud * 6);
     if (sunKey !== look.sunKey) { look.sunKey = sunKey; look.sun = sunOver(clock, wx.cloud); stale = true; }
@@ -1186,6 +1197,7 @@ export function createMap(canvas, onSelect, cards) {
       cattle = strayCattle(map, world);
       // Trees are drawn north to south, so each crown overlaps the ones behind it.
       look.woods = [...map.trees, ...look.parish.appleTrees].sort((a, b) => a[1] - b[1]);
+      look.orchardTrees = new Set(look.parish.appleTrees);
       seasonal();
       if (grew && !moved) fit();
       redraw();

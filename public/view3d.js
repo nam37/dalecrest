@@ -10,7 +10,7 @@ import { light, hearths, indoors, yearLook, skyOver, blend } from '/ambient.js';
 import { windAt } from '/engine/seasons.mjs';
 import { cloudField, cloudsOver, cloudOverhead, cloudShade, cloudDrift } from './clouds.js';
 import { kinds } from '/card.js';
-import { animalCoats, animalPose, fenceSpans, logsIn, parishLayout, strayCattle, visibleSheep, workHeading } from './parish.js';
+import { animalCoats, animalPose, appleSpots, fenceSpans, logsIn, orchardFruit, parishLayout, strayCattle, visibleSheep, workHeading } from './parish.js';
 import { isFarmSite } from '../engine/smallholding.mjs';
 import { residentActivity, residentScale } from './resident-pose.js';
 import { sameGround } from './village-update.js';
@@ -267,6 +267,9 @@ export function createWalk(container, onSelect, onNote) {
   const CLOUDS = 900, cloudMat = new THREE.MeshLambertMaterial({ color: '#ffffff', transparent: true, opacity: 0.9, flatShading: true });
   const clouds = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), cloudMat, CLOUDS);
   clouds.frustumCulled = false; clouds.count = 0; scene.add(clouds);
+  // The apples in the orchard, a few to a tree.
+  const apples = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), new THREE.MeshLambertMaterial({ color: '#c8402c', flatShading: true }), 40);
+  apples.frustumCulled = false; apples.count = 0; apples.castShadow = true; scene.add(apples);
   // Hearth smoke and the glow of lit windows, drawn from small pools.
   const smoke = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 0), new THREE.MeshLambertMaterial({ color: '#efe9da', transparent: true, opacity: 0.3, depthWrite: false, flatShading: true }), 240);
   smoke.frustumCulled = false; smoke.count = 0; scene.add(smoke);
@@ -481,9 +484,31 @@ export function createWalk(container, onSelect, onNote) {
     return stack;
   }
 
+  // Hangs the apples the orchard now carries on its trees. Each sits just proud of its tree's crown.
+  function hangApples() {
+    const fruit = orchardFruit(world);
+    let n = 0;
+    if (fruit) {
+      apples.material.color.set(blend('#a9b651', '#c8402c', fruit.red));
+      const size = 0.05 * fruit.size;
+      for (const tree of parish.appleTrees) {
+        const [x, z, r] = tree, k = hash2(map.seed, x * 10, z * 10), mid = ground(x, z) + 1.17 * r, wide = r * 0.82, tall = r * (0.72 + k * 0.25);
+        for (const [round, out, up] of appleSpots(tree, map.seed, fruit.each)) {
+          if (n >= 40) break;
+          // The bearing and the height fix a point on the crown. Lower fruit hangs further out.
+          const rise = up * 0.75, reach = Math.sqrt(1 - rise * rise) * (0.83 + 0.08 * out);
+          puffAt.compose(puffPos.set(x + Math.cos(round) * reach * wide, mid + rise * tall * 0.9, z + Math.sin(round) * reach * wide), puffTurn, puffSize.set(size, size, size));
+          apples.setMatrixAt(n++, puffAt);
+        }
+      }
+    }
+    apples.count = n; apples.instanceMatrix.needsUpdate = true;
+  }
+
   function updateParish() {
     if (!map) return;
     cattle = strayCattle(map, world);
+    hangApples();
     for (const { pile, stack } of piles) {
       const count = logsIn(pile, world);
       stack.children.forEach((log, index) => { log.visible = index < count; });

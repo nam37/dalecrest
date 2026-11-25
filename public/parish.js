@@ -1,10 +1,11 @@
 // Scene details are derived from the stored map in both views, including older maps.
-import { clamp, dist, lerp, polysTouch, rectPoly, TAU } from '../engine/geom.mjs';
+import { clamp, dist, hash2, lerp, polysTouch, rectPoly, smooth, TAU } from '../engine/geom.mjs';
+import { dateOf } from '../engine/calendar.mjs';
 import { place } from '../engine/roads.mjs';
 import { freeGround } from '../engine/sites.mjs';
 import { herdLoose } from '../engine/visitors.mjs';
 import { WOODPILE_HOLDS } from '../engine/households.mjs';
-import { farmSites, sheepCount } from '../engine/smallholding.mjs';
+import { farmSites, sheepCount, FRUIT_RIPE } from '../engine/smallholding.mjs';
 
 function besideBuilding(p, u, v, w, d) {
   const c = Math.cos(p.a), s = Math.sin(p.a);
@@ -131,3 +132,29 @@ export function animalPose(animal, now) {
 }
 
 export const animalCoats = { sheep: ['#e8dfc2', '#d7c8ad', '#f2ebd5'], cattle: ['#a8754d', '#87573b', '#bd9474'] };
+
+// The apples showing in the orchard, or null when the trees carry none worth drawing.
+//   each  how many hang on a tree: more while the crop is unpicked, and a couple left out of reach once it is in
+//   red   how far they have coloured, from 0 (green) to 1
+//   size  how far they have swelled, as a share of a ripe apple
+// The fruit sets at blossom and is ripe 150 days on. It shows from about half way, colours over the
+// last weeks, and is gone with October whether or not it was picked.
+export function orchardFruit(world, minute = world?.minute) {
+  const orchard = world?.smallholding?.orchard, fruit = orchard?.fruit;
+  if (!fruit || !Number.isFinite(minute)) return null;
+  const { month, year } = dateOf(minute);
+  if (fruit.year !== year || month > 10) return null;
+  const grown = clamp(1 - (fruit.readyAt - minute) / FRUIT_RIPE);
+  if (grown < 0.5) return null;
+  const full = Math.max(1, orchard.trees * (orchard.prunedYear === year ? 4 : 3));
+  return { each: 2 + Math.round(5 * clamp(fruit.remaining / full)), red: smooth(0.58, 0.85, grown), size: 0.65 + 0.35 * smooth(0.5, 1, grown) };
+}
+
+// Where apples hang on a tree at [x, y], spread round the crown. Each is [round, out, up]: the bearing
+// round the trunk, how far out from it as a share of the crown's radius, and how high, from -1 at the
+// skirt of the crown to 1 at its top. A tree keeps its first apples as others are picked.
+export function appleSpots([x, y], seed, count) {
+  const turn = hash2(seed, x * 10, y * 10) * TAU;
+  return Array.from({ length: count }, (_, i) => [turn + i * 2.4 + (hash2(seed + 11, x * 10 + i, y * 10) - 0.5) * 0.7,
+    0.42 + 0.4 * hash2(seed + 12, x * 10 + i, y * 10), hash2(seed + 13, x * 10 + i, y * 10) * 1.1 - 0.55]);
+}
