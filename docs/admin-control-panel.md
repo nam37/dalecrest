@@ -82,9 +82,10 @@ Option positions are not shuffled, so `menuPosition` also reflects how the menu 
 
 ## Village trends
 
-- **Daily model tokens** uses real dates in America/New_York. OpenAI totals come from decision traces. Anthropic totals combine goal reviews, civic accounts, and provider-reported Daily editor usage from the charts release onward. Decision traces, goal reviews and civic accounts can retain estimates where a call did not report usage.
+- **Daily model tokens** uses real dates in America/New_York. OpenAI totals come from decision traces. Anthropic totals combine goal reviews, song drafts, civic accounts and recorded Daily editor usage. Totals can include estimates where a call did not report usage.
+- **Model tokens by resident** ranks the eight highest combined totals over the same 14 Eastern dates, including today. Each bar stacks OpenAI decisions with Anthropic goal reviews and song drafts. Civic accounts and Daily editor charges are village-wide.
 - **Daily activities by resident** uses village dates and logged starts from fresh choices and standing instructions. Select a resident to see the last 14 village dates.
-- **Daily decision waits** shows the median and 95th percentile in real seconds by the Eastern date the wait began. Only waits with a recorded next activity are included.
+- **Daily decision waits** shows the median and 95th percentile in real seconds by the Eastern date the wait began. It opens on the last five days. Select **Last 14 days** for the full history available in the panel. Only waits with a recorded next activity are included.
 
 The current dates are marked in progress. ECharts runs from the panel's own static assets. The chart legend toggles series and each chart has a table of exact values. The panel refreshes charts about once a minute through `GET /admin/api/metrics`, which requires a browser account. The host's `dalecrest-set-clock metrics` command reads the same aggregates from the deployed village container in a read-only transaction.
 

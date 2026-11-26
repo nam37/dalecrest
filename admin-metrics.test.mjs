@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
-import { readDecisionReports, readTrace, reasonGroup, summarizeDecisions } from './admin-metrics.mjs';
+import { readAdminMetrics, readDecisionReports, readTrace, reasonGroup, summarizeDecisions } from './admin-metrics.mjs';
 
 // A stored request and reply in the shape the village sends and the provider returns.
 const menu = ['work:mill:mill', 'leisure:green', 'rest:home'];
@@ -103,6 +103,29 @@ test('decision reports read the activity log and stored decisions in PostgreSQL'
     assert.deepEqual(reports.closeCalls.residents.map(r => [r.id, r.decisions]), [['ann', 1], ['ben', 1]]);
     assert.deepEqual(reports.menuPosition, [{ position: 1, offered: 2, chosen: 1 }, { position: 2, offered: 2, chosen: 1 },
       { position: 3, offered: 2, chosen: 0 }]);
+
+    await trace('robin', 'work:mill:mill', [0.55, 0.44, 0.01], 50);
+    await trace('past', 'work:mill:mill', [0.55, 0.44, 0.01], 20 * 86400);
+    await trace('future', 'work:mill:mill', [0.55, 0.44, 0.01], -1800);
+    await pool.query(`INSERT INTO dalecrest.decision_traces
+      (actor_id,model,endpoint,request_body,observed_minute,token_charge)
+      SELECT 'extra-' || n,'gpt-6-luna','https://example.test','{}',10,100 FROM generate_series(1,7) AS g(n)`);
+    await pool.query(`INSERT INTO dalecrest.goal_reviews(actor_id,observed_minute,why,model,request_body,token_charge)
+      VALUES ('robin',10,'needs direction','claude-haiku','{}',900)`);
+    await pool.query(`INSERT INTO dalecrest.song_drafts(session_id,session,requested_at,token_charge)
+      VALUES ('test-song','{"actorId":"robin"}',now(),200)`);
+    await pool.query(`INSERT INTO dalecrest.daily_model_usage(day,attempt,requested_at,token_charge) VALUES (1,1,now(),460)`);
+
+    const { tokens, residentTokens } = await readAdminMetrics(pool);
+    assert.equal(tokens.length, 14);
+    assert.equal(tokens.reduce((sum, day) => sum + day.openai, 0), 2200);
+    assert.equal(tokens.reduce((sum, day) => sum + day.anthropic, 0), 1560);
+    assert.deepEqual(residentTokens.slice(0, 3), [
+      { id: 'robin', name: 'Robin Marsh', openai: 300, anthropic: 1100, total: 1400 },
+      { id: 'ben', name: 'ben', openai: 900, anthropic: 0, total: 900 },
+      { id: 'ann', name: 'ann', openai: 300, anthropic: 0, total: 300 },
+    ]);
+    assert.deepEqual(residentTokens.slice(3).map(row => row.id), ['extra-1', 'extra-2', 'extra-3', 'extra-4', 'extra-5']);
   } finally {
     await db?.pool.end();
     if (created) await admin.query('DROP DATABASE ' + name + ' WITH (FORCE)');

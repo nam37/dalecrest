@@ -62,9 +62,10 @@ tbody tr:last-child td { border-bottom: 0; }
 .chart-card { min-width: 0; }
 .chart-card h3 { color: #213331; font-size: 1.05rem; }
 .chart-note, #charts-message { margin: .45rem 0 .75rem; color: var(--muted); font-size: .9rem; line-height: 1.45; }
-.resident-filter { margin-top: .7rem; max-width: 16rem; }
-.resident-filter select { padding: .4rem .6rem; }
+.chart-filter { margin-top: .7rem; max-width: 16rem; }
+.chart-filter select { padding: .4rem .6rem; }
 .chart-plot { height: 15rem; width: 100%; }
+.chart-plot-residents { height: 17rem; }
 .chart-partial { margin: .1rem 0 .5rem; color: var(--muted); font-size: .8rem; }
 .chart-values { margin-top: .15rem; font-size: .86rem; }
 .chart-values summary { width: max-content; color: var(--green); cursor: pointer; }

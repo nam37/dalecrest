@@ -58,17 +58,26 @@
         <div id="charts" class="charts-grid" hidden>
           <article class="card chart-card">
             <h3>Daily model tokens</h3>
-            <p class="chart-note">Real dates in Eastern time. Includes recorded token charges and estimates. Daily editor usage is recorded from this release onward.</p>
+            <p class="chart-note">Real dates in Eastern time. Includes decisions, goal reviews, song drafts, civic accounts and recorded Daily editor calls.</p>
             <div id="token-chart"></div>
           </article>
           <article class="card chart-card">
+            <h3>Model tokens by resident</h3>
+            <p class="chart-note">Top eight by combined tokens over the last 14 days in Eastern time, including today. Counts include decisions, goal reviews and song drafts, with estimates where needed.</p>
+            <div id="resident-token-chart"></div>
+          </article>
+          <article class="card chart-card">
             <h3>Daily activities by resident</h3>
-            <label class="resident-filter">Resident<select id="chart-resident"></select></label>
+            <label class="chart-filter">Resident<select id="chart-resident"></select></label>
             <p class="chart-note">Activity starts by village date.</p>
             <div id="activity-chart"></div>
           </article>
           <article class="card chart-card">
             <h3>Daily decision waits</h3>
+            <label class="chart-filter">Date range<select id="wait-range">
+              <option value="5">Last 5 days</option>
+              <option value="14">Last 14 days</option>
+            </select></label>
             <p class="chart-note">Real seconds from entering a wait to starting the next activity. The median and 95th percentile use completed waits.</p>
             <div id="wait-chart"></div>
           </article>

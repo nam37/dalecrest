@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { formatDate } from './engine/calendar.mjs';
 
 const days = 14;
+const residentTokenLimit = 8;
 const timeZone = 'America/New_York';
 const villageDay = 1440;
 const calendar = `SELECT (current_timestamp AT TIME ZONE $1)::date AS today,
@@ -12,11 +13,15 @@ const timeRange = `>= (SELECT first_day::timestamp AT TIME ZONE $1 FROM calendar
   AND requested_at <= current_timestamp`;
 
 export async function readAdminMetrics(db) {
-  const { rows: tokens } = await db.query(`WITH calendar AS (${calendar}), charges AS (
-    SELECT requested_at, 'openai' AS source, token_charge FROM dalecrest.decision_traces
+  const { rows: [{ tokens, residentTokens }] } = await db.query(`WITH calendar AS (${calendar}), resident_charges AS (
+    SELECT actor_id, requested_at, 'openai' AS source, token_charge FROM dalecrest.decision_traces
       WHERE token_charge IS NOT NULL AND requested_at ${timeRange}
-    UNION ALL SELECT requested_at, 'anthropic', token_charge FROM dalecrest.goal_reviews
+    UNION ALL SELECT actor_id, requested_at, 'anthropic', token_charge FROM dalecrest.goal_reviews
       WHERE token_charge IS NOT NULL AND requested_at ${timeRange}
+    UNION ALL SELECT session->>'actorId', requested_at, 'anthropic', token_charge FROM dalecrest.song_drafts
+      WHERE token_charge IS NOT NULL AND requested_at ${timeRange}
+  ), charges AS (
+    SELECT requested_at, source, token_charge FROM resident_charges
     UNION ALL SELECT requested_at, 'anthropic', token_charge FROM dalecrest.civic_accounts
       WHERE requested_at ${timeRange}
     UNION ALL SELECT requested_at, 'anthropic', token_charge FROM dalecrest.daily_model_usage
@@ -26,11 +31,24 @@ export async function readAdminMetrics(db) {
       sum(token_charge) FILTER (WHERE source='openai') AS openai,
       sum(token_charge) FILTER (WHERE source='anthropic') AS anthropic
     FROM charges GROUP BY 1
+  ), daily AS (
+    SELECT (first_day + offset_days)::text AS date, first_day + offset_days = today AS partial,
+      coalesce(openai,0)::float8 AS openai, coalesce(anthropic,0)::float8 AS anthropic
+    FROM calendar CROSS JOIN generate_series(0,$2::int-1) AS series(offset_days)
+      LEFT JOIN totals ON totals.date=first_day+offset_days
+  ), ranked AS (
+    SELECT actor_id AS id, coalesce(a.state->>'name',actor_id) AS name,
+      coalesce(sum(token_charge) FILTER (WHERE source='openai'),0)::float8 AS openai,
+      coalesce(sum(token_charge) FILTER (WHERE source='anthropic'),0)::float8 AS anthropic,
+      sum(token_charge)::float8 AS total
+    FROM resident_charges LEFT JOIN dalecrest.actors a ON a.id=actor_id
+    WHERE actor_id IS NOT NULL GROUP BY actor_id, a.state->>'name'
+    HAVING sum(token_charge)>0
+    ORDER BY total DESC, id LIMIT $3
   )
-  SELECT (first_day + offset_days)::text AS date, first_day + offset_days = today AS partial,
-    coalesce(openai,0)::float8 AS openai, coalesce(anthropic,0)::float8 AS anthropic
-  FROM calendar CROSS JOIN generate_series(0,$2::int-1) AS series(offset_days)
-    LEFT JOIN totals ON totals.date=first_day+offset_days ORDER BY 1`, [timeZone, days]);
+  SELECT (SELECT jsonb_agg(daily ORDER BY date) FROM daily) AS tokens,
+    coalesce((SELECT jsonb_agg(ranked ORDER BY total DESC, id) FROM ranked),'[]'::jsonb) AS "residentTokens"`,
+    [timeZone, days, residentTokenLimit]);
 
   const { rows: waits } = await db.query(`WITH calendar AS (${calendar}), ordered AS (
     SELECT recorded_at, basis,
@@ -83,7 +101,7 @@ export async function readAdminMetrics(db) {
     if (!actors.has(id)) actors.set(id, { id, name, starts: [] });
     actors.get(id).starts.push({ fresh, standing });
   }
-  return { timeZone, tokens, waits, activities: { days: [...activityDays.values()], actors: [...actors.values()] },
+  return { timeZone, tokens, residentTokens, waits, activities: { days: [...activityDays.values()], actors: [...actors.values()] },
     decisions: await readDecisionReports(db) };
 }
 
