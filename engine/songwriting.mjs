@@ -5,6 +5,8 @@ import { place } from './roads.mjs';
 const DAY = 1440;
 const GOAL = 'songwriting';
 const MAX_VERSES = 6;
+const WRITING_OPENS = 17 * 60;
+const WRITING_CLOSES = 20 * 60 + 20;
 const OLD_BIO = 'Robin was hired for a single harvest and stayed. He still makes time after work to hear the old field songs on the green.';
 const BIO = 'Robin was hired for a single harvest and stayed. In his spare hours he makes up songs about what he has seen or imagined.';
 const reportedToday = (actor, day) => Object.values(actor.rounds ?? {}).some(last => Math.floor(last / DAY) === day);
@@ -30,7 +32,7 @@ export function prepareSongwriter(actor, world) {
 export function offerSongwriting(actor, { world, map }, offer, weary) {
   const song = actor.songwriting, minute = world.minute, day = Math.floor(minute / DAY), time = minute % DAY;
   if (!world.songwritingPilot || !song || !activeGoals(actor).some(goal => goal.id === GOAL) ||
-      !reportedToday(actor, day) || song.lastSession >= day * DAY || time < 1020 || time >= 1220 || place(map, 'green')?.stage !== 2) return;
+      !reportedToday(actor, day) || song.lastSession >= day * DAY || time < WRITING_OPENS || time >= WRITING_CLOSES || place(map, 'green')?.stage !== 2) return;
   const daysSince = day - Math.floor((song.lastSession ?? song.since) / DAY);
   const score = 64 + Math.min(16, daysSince * 5) - weary;
   if (song.status !== 'writing') {
@@ -57,6 +59,45 @@ export function songwritingContext(actor, world) {
   const day = Math.floor(world.minute / DAY);
   return { title: song.title ?? null, status: song.status, verses: song.verses.length, roundsToday: reportedToday(actor, day),
     eveningsSinceLastSession: song.lastSession == null ? null : day - Math.floor(song.lastSession / DAY) };
+}
+
+function writableDraft(actor, world) {
+  const song = actor.songwriting;
+  return world.songwritingPilot && actor.id === 'robin' && (actor.arrived ?? 0) === 0 &&
+    song?.status === 'writing' && song.verses.length < MAX_VERSES && activeGoals(actor).some(goal => goal.id === GOAL) ? song : null;
+}
+
+function activeEveningPlan(song, minute) {
+  const plan = song?.eveningPlan;
+  return plan && plan.songStarted === (song.started ?? song.since) && plan.songVersion === song.version &&
+    minute < plan.expiresAt && !(song.lastSession >= plan.startsAt) ? plan : null;
+}
+
+// Freeze the days and the draft offered to the review. Its reply may arrive after the village has moved on.
+export function offerEveningPlan(actor, world) {
+  const song = writableDraft(actor, world);
+  if (!song || activeEveningPlan(song, world.minute)) return null;
+  const day = Math.floor(world.minute / DAY) * DAY;
+  const evenings = [{ evening: 'today', day }, { evening: 'tomorrow', day: day + DAY }]
+    .map(option => ({ evening: option.evening, startsAt: option.day + WRITING_OPENS, expiresAt: option.day + WRITING_CLOSES }))
+    .filter(option => world.minute < option.expiresAt && !(song.lastSession >= option.startsAt));
+  return { songStarted: song.started ?? song.since, songVersion: song.version, evenings };
+}
+
+export function acceptEveningPlan(actor, world, offer, evening) {
+  const song = writableDraft(actor, world);
+  const window = offer?.evenings.find(option => option.evening === evening);
+  if (!song || !window || activeEveningPlan(song, world.minute) || world.minute >= window.expiresAt ||
+      song.lastSession >= window.startsAt || offer.songStarted !== (song.started ?? song.since) || offer.songVersion !== song.version) return null;
+  return { startsAt: window.startsAt, expiresAt: window.expiresAt, songStarted: offer.songStarted, songVersion: offer.songVersion };
+}
+
+// Attach the source beside the stored request for matched replay. The action provider sees the same request.
+export function eveningPlanAudit(actor, world, menu) {
+  const plan = activeEveningPlan(writableDraft(actor, world), world.minute);
+  if (!plan || Math.floor(world.minute / DAY) !== Math.floor(plan.startsAt / DAY)) return null;
+  const writing = [...menu].find(([, action]) => action.kind === 'compose' && action.songTask === 'write');
+  return { ...plan, offeredChoice: writing?.[0] ?? null, mootAt: world.moot?.at ?? null };
 }
 
 function material(actor, minute, used, revising) {

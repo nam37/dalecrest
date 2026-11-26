@@ -7,6 +7,7 @@ import { availableActions, startChosen, locationsOf } from './sim.mjs';
 import { residentState, writeActivities } from './decision-trace.mjs';
 import { weatherAt } from './engine/seasons.mjs';
 import { shapeActionMenu } from './engine/action-menu.mjs';
+import { eveningPlanAudit } from './engine/songwriting.mjs';
 
 const villageHourlyCeiling = 480000;
 export const hourlyActionBudget = Math.min(villageHourlyCeiling, Number(process.env.OPENAI_ACTION_TOKENS_PER_HOUR || villageHourlyCeiling));
@@ -63,6 +64,8 @@ export async function reserveAction(db, village, hourlyBudget) {
     }
     const goals = activeGoals(actor).map(g => goalKey(actor, g));
     const seen = [...new Set([...recalledFor(actor, village.world).map(m => memoryKey(actor, m)), ...civicObservationKeys(actor, village.world)])];
+    const eveningPlan = eveningPlanAudit(actor, village.world, menu);
+    if (eveningPlan) audit.eveningPlan = eveningPlan;
     const result = await db.query(`INSERT INTO dalecrest.decision_traces
       (actor_id,observed_minute,model,endpoint,request_body,decision_since,token_charge,goal_keys,observation_keys,menu_audit)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,

@@ -71,9 +71,10 @@ function journalDay(day, open = false) {
   const body = el('div', null, 'journal-entry-body');
   const list = el('ul', null, 'journal-entry-sources');
   for (const line of day.lines) {
-    if (line.kind === 'words') {
+    if (line.kind === 'words' || line.kind === 'eveningPlan') {
       const quote = el('figure', null, 'journal-quote');
-      quote.append(el('figcaption', 'Robin’s own words'), el('blockquote', line.text));
+      const caption = line.kind === 'eveningPlan' ? 'Robin’s plan for ' + formatDate(line.plannedFor) : 'Robin’s own words';
+      quote.append(el('figcaption', caption), el('blockquote', line.text));
       body.append(quote);
     } else body.append(el('p', line.text));
     const item = el('li');

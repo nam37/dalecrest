@@ -8,6 +8,7 @@ import { place } from './engine/roads.mjs';
 import { readSongDraft } from './song-drafts.mjs';
 import { recordPage } from './record-pages.mjs';
 import { journalEntries } from './robin-journal.mjs';
+import { acceptEveningPlan, eveningPlanAudit, offerEveningPlan } from './engine/songwriting.mjs';
 
 const compose = 'compose:write:green';
 const villageMinute = 1080;
@@ -137,6 +138,39 @@ test('dated entries describe recorded acts and preserve exact authored words', (
   assert.equal(journalEntries(evidence).length, 2);
 });
 
+test('an evening plan stays with the offered draft and date, survives a save, and expires at the writing cutoff', () => {
+  const village = createVillage(undefined, { songwriting: true });
+  const { world, actors } = village;
+  const robin = actors.find(actor => actor.id === 'robin');
+  world.minute = 450;
+  const offer = offerEveningPlan(robin, world);
+  assert.equal(offerEveningPlan(actors.find(actor => actor.id === 'hugh'), world), null);
+  assert.deepEqual(offer.evenings, [
+    { evening: 'today', startsAt: 1020, expiresAt: 1220 },
+    { evening: 'tomorrow', startsAt: 2460, expiresAt: 2660 },
+  ]);
+  robin.songwriting.version++;
+  assert.equal(acceptEveningPlan(robin, world, offer, 'tomorrow'), null);
+  robin.songwriting.version--;
+  world.minute = 1220;
+  assert.equal(acceptEveningPlan(robin, world, offer, 'today'), null);
+  assert.deepEqual(offerEveningPlan(robin, world).evenings.map(option => option.evening), ['tomorrow']);
+  const plan = acceptEveningPlan(robin, world, offer, 'tomorrow');
+  robin.songwriting.eveningPlan = { ...plan, reviewId: '7', eventId: '9' };
+  assert.equal(offerEveningPlan(robin, world), null);
+  const saved = JSON.parse(JSON.stringify(robin));
+  const menu = new Map([[compose, { kind: 'compose', songTask: 'write' }]]);
+  assert.equal(eveningPlanAudit(saved, world, menu), null);
+  world.minute = plan.startsAt;
+  assert.equal(eveningPlanAudit(saved, world, new Map()).offeredChoice, null);
+  assert.equal(eveningPlanAudit(saved, world, menu).eventId, '9');
+  saved.songwriting.lastSession = world.minute;
+  assert.equal(eveningPlanAudit(saved, world, menu), null);
+  delete saved.songwriting.lastSession;
+  world.minute = plan.expiresAt;
+  assert.equal(eveningPlanAudit(saved, world, menu), null);
+});
+
 const adminUrl = process.env.DALECREST_TEST_ADMIN_URL;
 
 test('PostgreSQL applies Robin’s choice and publishes a sourced verse while the clock keeps moving', { skip: !adminUrl }, async () => {
@@ -161,10 +195,29 @@ test('PostgreSQL applies Robin’s choice and publishes a sourced verse while th
     prepareEvening(robin, await db.currentMap());
     const key = addFieldNote(robin);
     world.minute = villageMinute;
+    robin.reviewDue = { since: villageMinute, why: 'needs direction' };
     await pool.query('UPDATE dalecrest.world SET state=$1 WHERE id=1', [world]);
     await pool.query("UPDATE dalecrest.actors SET state=$1 WHERE id='robin'", [robin]);
+    const words = 'I mean to work on my song on the green this evening.';
+    const keeping = robin.goalBook.map(goal => ({ action: 'keep', goalId: goal.id }));
+    const review = await db.reviewGoalsOnce({ key: 'test-key', request: async (_url, options) => {
+      const sent = JSON.parse(options.body);
+      assert.ok(sent.output_config.format.schema.required.includes('eveningPlan'));
+      assert.deepEqual(JSON.parse(sent.messages[0].content).eveningsForWriting.map(option => option.evening), ['today', 'tomorrow']);
+      return new Response(response({ decisions: keeping, statement: '', eveningPlan: { evening: 'today', statement: words } }));
+    } });
+    assert.equal(review.status, 'applied');
+    assert.equal(review.statement, null);
+    assert.ok(review.result.eveningPlanEventId);
+    const persisted = (await db.snapshot()).actors.find(actor => actor.id === 'robin');
+    assert.equal(persisted.songwriting.eveningPlan.eventId, review.result.eveningPlanEventId);
+    assert.equal(persisted.goalBook.length, robin.goalBook.length);
     const choice = await db.claimAction(1e9);
     assert.ok(JSON.parse(choice.body).questions[0].choices.some(option => option.value === compose));
+    assert.ok(!choice.body.includes(words));
+    const [trace] = (await pool.query('SELECT menu_audit FROM dalecrest.decision_traces WHERE id=$1', [choice.id])).rows;
+    assert.equal(trace.menu_audit.eveningPlan.eventId, review.result.eveningPlanEventId);
+    assert.equal(trace.menu_audit.eveningPlan.offeredChoice, compose);
     await db.recordReply(choice.id, { status: 200, redacted: false, body: JSON.stringify({ answers: [
       { type: 'choice', name: 'next_action', choice: compose }
     ] }) });
@@ -208,6 +261,8 @@ test('PostgreSQL applies Robin’s choice and publishes a sourced verse while th
     const backfill = (await recordPage(pool, { kind: 'residents', id: 'robin' }, new URLSearchParams({ journalBefore: current.olderBefore }))).body.journal;
     assert.equal(backfill.olderBefore, null);
     assert.ok(backfill.days.find(day => day.minute === 0)?.lines.some(line => /I saw Hugh/.test(line.text)));
+    const savedPlan = backfill.days.flatMap(day => day.lines).find(line => line.kind === 'eveningPlan');
+    assert.deepEqual([savedPlan.text, savedPlan.plannedFor], [words, 1020]);
   } finally {
     await db?.pool.end();
     if (created) await admin.query('DROP DATABASE ' + name);

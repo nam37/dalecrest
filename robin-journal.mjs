@@ -16,9 +16,10 @@ const songwriting = {
 
 function journalLine(row) {
   const { id, minute, kind, text, detail, public: linked } = row;
-  const source = { label: { note: 'Field note', song: 'Writing record', choice: 'Activity choice', words: 'Goal review' }[kind], text,
+  const source = { label: { note: 'Field note', song: 'Writing record', choice: 'Activity choice', words: 'Goal review', eveningPlan: 'Evening plan' }[kind], text,
     ...(linked && { href: dayLink(minute) + '#event-' + id }) };
   if (kind === 'words') return { minute, kind, text, source };
+  if (kind === 'eveningPlan') return { minute, kind, text, plannedFor: Number(detail), source };
   if (kind === 'song' && songwriting[detail]) return { minute, kind, detail, text: songwriting[detail], source };
   if (kind === 'note') {
     if (text.includes(', Robin saw ')) return { minute, kind, text: text.replace(', Robin saw ', ', I saw '), source };
@@ -43,7 +44,7 @@ export function journalEntries(records) {
     const day = Math.floor(line.minute / DAY);
     if (!days.has(day)) days.set(day, new Map());
     const lines = days.get(day);
-    const key = line.kind + ':' + line.text;
+    const key = line.kind + ':' + (line.plannedFor ?? '') + ':' + line.text;
     if (!lines.has(key)) lines.set(key, line);
   }
   return [...days].sort(([a], [b]) => b - a).map(([day, recorded]) => {
@@ -57,7 +58,8 @@ export function journalEntries(records) {
     const meeting = choices.find(line => line.detail === 'meeting');
     const selected = (meeting ? [meeting, ...choices.filter(line => line !== meeting)] : choices).slice(0, notes.length ? 1 : 2);
     const words = lines.filter(line => line.kind === 'words').slice(-2);
-    return { minute: day * DAY, lines: [...notes, ...rounds, ...selected, ...songs, ...words].sort((a, b) => a.minute - b.minute) };
+    const plans = lines.filter(line => line.kind === 'eveningPlan');
+    return { minute: day * DAY, lines: [...notes, ...rounds, ...selected, ...songs, ...words, ...plans].sort((a, b) => a.minute - b.minute) };
   });
 }
 
@@ -80,6 +82,10 @@ export async function readRobinEntries(db, through, before) {
       SELECT statement_event_id::text, applied_minute, 'words', statement, null, true
       FROM dalecrest.goal_reviews WHERE actor_id='robin' AND status='applied'
         AND applied_minute >= $1 AND applied_minute < $2 AND statement IS NOT NULL AND statement_event_id IS NOT NULL
+      UNION ALL
+      SELECT id::text, minute, 'eveningPlan', outcome#>>'{eveningPlan,text}', outcome#>>'{eveningPlan,startsAt}', false
+      FROM dalecrest.events WHERE minute >= $1 AND minute < $2 AND kind='plan' AND actor_ids @> ARRAY['robin']
+        AND outcome ? 'eveningPlan'
     ) evidence ORDER BY minute, kind, id`, [firstDay * DAY, end, Object.keys(songwriting)]);
   return { days: journalEntries(rows), olderBefore: firstDay || null };
 }

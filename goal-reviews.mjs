@@ -7,7 +7,8 @@
 import { locationsOf } from './sim.mjs';
 import { recall, memoryKey, remember } from './engine/memory.mjs';
 import { activeGoals, applyReview, reviewInput, screenStatement } from './engine/goals.mjs';
-import { songwritingContext } from './engine/songwriting.mjs';
+import { acceptEveningPlan, offerEveningPlan, songwritingContext } from './engine/songwriting.mjs';
+import { villageTime } from './engine/exchanges.mjs';
 import { r2 } from './engine/geom.mjs';
 
 export const goalModel = process.env.DALECREST_GOAL_MODEL?.trim() || 'claude-haiku-5-5';
@@ -29,6 +30,14 @@ export const reviewSchema = {
         about: { type: 'string' }, condition, evidence: { type: 'array', items: { type: 'string' } } } } },
     statement: { type: 'string' },
   },
+};
+
+const eveningPlanSchema = {
+  ...reviewSchema, required: [...reviewSchema.required, 'eveningPlan'],
+  properties: { ...reviewSchema.properties, eveningPlan: {
+    type: 'object', additionalProperties: false, required: ['evening', 'statement'],
+    properties: { evening: { type: 'string', enum: ['none', 'today', 'tomorrow'] }, statement: { type: 'string' } },
+  } },
 };
 
 export const reviewInstructions = `You keep the personal goals of one resident of Dalecrest, a medieval English village in
@@ -57,6 +66,14 @@ reason in the input.
 "statement" is one plain sentence in the resident's own voice about the most important change, as they might say
 it to a neighbour, without modern idiom. It is published under their name as what they say they intend. Leave it
 empty if nothing changed.`;
+
+const eveningPlanInstructions = `
+
+Robin can also make one personal plan to work on his current song on the green after his rounds.
+In "eveningPlan", choose one of the offered evenings and give one plain first-person sentence beginning with "I".
+Use the given dates and write what he means to do, in his own words. He can make this plan even when all his goals stay the same.
+When he has no particular intention to write on an offered evening, use "none" and an empty sentence.
+The plan is a personal intention that can give way to something more pressing.`;
 
 // The memories a review is shown: what bears on the people the resident's goals concern and on the
 // resident's own place, and what matters most.
@@ -87,15 +104,19 @@ export async function claimReview(db, village, { budget = goalBudget, model = go
     const input = reviewInput(actor, village, names, recalled);
     const songwriting = songwritingContext(actor, village.world);
     if (songwriting) input.songwriting = songwriting;
+    const planOffer = offerEveningPlan(actor, village.world);
+    if (planOffer) input.eveningsForWriting = planOffer.evenings.map(({ evening, startsAt, expiresAt }) => ({
+      evening, canStartFrom: villageTime(startsAt), lastStartBefore: villageTime(expiresAt),
+    }));
     const offered = [...recalled.map(m => memoryKey(actor, m)), ...input.evidence.map(e => e.key)];
-    const body = JSON.stringify({ model, max_tokens: 4096, system: reviewInstructions,
+    const body = JSON.stringify({ model, max_tokens: 4096, system: reviewInstructions + (planOffer ? eveningPlanInstructions : ''),
       messages: [{ role: 'user', content: JSON.stringify(input) }],
-      output_config: { format: { type: 'json_schema', schema: reviewSchema } } });
+      output_config: { format: { type: 'json_schema', schema: planOffer ? eveningPlanSchema : reviewSchema } } });
     const estimate = Math.ceil(Buffer.byteLength(body) / 3) + 600;
     if (spend.spent + estimate > budget) return { budgetLimited: true };
     const { rows: [made] } = await db.query(`INSERT INTO dalecrest.goal_reviews(actor_id,observed_minute,why,model,request_body,offered,token_charge)
       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`, [actor.id, village.world.minute, actor.reviewDue.why, model, body, offered, estimate]);
-    return { id: made.id, body, actorId: actor.id, since: actor.reviewDue.since };
+    return { id: made.id, body, actorId: actor.id, since: actor.reviewDue.since, planOffer };
   }
   return null;
 }
@@ -153,12 +174,25 @@ export async function settleReview(db, village, claim, reply, recordEvents) {
         remember(actor, minute, text, [actor.id], 'goal', { goal: a.goal, reviewId: claim.id, importance: 6 });
       }
       statement = changed.length ? screenStatement(read.review.statement) : null;
-      if (statement) {
+      const proposed = read.review.eveningPlan;
+      const plan = acceptEveningPlan(actor, village.world, claim.planOffer, proposed?.evening);
+      const words = plan ? screenStatement(proposed.statement) : null;
+      if (statement || words) {
         const at = village.map.places.find(p => p.id === actor.action.target);
-        const [event] = await recordEvents(db, [{ minute, type: 'intention', actorIds: [actor.id],
-          text: actor.name + ', in their own words: “' + statement + '”', outcome: { reviewId: claim.id, statedIntention: true },
-          place: at ? { x: r2(at.at[0]), y: r2(at.at[1]), id: at.id } : { x: r2(actor.position.x), y: r2(actor.position.y) } }]);
-        eventId = event.id;
+        const place = at ? { x: r2(at.at[0]), y: r2(at.at[1]), id: at.id } : { x: r2(actor.position.x), y: r2(actor.position.y) };
+        const source = { minute, actorIds: [actor.id], place };
+        if (statement) {
+          const [event] = await recordEvents(db, [{ ...source, type: 'intention',
+            text: actor.name + ', in their own words: “' + statement + '”', outcome: { reviewId: claim.id, statedIntention: true } }]);
+          eventId = event.id;
+        }
+        if (words && /^I(?:\s|['’])/.test(words)) {
+          const [event] = await recordEvents(db, [{ ...source, type: 'plan',
+            text: actor.name + ' planned an evening of writing: “' + words + '”',
+            outcome: { eveningPlan: { ...plan, reviewId: claim.id, text: words } } }]);
+          actor.songwriting.eveningPlan = { ...plan, reviewId: claim.id, eventId: event.id };
+          result.eveningPlanEventId = event.id;
+        }
       }
     }
   }

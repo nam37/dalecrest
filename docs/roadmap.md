@@ -23,7 +23,7 @@
 | 3d. What feeds the village | Built, awaiting live measures | 5 | 0 | 0 |
 | 3e. Pets | Built, first stray due at the next live dawn | 4 | 0 | 1 |
 | 4. Voices: competing interests and the moot | Built, awaiting a live moot | 5 | 0 | 0 |
-| 4a. Lead characters | Proposed, Robin’s solo pilot | 0 | 0 | 5 |
+| 4a. Lead characters | Songwriting live, evening plans recorded | 5 | 1 | 2 |
 | 5. Worth watching | In hand | 8 | 0 | 0 |
 | 6. Worth following | In hand | 1 | 1 | 2 |
 | 6a. Admin control panel | First release on the live site | 5 | 0 | 4 |
@@ -31,7 +31,7 @@
 | 8. The world comes to Dalecrest (A–C) | Proposed, not begun | 0 | 0 | 9 |
 | 9. Taking part | Groundwork only | 0 | 1 | 4 |
 | 10. A wider world | Not begun | 0 | 0 | 1 |
-| All stages | | 72 | 7 | 35 |
+| All stages | | 77 | 8 | 32 |
 
 **Reading the live village.** `readout.mjs` reads every "Done when" measure the database can answer, stage by stage, and marks it met, not met, no data or needing a viewer. On the server: `docker exec dalecrest-app node readout.mjs`, for the last 168 real hours by default. It does not replace `tools/pilot-report.mjs`, which breaks Stage 0 down further.
 
@@ -446,23 +446,26 @@ The PostgreSQL integration test exercises the production queue with scripted pro
 
 Done when: a ballot can be traced to the goals and observations its voter was given; a piece of news can be followed from the person who saw it to the person who acted on it; and a moot runs to a valid outcome on the production path with every ballot recorded.
 
-### Stage 4a. Lead characters (M, proposed)
+### Stage 4a. Lead characters (M, Robin’s pilot live)
 
 Give selected residents more developed motivations and access to the memories that matter to them. Start with Robin Marsh as the first lead and songwriting as his first solo project. His reporting takes him through the parish. Writing songs gives him something of his own to make time for, return to, revise or put aside.
 
-**Proposed · revised 25 November 2026.** Start in a preview with one lead, one song and one section on his resident page. Build the composing records first, then publish **Robin’s Journal** from them. The Daily’s editor works from village records after the fact. The Journal draws on what Robin himself recorded as he made choices.
+**Pilot live · 25 November 2026.** The songwriting pilot shipped in `4a4c2b8`. Daily entries and the completed songs catalog shipped in `1796934`. The scripted preview exercised writing across several days and a moot interruption. Engine tests preserve the completed manuscript when Robin starts another song. The live Journal serves all nine backfilled entries, and the songwriting goal is active. The first live writing session and verse are still pending. [Robin’s Journal](https://dalecrest.trinsicstudios.com/residents/robin#journal)
 
 [Pino’s Brain](https://pinos.world/brain) is a reference for showing projects and habits that carry forward across days.
 
-- [ ] **Enable a lead profile for Robin.** Key the operator setting and its audit record to his resident lifetime. Seed a songwriting goal alongside his reporting and relationship goals. Give the saved Robin a targeted, repeatable update when the pilot is enabled, respecting the goal book’s limits and preserving the goals he has formed.
-- [ ] **Give him one original song to work on.** Offer composing on the green as a timed activity Robin can choose around his rounds. He chooses the subject. Town happenings, his own observations and imagined subjects can all become songs. Let him return to the draft, revise it, finish it or set it aside. The simulation records when he makes time for it and what each session yields.
-- [ ] **Derive habits and evidence for beliefs.** Count repeated behavior by distinct village days and comparable outcomes by distinct firsthand observations. Start with a small set of patterns that can be read from structured records. Show the window and supporting and contrary counts, where applicable. Compute the counts without model calls and let later evidence change what they show.
-- [ ] **Publish Robin’s Journal.** Add a separate first-person section once the project records exist. An On their mind block can show Robin’s current concern, the song and the patterns he has earned. Publish entries on meaningful changes. Display confirmed outcomes separately from Robin’s stated intentions, observations and interpretations.
+- [x] **Enable Robin’s lead pilot.** `VILLAGE_SONGWRITING=1` enables it for the founding Robin. A repeatable update gives him a standing songwriting goal alongside his other goals. The existing review path handles a full goal book.
+- [x] **Give Robin a song to work on.** He can choose a timed composing session on the green after his rounds, revise the draft, finish it or set it aside. The engine records the session and applies a screened verse separately. He can begin another song, and completed manuscripts remain in the catalog.
+- [x] **Publish Robin’s Journal.** Daily Journal Entries come first, newest village day first. Songs shows the current draft and a collapsible catalog of completed songs with their dates and sources. The Journal is linked beside the Daily, which has its own editorial sources.
+- [x] **Show an earned habit.** Count distinct village days Robin spent writing on the green and show that count with its window.
+- [x] **Record Robin’s evening plans.** A regular goal review can save one dated writing intention. His Journal quotes it and his traces identify choices that can be replayed.
+- [ ] **Measure when Robin needs a second opinion.** Under way. The menu and deferral previews are recorded. Collect live plans and composing menus, then compare timing, plan context and a second opinion in that order.
+- [ ] **Count evidence for beliefs.** Use distinct firsthand observations with comparable outcomes. Define the window and what counts as one observation, then show supporting and contrary evidence counts.
 - [ ] **Compare a stronger review model offline.** First capture a batch of default-model reviews that include the songwriting project. Replay the same stored requests against a candidate model and compare the replies side by side under a separate spending limit. Consider a live per-resident override only if the comparison shows a clear benefit.
 
 #### Robin’s first song
 
-Proposed founding biography. “Robin was hired for a single harvest and stayed. In his spare hours he likes to make up songs about what he has seen or imagined.” The biography describes his interest. Any habit the Journal shows is earned in play.
+Robin’s pilot biography reads “Robin was hired for a single harvest and stayed. In his spare hours he makes up songs about what he has seen or imagined.” His writing habit is earned in play.
 
 Use the [founding biography and goals](../sim.mjs) for new villages. A live pilot needs a separate update because the village loads Robin’s saved resident state. Change an inherited biography only where the old text still matches, and seed a songwriting goal with a stable identity so restarts cannot add a second copy. Let the usual goal review handle a full goal book.
 
@@ -475,18 +478,49 @@ The personal stake is whether Robin makes time for something he enjoys when ther
 - **Check and record.** Every cited key must belong to Robin’s lifetime and be present in that request. An added verse needs at least one substantive memory that has yet to be used in the song. An older memory can qualify. A revision can return to material already used. Determine eligible material from recorded relevance and importance. A finished session without qualifying material records no new verse. Apply at most one result per session against the expected song version.
 - **Publish.** Derive progress from accepted verses and their revisions. Date each verse and show approved sources alongside it. Label the verse as Robin’s song so its inventions read as creative work. Screen verse text before it goes public, including when it names another resident. Robin knows what he writes. In later work, a resident learns a verse through a recorded sharing or performance.
 
+#### Robin’s evening plans
+
+Robin can make one optional plan for the current draft in a regular goal review, even if every goal is kept. The review can name this evening or the next one when its writing cutoff has yet to pass. The engine checks the offered date, draft identity and version again when the reply arrives, and accepts one screened first-person sentence. The plan expires at the writing cutoff or stops applying once a session has taken place or the draft has changed. The Journal shows the saved words and their intended date alongside the existing action and writing records. The plan is a separate record from any goal change.
+
+The first release is record-only under the existing songwriting setting. It uses the regular review budget and schedule. The source event and review ID are saved on the resident, and eligible-date action traces copy those references, the offered writing option if any, and the scheduled moot time into the menu audit. Join the audit event ID to the dated source event, then compare the saved request, reply and applied action. For the same resident state, recording a plan leaves the action prompt and menu identical. [Goal reviews](../goal-reviews.mjs) · [Songwriting](../engine/songwriting.mjs) · [Decision traces](../action-turns.mjs)
+
 #### What the Journal can say
 
-- **First-person source.** Draw from Robin’s saved plan, selected actions and their observed outcomes, along with first-person statements recorded by [goal reviews](../goal-reviews.mjs). The action trace establishes what Robin chose and what prompted a fresh choice. Use his authored statements for introspection. Capture and store any future first-person reflection when the relevant choice or review is made, and reuse it verbatim at publication.
-- **When an entry appears.** Publish after a meaningful project change, such as a verse gained or revised, a project set aside, or an evening Robin meant to spend composing and spent elsewhere. The last case needs both a recorded intention tied to that evening and a different recorded action. Link entries to the project events and use those IDs to prevent duplicates after a retry or restart.
+- **First-person source.** Entries assemble factual first-person lines from his field notes, selected activities and writing outcomes. The Journal quotes screened [goal review statements](../goal-reviews.mjs) verbatim and labels them as Robin’s own words. Record any future first-person reflection when the choice or review happens.
+- **When an entry appears.** Each completed village day with enough records gets a dated entry, including days when the song makes no progress. The backfill found nine days from 5 through 13 August 1312, with Robin’s own recorded words on four. It uses existing records directly. Describing an evening he intended to spend composing and spent elsewhere still needs both the dated intention and the different recorded action.
 - **Facts, interpretations and songs.** A short factual summary can describe what the engine recorded. Give a dated, attributed place to Robin’s stated thoughts and a separate place to his song. Use public records or a safe attribution for sources. If the Daily reports an event Robin took part in, identify his role, distinguish his firsthand account and cite independent witnesses where available.
-- **Patterns with evidence.** An earned habit can say how many of the last several village days Robin spent time composing on the green. A belief can show how many relevant things Robin personally witnessed supported it and how many did not. Set the comparison window and what counts as one observation before calculating claims. Treat the result as evidence about his experience.
+- **Patterns with evidence.** The Journal shows how many of the last seven village days Robin spent writing on the green, or a shorter window for a newer project. Beliefs are a separate follow-up based on observations Robin personally witnessed.
 
 #### Memory and later work
 
 - **Diagnose memory before adding storage.** Start with the existing [60-entry memory and recall rules](../engine/memory.mjs). Find a real Robin decision where an older observation would have mattered. Check whether it was evicted or remained available but ranked out of the request. Also check whether the relevant person made it into the [recall context](../decisions.mjs). Use the trace to distinguish those cases. Consider retained memory references only after evidence of a consequential eviction. Preserve the original observation, owner, source and time in either case.
 - **Appointments and gifts.** After the solo pilot, use a separate two-party record for an accepted appointment, validate the place and time, and offer a fresh decision when travel would make a routine run late. A missed appointment or meaningful gift should have an importance of at least 7 for each participant who witnessed it or learned about it. The existing short missed-visit reminder serves immediate retries. Check whether the older memory is actually offered to an ordinary-profile counterpart in a relevant choice several village days later.
 - **The teacher.** Choose the second lead after [completed lessons with pupils](../engine/children.mjs) establish who regularly teaches. Give that resident concerns that grow from their own lessons and household ties. Singing to other residents, passing songs along and the teacher’s pilot are later work.
+
+#### Action choices and reflections
+
+The admin decision reports expose close calls and menu position. Across 158 applied Robin choices, the median menu had 12 options and the median gap between the leading two was 0.17. Gaps of at most 0.10, 0.20 and 0.30 covered 61 (39%), 87 (55%) and 103 (65%) choices. The order effect was observed on a synthetic menu. Replay stored Robin menus with the same options and context in different orders, then count winner flips and how often close calls overlap with meaningful songs, ballots, promises or intentions. If that supports shuffling, use a reproducible seed independent of the village’s random sequence. Measure whether averaging two orders for Robin improves stability enough to justify the extra request. [Decision reports](admin-control-panel.md#decision-reports)
+
+**First paired replay · 25 November 2026.** The experiment ran 24 stored menus in their original order and again with the options rotated by half the menu. All original-order replies reproduced the recorded choice. Reordering changed seven winners, including five changes in activity type. The three groups of eight menus had five, one and one flips for gaps of at most 0.10, above 0.10 through 0.30, and above 0.30. The sample covered 11 village days before Robin’s first composing offer. It supports testing a Robin-only seeded shuffle in preview. Collect composing cases to measure whether it improves his choices around the song.
+
+**Seeded shuffle and composing preview · 25 November 2026.** A seeded shuffle changed six winners across the same 24 menus, including three changes in activity type. All four original-order controls matched their stored winners. Averaging the original and shuffled probabilities kept the original winner in four of the six changed menus. Eight engine-generated composing cases kept the same winner in both orders. Hungry Robin chose food in all four runs of that case. Visiting Agnes won all 12 runs of the quiet, overdue and moot cases. Four evenings away from the draft had opposite effects on the combined probability of composing across two seeds. Test a recorded reason to return to the song and give the moot’s start and attendance deadline explicitly. Hold order fixed in the context test, then repeat on live composing menus as they arrive.
+
+**Fixed-order context preview · 25 November 2026.** At fixed menu order, 36 Decisions requests across four preview seeds compared the current context with song material, a simulated prior intention, and precise moot timing. The start, attendance cutoff and latest departure changed the attendance choice from zero to four of four, both with and without the song material. In a local engine replay, all four timing-only moot selections attended, and the four baseline visits ended with attendance no longer feasible. On quiet evenings the highlighted field note alone kept all four visits as the top choice. Adding a simulated earlier intention to write produced three choices to compose, and all three completed their sessions in the engine. The hungry cases chose food with and without the highlighted note. Test genuine recorded intentions against urgent needs and civic commitments before trying them live. Repeat on live composing menus as they arrive.
+
+**Competing needs preview · 25 November 2026.** The live check covered 166 applied Robin choices and nine goal reviews. The choices had no composing offers, and the reviews contained no intentions to write. In 24 fixed-order preview requests across four seeds, adding a simulated same-day intention to write reduced food choices at hunger 86 from four to one and choices to attend the moot immediately from four to one when the writing session would end after the last departure. The three competing writing choices completed their sessions and lost the opportunity to attend in the local engine replay. With time for both, the intention produced one writing-first choice. In the engine that session finished in time to attend when the replay explicitly started a meeting action afterward. Keep the factual timing context in preview. Before adding intentions to live choices, test how to defer a personal plan around urgent needs or a closing obligation and offer it again once the resident is free. Use genuine recorded intentions and live composing menus as they accumulate.
+
+**Returning to a deferred intention · 25 November 2026.** A local replay used the matched controls to start the meal or attend the moot before showing the simulated writing intention again. In 24 fixed-order Decisions requests across four seeds, restoring the intention at the first choice after the 19:05 meal changed writing from zero to four of four. All four sessions finished at 19:48 in the replay. Restoring it after Robin had voted or after the moot closed at 19:40 produced zero writing choices in either comparison. All those civic menus offered time with Agnes at the hall, which won in both variants. A moot that closed at 20:40 was already past the 20:20 cutoff for starting a writing session, so the four late-close cases needed no model calls. Retain the original plan and resurface it only while its day, song and feasible window still match. Use the next live composing menus and source-backed plans to validate this behavior, with varied social opportunities, before trying a second model.
+
+Replay live composing menus with their option order fixed, first with accurate timing alone, then with the recorded plan when it fits. Include cases where Robin is hungry, on a deadline, free after a meal or ballot, and with friends. Use their actual village state to account for travel and the last feasible departure. Carry the plan through a competing need and offer it again on a later feasible choice within the same window. Skip a planned reminder once its window has closed, the draft has changed, or the task is no longer offered. Compare what he chose, whether he followed through, and what competing work or company he chose instead.
+
+#### When to try a second action model
+
+First measure whether the timing and plan context are enough. For as many as 24 distinct stored menus across multiple village evenings, compare the existing Decisions answer with a separately budgeted Anthropic replay on exactly the same context and menu. Include plausible alternatives, urgent needs, hard deadlines, and real plans. Keep menu order fixed for these comparisons. Log offered-choice validity, disagreements, grounding of the first-person sentence, effects on commitments, tokens and latency. Judge each pair against the record and inspect the cases where Anthropic makes a meaningful improvement.
+
+A live action trial requires a clear preview benefit. Start with Robin and consequential songwriting choices under an operator switch that defaults to off. The Decisions service answers first. Escalate when the leading options are close and a genuine tradeoff involves his song or stated plan. Measure the overlap and tune the threshold before turning it on. Start with one in flight, up to two second opinions per real day, and a short deadline measured from the first answer. Run the second request outside the shared planner slot and tick lock. Give it the same options and context and request one exact option plus one first-person sentence.
+
+If the second reply times out, is refused, or fails validation, use the first answer while it is still feasible. Validate either choice against the current menu and waiting turn before starting it. A superseded turn goes through the regular decision path. Save both answers, the one applied, the trigger, the time spent and the reason for any fallback on the trace. Screen the sentence and quote it in the Journal only if its choice applied. Compare Robin’s added wait, ordinary residents’ wait, and costs against the baseline. Keep ballots and promises in offline comparisons during this first live trial.
+
 
 #### Review model comparison
 
@@ -496,13 +530,13 @@ If the replay shows a clear gain, give Robin a model override through the existi
 
 #### Acceptance checks
 
-1. Robin pursues one song across several village days. His goal and progress survive other activities, sleep and a restart. His choices produce an observable tradeoff with something else he cares about.
+1. **Preview exercised, live observation pending.** Robin pursues a song across several village days. His goal and progress survive other activities, sleep and a restart. Observe a live session and a choice that shows a tradeoff with another activity.
 2. A completed session can yield one accepted verse, a revision or a recorded session without new material. An unsupported citation, stale result or duplicate reply cannot add progress. Habit and belief counts reconcile with the distinct records behind them.
 3. For the later appointment and gift work, each participant remembers what they observed or were told. Several village days later an ordinary-profile counterpart is actually offered the consequential memory in a relevant decision. The test inspects the supplied context.
 4. A reader can follow Robin’s song and a consequential choice in the Journal. His reflections link to words he recorded at the time. The Journal distinguishes intentions, observed outcomes and lyrics, and the Daily uses its own sources.
-5. The offline review comparison produces paired results and costs against the default model. Any later live comparison has a repeatable switch and a baseline for ordinary review waits.
+5. The paired menu replay measures order effects and likely second-step volume. The separate offline goal-review comparison measures plan continuity, source use and cost. Any later live trial has a repeatable switch and a baseline for ordinary decision or review waits.
 
-**Done when** A preview shows Robin making choices about an original song over several village days, and the Journal makes the sequence readable from his contemporaneous records. Habit and belief evidence can be checked against the records. The team can judge whether to improve recall or run a stronger-model trial from measured evidence.
+**Done when** The live solo pilot shows Robin making and revisiting a personal choice across several village days, with a traceable outcome and readable Journal entries. Use those cases to judge whether a change in recall, choice ranking or review quality would improve his behavior. The second lead and later social commitments follow that evidence.
 
 ### Stage 5. Worth watching (M, can start alongside Stage 3)
 
