@@ -612,9 +612,12 @@ function navigate(){
 }
 let stream, retry;
 function connection(online) {
-  const badge = $('connection'), text = online ? 'World online' : 'Reconnecting';
+  const badge = $('connection'), label = $('connection-label'), text = online ? 'World online' : 'Reconnecting';
   badge.classList.toggle('online', online);
-  if (badge.textContent !== text) badge.replaceChildren(el('i'), document.createTextNode(text));
+  if (label.textContent !== text) {
+    label.textContent = text;
+    $('connection-mobile-label').textContent = text;
+  }
   if (!online && !state) $('summary').textContent = 'Waiting for the village server. Reconnecting automatically…';
 }
 function disconnect() {
@@ -661,7 +664,9 @@ $('freeze').addEventListener('click',()=>{
   if(!state)return;
   frozen=!frozen;
   $('freeze').setAttribute('aria-pressed',String(frozen));$('freeze').textContent=frozen?'Resume':'Pause';
-  $('connection').title=frozen?'The view is paused. The village clock continues to run.':'';
+  const pauseNotice = $('connection-pause');
+  pauseNotice.hidden = !frozen;
+  $('connection').title = frozen ? pauseNotice.textContent : '';
   if(frozen) render(); else displayLatest();
 });
 for(const btn of document.querySelectorAll('[data-tab]'))btn.addEventListener('click',()=>{

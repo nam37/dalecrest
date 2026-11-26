@@ -1,13 +1,23 @@
-const more = document.querySelector('.site-more');
-const toggle = more.querySelector('summary');
+const mobile = document.querySelector('.mobile-site-menu');
+const menus = [...document.querySelectorAll('.site-more, .mobile-site-menu, .mobile-connection')];
 
 document.addEventListener('click', event => {
-  if (more.open && !more.contains(event.target)) more.open = false;
+  for (const menu of menus) {
+    const followedLink = menu === mobile && event.target instanceof Element && event.target.closest('a');
+    if (menu.open && (!menu.contains(event.target) || followedLink)) menu.open = false;
+  }
 });
 
 document.addEventListener('keydown', event => {
-  if (event.key !== 'Escape' || !more.open || event.defaultPrevented) return;
-  more.open = false;
-  if (more.contains(document.activeElement)) toggle.focus();
+  if (event.key !== 'Escape' || event.defaultPrevented) return;
+  const menu = menus.find(disclosure => disclosure.open && disclosure.getClientRects().length);
+  if (!menu) return;
+  const focused = menu.contains(document.activeElement);
+  menu.open = false;
+  if (focused) menu.querySelector('summary').focus();
   event.preventDefault();
+});
+
+matchMedia('(max-width: 960px)').addEventListener('change', () => {
+  for (const menu of menus) menu.open = false;
 });

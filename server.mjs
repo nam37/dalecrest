@@ -50,14 +50,21 @@ function json(res, status, body) {
 function siteNavigation(path) {
   const home = path === '/' || path === '/index.html' ? '' : '/';
   const link = (href, label) => `<a href="${href}"${href === path ? ' aria-current="page"' : ''}>${label}</a>`;
+  const primary = `${link(home + '#village', 'Village')}${link(home + '#residents', 'Residents')}${link(home + '#chronicle', 'Chronicle')}`;
+  const publications = `${link('/daily.html', 'Dalecrest Daily')}${songwritingPilot ? link('/residents/robin#journal', 'Robin’s Journal') : ''}`;
+  const more = `${link('/following.html', 'Following')}${link('/growth.html', 'Growth')}${link('/atlas.html', 'Sandbox')}${link('/development.html', 'Development')}`;
   return `<nav class="site-nav" aria-label="Observatory">
-    ${link(home + '#village', 'Village')}${link(home + '#residents', 'Residents')}${link(home + '#chronicle', 'Chronicle')}
-    <div class="site-publications">${link('/daily.html', 'Dalecrest Daily')}${songwritingPilot ? link('/residents/robin#journal', 'Robin’s Journal') : ''}</div>
-    <details class="site-more"><summary>More</summary><div class="site-more-links">
-      ${link('/following.html', 'Following')}${link('/growth.html', 'Growth')}${link('/atlas.html', 'Sandbox')}
-      ${link('/development.html', 'Development')}
-    </div></details>
-  </nav><script type="module" src="/site-navigation.js"></script>`;
+    ${primary}<div class="site-publications">${publications}</div>
+    <details class="site-more"><summary>More</summary><div class="site-more-links">${more}</div></details>
+  </nav>
+  <details class="mobile-site-menu">
+    <summary class="mobile-site-toggle"><span class="site-menu-icon" aria-hidden="true"></span>Menu</summary>
+    <nav class="mobile-site-links" aria-label="Observatory">
+      ${primary}${publications}
+      <div class="mobile-site-more" role="group" aria-label="More"><span aria-hidden="true">More</span>${more}</div>
+    </nav>
+  </details>
+  <script type="module" src="/site-navigation.js"></script>`;
 }
 
 const server = http.createServer(async (req, res) => {
