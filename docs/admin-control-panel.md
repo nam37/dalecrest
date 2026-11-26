@@ -49,11 +49,21 @@ node tools/admin-credential.mjs agent status-agent
 
 Restart the admin service after adding or revoking credentials. The audit journal is kept on disk and browser sessions expire on restart.
 
+## Update the panel
+
+The automatic deploy rebuilds only the village app. It carries changes to `admin-health.mjs` and `admin-metrics.mjs`, which run inside the village container, but never touches the panel itself. After a release changes `admin.mjs`, `admin-auth.mjs`, `admin-audit.mjs` or `admin-ui/`, copy those files from the same release to `/opt/dalecrest-admin/` and restart the service.
+
+```bash
+sudo install -m 644 admin.mjs admin-auth.mjs admin-audit.mjs /opt/dalecrest-admin/
+sudo cp -r admin-ui/. /opt/dalecrest-admin/admin-ui/
+sudo systemctl restart dalecrest-admin.service
+```
+
 ## Agent URL
 
 Send `GET /admin/api/agent` with the issued key in the header `Authorization: Bearer <name>.<key>`. The response contains village health, the active change if any, and the last 30 clock changes. Agent keys are read-only. Operator sign-in is required for clock changes. [Live agent endpoint](https://dalecrest.trinsicstudios.com/admin/api/agent)
 
-Send `GET /admin/api/agent/metrics` with the same header for the chart data described under [Village trends](#village-trends) and the decision reports below. The panel reads the village at most once a minute, so agents calling more often receive the same figures. The address answers 401 with `An agent key is required.` when the installed admin service supports it. An older installation answers `Sign in to the admin panel.`
+Send `GET /admin/api/agent/metrics` with the same header for the chart data described under [Village trends](#village-trends) and the decision reports below. The panel reads the village at most once a minute, so agents calling more often receive the same figures. Without a key the address answers 401 with `An agent key is required.`
 
 ## Decision reports
 
@@ -68,7 +78,7 @@ The `decisions` section of the metrics covers the last 24 real hours. It holds t
 
 `truncated` is true when the day held more than 8,000 decisions and only the most recent were read.
 
-The village image carries the reports, so they reach `GET /admin/api/metrics` with an ordinary deploy. The agent address is served by the host admin service. Reinstall `admin.mjs` from the same release in `/opt/dalecrest-admin/` and restart `dalecrest-admin.service` to enable it.
+Option positions are not shuffled, so `menuPosition` also reflects how the menu is grouped: protected and work choices come first, and visits, news and leisure last. A low rate at a late position is evidence of order bias only when compared with requests whose order was varied.
 
 ## Village trends
 
