@@ -87,6 +87,13 @@ export function chains(map) {
   return out;
 }
 
+// The window of a building: the middle of the wall that faces its door. After dark a lit window
+// shows there for whoever is inside.
+function windowAt(p) {
+  const side = (p.at[0] - p.x) * -Math.sin(p.a) + (p.at[1] - p.y) * Math.cos(p.a) > 0 ? 1 : -1;
+  return [p.x - Math.sin(p.a) * side * p.d * 0.5, p.y + Math.cos(p.a) * side * p.d * 0.5];
+}
+
 function building(c, p, line, lodgers, snowed = color => color, toward = PLAIN_LIGHT.toward) {
   const [w, d] = [p.w, p.d], hw = w / 2, hd = d / 2;
   c.save();
@@ -850,8 +857,7 @@ export function createMap(canvas, onSelect, cards) {
         g.addColorStop(0, 'rgba(255,196,104,' + (0.62 * a).toFixed(3) + ')'); g.addColorStop(0.35, 'rgba(255,170,80,' + (0.2 * a).toFixed(3) + ')'); g.addColorStop(1, 'rgba(255,160,70,0)');
         c.fillStyle = g; c.fillRect(x - r, y - r, r * 2, r * 2);
         c.fillStyle = 'rgba(255,232,170,' + (0.9 * a).toFixed(3) + ')';
-        const side = (p.at[0] - p.x) * -Math.sin(p.a) + (p.at[1] - p.y) * Math.cos(p.a) > 0 ? 1 : -1;
-        const [wx, wy] = toScreen(p.x - Math.sin(p.a) * side * p.d * 0.5, p.y + Math.cos(p.a) * side * p.d * 0.5);
+        const [wx, wy] = toScreen(...windowAt(p));
         c.beginPath(); c.arc(wx, wy, Math.max(1.4, view.scale * 0.16), 0, TAU); c.fill();
       }
     }
@@ -967,9 +973,17 @@ export function createMap(canvas, onSelect, cards) {
     notes(still);
     hits = [];
     const crowd = new Map(), markers = [];
+    // The ring that marks a chosen resident who is indoors, round their window.
+    const ringed = Math.max(6, view.scale * 0.34);
     for (const [index, actor] of actors.entries()) {
       const p = motion.at(actor.id, time);
       if (!p) continue;
+      const home = indoors(actor) && insideAt(actor.action.target);
+      if (home) {
+        const [hx, hy] = toScreen(home[0], home[1]);
+        markers.push({ actor, index, x: hx, y: hy, p, home: true, rise: ringed + 4 });
+        continue;
+      }
       const key = Math.round(p.x * 2) + ',' + Math.round(p.y * 2);
       const count = crowd.get(key) || 0;
       crowd.set(key, count + 1);
@@ -980,9 +994,12 @@ export function createMap(canvas, onSelect, cards) {
     // Nearer figures overlap those behind them. The selected resident is drawn last of all.
     markers.sort((a, b) => Number(a.actor.id === selectedId) - Number(b.actor.id === selectedId) || a.y - b.y);
     const s = Math.max(11, Math.min(22, view.scale * 1.55));
-    for (const { actor, index, x, y, p } of markers) {
+    for (const { actor, index, x, y, p, home } of markers) {
       const chosen = actor.id === selectedId, inside = indoors(actor);
-      if (chosen) {
+      if (chosen && home) {
+        c.strokeStyle = '#9a4a2e'; c.fillStyle = 'rgba(246,231,180,.35)'; c.lineWidth = 1.8;
+        c.beginPath(); c.arc(x, y, ringed, 0, TAU); c.fill(); c.stroke();
+      } else if (chosen) {
         c.strokeStyle = '#9a4a2e'; c.fillStyle = 'rgba(246,231,180,.6)'; c.lineWidth = 1.6;
         c.beginPath(); c.ellipse(x, y + s * 0.02, s * 0.52, s * 0.2, 0, 0, TAU); c.fill(); c.stroke();
       }
@@ -999,7 +1016,7 @@ export function createMap(canvas, onSelect, cards) {
         }
         hits.push({ id: actor.id, name: actor.name, x, y: y - s * 0.45 });
       }
-      if (chosen) { c.textAlign = 'center'; label(actor.name.split(' ')[0] + (inside ? ' · indoors' : ''), x, y - (inside ? 14 : s + 9), 14, false); }
+      if (chosen) { c.textAlign = 'center'; label(actor.name.split(' ')[0] + (inside ? ' · indoors' : ''), x, y - (home ? ringed + 9 : inside ? 14 : s + 9), 14, false); }
     }
     falling(still);
     placeCard(markers, s);
@@ -1010,6 +1027,12 @@ export function createMap(canvas, onSelect, cards) {
     }
     if (!reduced.matches || motion.busy) schedule();
   }
+  // Someone indoors is marked at the window of the building they are in, which is lit after dark.
+  function insideAt(id) {
+    const p = map.places.find(q => q.id === id);
+    return p?.w && p.at ? windowAt(p) : null;
+  }
+
   // The card rides above whoever it describes, and turns below them when there is no room overhead.
   function placeCard(markers, s) {
     if (!card) return;
@@ -1030,7 +1053,7 @@ export function createMap(canvas, onSelect, cards) {
       pin.setAttribute('aria-pressed', String(kept));
       pin.title = kept ? 'Unpin card' : 'Pin card';
     }
-    const [ax, ay] = m ? [m.x, m.y] : toScreen(note.x, note.y), rise = m ? s : 30;
+    const [ax, ay] = m ? [m.x, m.y] : toScreen(note.x, note.y), rise = m ? m.rise ?? s : 30;
     const [cw, ch] = cardSize, gap = 14;
     let top = ay - rise - gap - ch;
     const below = top < 8;
