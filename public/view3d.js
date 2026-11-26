@@ -9,6 +9,7 @@ import { makeFigure, poseFigure } from '/figure.js';
 import { light, hearths, indoors, yearLook, skyOver, blend } from '/ambient.js';
 import { windAt } from '/engine/seasons.mjs';
 import { cloudField, cloudsOver, cloudOverhead, cloudShade, cloudDrift } from './clouds.js';
+import { puddleFill, puddles, rainRings, wetness } from './wet.js';
 import { kinds } from '/card.js';
 import { animalCoats, animalPose, appleSpots, createAnglers, fenceSpans, logsIn, orchardFruit, parishLayout, strayCattle, visibleSheep, workHeading } from './parish.js';
 import { isFarmSite } from '../engine/smallholding.mjs';
@@ -22,6 +23,8 @@ const tag = id => { let h = 0; for (const ch of id) h = (Math.imul(h, 31) + ch.c
 const mix = (a, b, t) => a + (b - a) * t;
 
 const materials = new Map();
+// How a strip laid on the ground is drawn, so that it shows above the land it lies on.
+const ON_GROUND = { side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 };
 function mat(color, extra) {
   const key = color + (extra ? JSON.stringify(extra) : '');
   if (!materials.has(key)) materials.set(key, new THREE.MeshLambertMaterial({ color, flatShading: true, ...extra }));
@@ -276,6 +279,13 @@ export function createWalk(container, onSelect, onNote) {
   const CLOUDS = 900, cloudMat = new THREE.MeshLambertMaterial({ color: '#ffffff', transparent: true, opacity: 0.9, flatShading: true });
   const clouds = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), cloudMat, CLOUDS);
   clouds.frustumCulled = false; clouds.count = 0; scene.add(clouds);
+  // After rain, water standing in the hollows of the ways, and the rings of the drops on the river.
+  const pools = new THREE.InstancedMesh(new THREE.CircleGeometry(1, 18), new THREE.MeshBasicMaterial({ color: '#a9bcc2', transparent: true, opacity: 0.85, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 }), 80);
+  pools.frustumCulled = false; pools.count = 0; pools.renderOrder = 2; scene.add(pools);
+  const dropRings = new THREE.InstancedMesh(new THREE.RingGeometry(0.88, 1, 24), new THREE.MeshBasicMaterial({ color: '#eef6f4', transparent: true, opacity: 0.5, depthWrite: false }), 260);
+  dropRings.frustumCulled = false; dropRings.count = 0; dropRings.renderOrder = 2; scene.add(dropRings);
+  const flat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2), turned = new THREE.Quaternion(), upward = new THREE.Vector3(0, 1, 0);
+  let hollows = null, hollowsOf = null;
   // The apples in the orchard, a few to a tree.
   const apples = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), new THREE.MeshLambertMaterial({ color: '#c8402c', flatShading: true }), 40);
   apples.frustumCulled = false; apples.count = 0; apples.castShadow = true; scene.add(apples);
@@ -433,7 +443,7 @@ export function createWalk(container, onSelect, onNote) {
     });
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(index); g.computeVertexNormals();
-    const m = new THREE.Mesh(g, mat(color, { side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+    const m = new THREE.Mesh(g, mat(color, ON_GROUND));
     m.receiveShadow = true;
     return m;
   }
@@ -800,6 +810,36 @@ export function createWalk(container, onSelect, onNote) {
     }
   }
 
+  // Rain darkens the ground and the ways, fills the puddles and rings the river near the camera. Frozen
+  // or snowy ground stays as it is.
+  function rainfall(now, horizon) {
+    const wet = wx.lying > 0.3 || wx.temp < 0 ? 0 : wetness(clock, map.seed);
+    if (dressed.land) dressed.land.material.color.setScalar(1 - 0.16 * wet);
+    for (const [base, dark] of [['#dccaa2', '#9c8865'], ['#d6c39b', '#978360'], ['#cbbb92', '#8f7f5e']]) mat(base, ON_GROUND).color.set(blend(base, dark, 0.8 * wet));
+    if (hollowsOf !== map) { hollowsOf = map; hollows = puddles(map); }
+    const cx = camera.position.x, cz = camera.position.z, near = (x, z) => Math.abs(x - cx) < 60 && Math.abs(z - cz) < 60;
+    let n = 0;
+    if (wet > 0.03) {
+      pools.material.color.copy(horizon).lerp(col('#6d8a96'), 0.4);
+      for (const [x, z, size, turn, lasts] of hollows) {
+        const r = size * puddleFill(wet, lasts);
+        if (r < 0.03 || !near(x, z) || n >= 80) continue;
+        turned.setFromAxisAngle(upward, -turn).multiply(flat);
+        puffAt.compose(puffPos.set(x, ground(x, z) + 0.03, z), turned, puffSize.set(r * 1.4, r * 0.72, 1));
+        pools.setMatrixAt(n++, puffAt);
+      }
+    }
+    pools.count = n; pools.instanceMatrix.needsUpdate = true;
+    n = 0;
+    for (const [x, z, age] of rainRings(map, calm.matches ? 0 : now, wx.rain)) {
+      if (!near(x, z) || n >= 260) continue;
+      const r = 0.05 + age * 0.3;
+      puffAt.compose(puffPos.set(x, WATER_LEVEL + 0.012, z), flat, puffSize.set(r, r, 1));
+      dropRings.setMatrixAt(n++, puffAt);
+    }
+    dropRings.count = n; dropRings.instanceMatrix.needsUpdate = true;
+  }
+
   // The clouds within sight, a puff for each lobe. Returns how far the spot being watched lies under one.
   function overhead(now) {
     const drift = cloudDrift(calm.matches ? 0 : now, wind), far = 250, cx = camera.position.x, cz = camera.position.z;
@@ -835,6 +875,7 @@ export function createWalk(container, onSelect, onNote) {
     const top = col('#0a1230').lerp(col('#4c78ba'), L.bright).lerp(col('#6c6aa6'), L.dusk * 0.45).lerp(grey, murk * 0.85);
     const horizon = col('#263459').lerp(col('#cfe3ec'), L.bright).lerp(col('#f4b07a'), L.dusk * 0.8 * (1 - murk * 0.7)).lerp(grey, murk * 0.6);
     dome.material.uniforms.top.value.copy(top); dome.material.uniforms.horizon.value.copy(horizon);
+    rainfall(now, horizon);
     scene.background.copy(horizon); scene.fog.color.copy(horizon);
     scene.fog.near = 55 - 15 * L.dark - 40 * wet; scene.fog.far = 190 - 20 * L.dark - 95 * wet;
     heavens.position.copy(camera.position);

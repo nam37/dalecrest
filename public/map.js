@@ -6,6 +6,7 @@ import { createMotion } from '/motion.js';
 import { light, hearths, indoors, yearLook, skyOver, sunOver, blend, PLAIN_LIGHT } from '/ambient.js';
 import { windAt } from '/engine/seasons.mjs';
 import { cloudField, cloudsOver, cloudShade, cloudDrift, SHADE_EDGE } from './clouds.js';
+import { puddleFill, puddles, rainRings, wetness } from './wet.js';
 
 import { drawMapFigure } from './map-figure.js';
 import { drawAnimal, drawGarden, drawWoodpile } from './map-parish.js';
@@ -596,6 +597,8 @@ export function createMap(canvas, onSelect, cards) {
   let wx = null, cold = [], world = null, cattle = [];
   // The wind now blowing, and the cloud cover as it is drawn, which eases from one spell of weather to the next.
   let wind = null, cover = null, coverAt = 0;
+  // The ways as they look wet, drawn whole on a sheet of their own so that crossings darken no more than the rest.
+  const sodden = document.createElement('canvas');
   // Anglers step down from the landing to the water's edge.
   const anglers = createAnglers();
   let stepAt = 0;
@@ -608,6 +611,7 @@ export function createMap(canvas, onSelect, cards) {
     if (!map || !look) return;
     wx = skyOver(clock, map.seed);
     wind = windAt(clock, map.seed);
+    look.wet = wetness(clock, map.seed);
     // The orchard is redrawn as its apples swell, colour and are picked.
     const fruit = orchardFruit(world, clock), fruitKey = fruit ? [fruit.each, Math.round(fruit.red * 6), Math.round(fruit.size * 10)].join(':') : '';
     if (fruitKey !== look.fruitKey) { look.fruitKey = fruitKey; look.fruit = fruit; stale = true; }
@@ -725,6 +729,17 @@ export function createMap(canvas, onSelect, cards) {
         c.beginPath(); c.moveTo(x - r, y); c.lineTo(x + r, y); c.moveTo(x, y - r); c.lineTo(x, y + r); c.stroke();
       }
     }
+    // Each drop of rain leaves a ring on the river, too small to see until the reader leans in.
+    const ringed = wx?.rain ? smooth(3, 6, k) : 0;
+    if (ringed > 0.02) {
+      c.lineWidth = Math.max(0.8, k * 0.035);
+      for (const [rx, ry, age] of rainRings(map, time, wx.rain)) {
+        const [x, y] = toScreen(rx, ry), r = (0.05 + age * 0.32) * k;
+        if (x < -r || y < -r || x > w + r || y > h + r) continue;
+        c.strokeStyle = 'rgba(238,247,245,' + ((1 - age) * 0.6 * ringed * calm).toFixed(3) + ')';
+        c.beginPath(); c.ellipse(x, y, r, r * 0.8, 0, 0, TAU); c.stroke();
+      }
+    }
     // A bridge stands over the water. Its deck is laid back, from the sheet, on top of the current, the
     // glints and the fish that pass beneath it.
     c.save(); c.beginPath();
@@ -739,6 +754,7 @@ export function createMap(canvas, onSelect, cards) {
       c.closePath();
     }
     c.clip(); c.drawImage(paper, 0, 0, w, h); c.restore();
+    wetWays(sky);
     cloudShadows(time, sky);
     // Mist lies along the river as the light comes up, and the sun burns it off through the morning.
     const mist = wx?.rain || wx?.snow ? 0 : smooth(0, 0.05, sky.p) * (1 - smooth(0.1, 0.2, sky.p));
@@ -774,6 +790,38 @@ export function createMap(canvas, onSelect, cards) {
         c.fillStyle = 'rgba(246,240,224,' + ((1 - f) * 0.5).toFixed(3) + ')';
         c.beginPath(); c.arc(x, y, (0.22 + f * 0.75) * k, 0, TAU); c.fill();
       }
+    }
+  }
+
+  // Rain darkens the earth of the ways, and after it water stands in their hollows until the ground
+  // dries. A puddle shows the sky. Frozen or snowy ground stays as it is.
+  function wetWays(sky) {
+    const wet = look.wet ?? 0;
+    if (wet < 0.03 || look.snow > 0.3 || (wx && wx.temp < 0)) return;
+    const k = view.scale;
+    if (sodden.width !== canvas.width || sodden.height !== canvas.height) { sodden.width = canvas.width; sodden.height = canvas.height; }
+    const s = sodden.getContext('2d');
+    s.setTransform(1, 0, 0, 1, 0, 0); s.clearRect(0, 0, sodden.width, sodden.height);
+    s.setTransform(dpr * k, 0, 0, dpr * k, dpr * (w / 2 - view.x * k), dpr * (h / 2 - view.y * k));
+    s.strokeStyle = '#8f7a5e'; s.lineCap = 'round'; s.lineJoin = 'round';
+    for (const way of look.chains) {
+      if (!WAYS[way.kind]) continue;
+      s.lineWidth = WAYS[way.kind][0]; curve(s, way.pts); s.stroke();
+    }
+    c.save(); c.globalCompositeOperation = 'multiply'; c.globalAlpha = 0.34 * wet;
+    c.drawImage(sodden, 0, 0, w, h); c.restore();
+    // The puddles themselves, each with a darker margin and the pale of the sky in it.
+    const shine = blend('#7e949b', '#c8d7db', sky.bright);
+    for (const [px, py, size, turn, lasts] of look.puddles ?? []) {
+      const fill = puddleFill(wet, lasts), r = size * fill * k;
+      if (r < 0.8) continue;
+      const [x, y] = toScreen(px, py);
+      if (x < -r * 2 || y < -r * 2 || x > w + r * 2 || y > h + r * 2) continue;
+      c.save(); c.translate(x, y); c.rotate(turn);
+      c.fillStyle = 'rgba(110,92,66,.35)'; c.beginPath(); c.ellipse(0, 0, r * 1.5, r * 0.82, 0, 0, TAU); c.fill();
+      c.fillStyle = shine; c.beginPath(); c.ellipse(0, 0, r * 1.32, r * 0.66, 0, 0, TAU); c.fill();
+      c.fillStyle = 'rgba(255,255,255,.35)'; c.beginPath(); c.ellipse(-r * 0.35, -r * 0.18, r * 0.5, r * 0.16, 0, 0, TAU); c.fill();
+      c.restore();
     }
   }
 
@@ -1265,6 +1313,7 @@ export function createMap(canvas, onSelect, cards) {
       // Trees are drawn north to south, so each crown overlaps the ones behind it.
       look.woods = [...map.trees, ...look.parish.appleTrees].sort((a, b) => a[1] - b[1]);
       look.orchardTrees = new Set(look.parish.appleTrees);
+      look.puddles = puddles(map);
       seasonal();
       if (grew && !moved) fit();
       redraw();
