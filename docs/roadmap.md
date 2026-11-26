@@ -19,8 +19,9 @@
 | 3. A village with stakes | Built, awaiting the live measure | 7 | 0 | 0 |
 | 3a. The common store | Built, awaiting the live measure | 6 | 1 | 0 |
 | 3b. A menu worth choosing from | Built, awaiting the live measure and wording pass | 5 | 0 | 1 |
-| 3c. Families and village lessons | Built, awaiting live arrivals | 4 | 1 | 0 |
+| 3c. Families and village lessons | Built, awaiting live arrivals | 5 | 1 | 1 |
 | 3d. What feeds the village | Built, awaiting live measures | 5 | 0 | 0 |
+| 3e. Pets | Built, first stray due at the next live dawn | 4 | 0 | 1 |
 | 4. Voices: competing interests and the moot | Built, awaiting a live moot | 5 | 0 | 0 |
 | 4a. Lead characters | Proposed, Robin’s solo pilot | 0 | 0 | 5 |
 | 5. Worth watching | In hand | 8 | 0 | 0 |
@@ -30,11 +31,11 @@
 | 8. The world comes to Dalecrest (A–C) | Proposed, not begun | 0 | 0 | 9 |
 | 9. Taking part | Groundwork only | 0 | 1 | 4 |
 | 10. A wider world | Not begun | 0 | 0 | 1 |
-| All stages | | 67 | 7 | 33 |
+| All stages | | 72 | 7 | 35 |
 
 **Reading the live village.** `readout.mjs` reads every "Done when" measure the database can answer, stage by stage, and marks it met, not met, no data or needing a viewer. On the server: `docker exec dalecrest-app node readout.mjs`, for the last 168 real hours by default. It does not replace `tools/pilot-report.mjs`, which breaks Stage 0 down further.
 
-Stage 3a was added on 22 November 2026 and built the same day. It is numbered to sit after the stage it builds on without renumbering the stages that follow. Stage 3b was added the same day as a proposal, from the first live readout.
+Stage 3e was added on 25 November 2026, after it was built. Stage 3a was added on 22 November 2026 and built the same day. It is numbered to sit after the stage it builds on without renumbering the stages that follow. Stage 3b was added the same day as a proposal, from the first live readout.
 
 The merge passed all 59 tests on 21 November, including eight tests with disposable PostgreSQL databases. With the director the suite has 78 tests. Nine of them need a PostgreSQL database and were not run for that change. The other 69 passed.
 
@@ -390,6 +391,8 @@ The live village had eleven residents, two hall lodgers, no vacant finished cott
 - [x] **Children have their own days.** Younger children stay close to home. Older children walk to play on the green and can bring kindling home. A completed trip moves one bundle from the village woodpile to the cottage, at most once per household per day. The clock runs these routines until the child turns fourteen.
 - [x] **Lessons in the hall.** A literate parent keeps their trade and can choose to teach letters and reading on Monday, Wednesday and Saturday mornings. The teacher must be present and the hall free of a moot. School-age children walk to the lesson and the record counts the time each actually attends. A dedicated schoolhouse can come later if the village asks for one.
 - [x] **See what children do.** Children can be selected and followed in Map and Walk. Household records show their activities and link to them on the map. Their IDs follow them into adult resident records. The first lesson with pupils appears in the chronicle.
+- [x] **Children at play.** Added 25 November 2026, after it was built. Both views set children playing on the green running round it in a chasing game, spaced out and now and then turning to run the other way, instead of standing on one spot. A child taking kindling home carries the bundle. Checked in preview with stand-in children, since the live village has none yet.
+- [ ] **Children in the residents’ thinking.** Not begun. Children reach the model today only as reasons on household offers, such as breakfast being due. Name each child in their parents’ requests, with their age and what they did that day: a lesson attended, a breakfast missed, kindling brought home, an afternoon at play. Later, let older children make small choices of their own through the same request path, within the routines the clock runs for them now.
 
 **Preview · 24 November 2026.** Open `/atlas.html?families=1&days=7` for a separate Sandbox village with spare cottages and stocked shelves. Seed 26111 brought in the Ashby household on 1 August and the Elmstead household on 4 August, with no missed breakfasts after either arrival. The preview recorded three lessons and six kindling deliveries. Set `VILLAGE_FAMILY_ARRIVALS=1` on a [separate server preview](../tools/preview-village.mjs) to queue the same two households behind the usual housing and bread checks. At the live preflight there were two hall lodgers, no vacant finished cottage and two loaves on the shelves.
 
@@ -408,6 +411,18 @@ Done when both families arrive on separate days and keep their children fed, and
 **Seeded verification.** In a breadless village, one family ate the preserved food it drew while a child in a cottage without food missed breakfast. A seasonal test followed peas, apples and mutton to meals, carried four sheep through winter on gathered hay and recorded three lambs in spring. In a separate 370-day run under local choice rules, seed 26111 recorded 20 pea portions, nine apples and four mutton portions eaten, and finished with seven sheep. The PostgreSQL readout reconciles portions and hunger relief across seven village days. Live measurements are pending.
 
 Done when the following checks pass. In a seeded village with no bread for a day, a family with other food can feed its adults and children while a household with no access to a meal still goes hungry. A seven-day report reconciles portions eaten and hunger relieved by source with the meal records. A seasonal run shows a vegetable harvest, a fruit harvest and a flock carried through winter, with food from each reaching a table.
+
+### Stage 3e. Pets (S)
+
+**Built · 25 November 2026**, added to the plan afterwards. Dogs and cats join the households. Each belongs to a house and an owner, costs the household something and is useful to it. `engine/pets.mjs`, drawn by `public/pets.js`.
+
+- [x] **Strays come and stay.** Now and then a stray dog or cat takes to a household and is named. The owner remembers it and the chronicle records it. The first arrives at the dawn after the update, and a village keeps at most about two for every five households. Every choice is drawn from the map’s seed and the day, so a stored village otherwise replays as before.
+- [x] **Upkeep and loss.** A dog eats scraps from its household larder, about a loaf every four days, and goes off after several days with none. A cat feeds itself on mice. A pet stays with whoever else lives at its house when its owner leaves, and wanders off from an empty one.
+- [x] **What they are for.** Each cat cuts the barley lost to mice in store, up to two cats’ worth. A dog’s owner is keener to drive out stray cattle and does it in 18 minutes instead of 30.
+- [x] **Seen in both views.** A dog keeps at its owner’s heels, lies near them while they work, wanders off to sniff about and waits by the door when they go in. A cat keeps to its house: on the doorstep by day and prowling round the walls after dark. The resident card names the pet.
+- [ ] **Pets in the residents’ thinking.** Not begun. Tell an owner about their pet in their requests: its name, whether it has been fed, whether it has gone missing. Offer small choices around it, such as walking the dog, sparing scraps or looking for a dog that has wandered off, and let a new or lost pet become a memory that matters to its owner.
+
+Done when a stray has arrived in the live village and stayed a week, the larder and grain-loss records show its upkeep and its use, and a viewer can find the pet with its owner in either view.
 
 ### Stage 4. Voices: competing interests and the moot (L)
 
@@ -641,6 +656,7 @@ More than one village with a road between them. This multiplies everything above
 - Stage 3b needs nothing beyond the stages already built. Measure its menus with `tools/menu-coverage.sql` and its activity starts with `readout.mjs` and `tools/standing-coverage.sql`. It comes before Stage 4, which adds positions and ballots to the menu.
 - Stage 3c builds on the households and lives in Stage 3 and the Storehouse allowance in Stage 3a. Begin with family arrivals, then add children's routines and lessons before opening the live rollout.
 - Stage 3d builds on the meals and larders from Stages 3 and 3a. Harvests, hay and lambing use Stage 3’s seasonal calendar.
+- Stage 3e builds on Stage 3’s households and the larders of Stage 3a. Bringing pets and children into residents’ requests belongs with Stage 2’s goals and memories and should be measured against Stage 3b’s menu targets.
 - Stage 4 needs Stage 2's goals and observations.
 - Stage 4a builds on Stage 2’s goals and memories. Start with Robin’s solo songwriting project, then use its records for the Journal and Stage 6’s explanations. Later appointments can build on Stage 1’s promises, and the teacher pilot follows evidence from Stage 3c’s lessons.
 - Stage 6 needs the records from Stages 1 and 2 and reads best after Stage 5's daily account.
