@@ -70,6 +70,17 @@ function tool(kind) {
     mesh(new THREE.BoxGeometry(0.075, 0.003, 0.052), soft('#ede2be'), 0.04, 0.008, 0));
   else if (kind === 'bundle') {
     for (let i = 0; i < 3; i++) g.add(mesh(new THREE.BoxGeometry(0.105, 0.025, 0.024), wood, 0.03, 0, (i - 1) * 0.024));
+  } else if (kind === 'basket') {
+    // A wicker basket on the arm, with loaves in it.
+    g.add(mesh(new THREE.CylinderGeometry(0.036, 0.028, 0.034, 10, 1, true), soft('#a8814f', { side: THREE.DoubleSide }), 0.01, -0.05, 0));
+    g.add(mesh(new THREE.CircleGeometry(0.031, 10), soft('#7d5c36'), 0.01, -0.06, 0, false));
+    g.children[1].rotation.x = -Math.PI / 2;
+    for (const [x, z, color] of [[-0.004, 0.008, '#d9b072'], [0.022, -0.01, '#c98f55']]) { const loaf = mesh(shapes.hand, soft(color), x, -0.033, z); loaf.scale.set(1.2, 0.8, 1); g.add(loaf); }
+    const handle = mesh(new THREE.TorusGeometry(0.03, 0.0035, 4, 12, Math.PI), soft('#7d5c36'), 0.01, -0.033, 0);
+    g.add(handle);
+  } else if (kind === 'bolt') {
+    const roll = mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.13, 10), soft('#e3d8b8'), 0.03, -0.012, 0);
+    roll.rotation.z = Math.PI / 2; g.add(roll);
   }
   return g;
 }
@@ -133,7 +144,9 @@ const ease = (current, target, k) => current + (target - current) * k;
 // How some tools sit in the hand, as an angle above level ground, whatever the arm and the body are
 // doing: a rod held up over the water, a peel and a bundle carried level, a pail hanging, a board
 // tipped to the eye. Tools not named here swing with the arm.
-const AIM = { rod: 0.6, peel: 0, pail: 0, bundle: 0, shuttle: 0.1, board: 0.35 };
+const AIM = { rod: 0.6, peel: 0, pail: 0, bundle: 0, shuttle: 0.1, board: 0.35, basket: 0, bolt: 0 };
+// A long-handled tool is carried over the shoulder on the way to work.
+const SHOULDERED = new Set(['axe', 'hoe', 'sickle', 'mallet', 'rod', 'peel']);
 
 // Poses a figure for this frame. state: { moving, gone, now, dt, kind, job, working }.
 export function poseFigure(figure, state) {
@@ -160,7 +173,8 @@ export function poseFigure(figure, state) {
   rig.legs[0].rotation.z = ease(rig.legs[0].rotation.z, -legSwing, q);
   rig.legs[1].rotation.z = ease(rig.legs[1].rotation.z, legSwing, q);
   right.rotation.z = ease(right.rotation.z, -armR, q); left.rotation.z = ease(left.rotation.z, -armL, q);
-  if (rig.held && Object.hasOwn(AIM, rig.held)) rig.tools.get(rig.held).rotation.z = AIM[rig.held] - right.rotation.z - rig.body.rotation.z;
+  const aim = state.carry && SHOULDERED.has(rig.held) ? 1.9 : AIM[rig.held];
+  if (rig.held) rig.tools.get(rig.held).rotation.z = aim === undefined ? 0 : aim - right.rotation.z - rig.body.rotation.z;
   right.rotation.x = ease(right.rotation.x, spreadR, k);
   rig.body.rotation.z = ease(rig.body.rotation.z, lean, k);
   rig.body.rotation.x = ease(rig.body.rotation.x, sway, k);

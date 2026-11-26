@@ -9,13 +9,25 @@ const tools = {
   keep: 'board', report: 'board', fetchWood: 'bundle',
 };
 
+// What someone has in hand on the way somewhere: the goods of a delivery, or the tool of the work they
+// are walking to. Grain and flour go in a sack on the shoulder, wood in a bundle, cloth and leather in a
+// bolt, and food in a basket.
+const loads = { grain: 'sack', flour: 'sack', wood: 'bundle', cloth: 'bolt', leather: 'bolt', hide: 'bolt' };
+function carried(action) {
+  if (action?.kind === 'carrying' && action.phase === 'travelling') return 'bundle';
+  if (action?.phase !== 'travelling') return null;
+  if (action.carrying) return loads[Object.keys(action.carrying)[0]] ?? 'basket';
+  return action.kind === 'work' && action.job !== 'fetchWood' && Object.hasOwn(tools, action.job) ? tools[action.job] : null;
+}
+
 export function residentActivity(actor, moving) {
   const { kind, phase, job, queued, cast } = actor.action ?? {};
   const working = !moving && phase === 'working' && !queued && (kind === 'work' || kind === 'report');
-  return { kind, working, job: kind === 'report' ? 'report' : job === 'fish' && !cast ? 'bait' : job };
+  return { kind, working, job: kind === 'report' ? 'report' : job === 'fish' && !cast ? 'bait' : job, carry: moving ? carried(actor.action) : null };
 }
 
-export const toolFor = ({ working, job }) => working && Object.hasOwn(tools, job) ? tools[job] : null;
+// The thing in someone's hands: the tool of the work they are at, or what they carry on the way.
+export const toolFor = ({ working, job, carry }) => working && Object.hasOwn(tools, job) ? tools[job] : carry ?? null;
 
 const chopRate = 0.75;
 const actorTime = (now, index) => now / 1000 + index * 1.7;
@@ -25,12 +37,18 @@ export function chopDelay(now, index) {
   return ((0.98 - phase + 1) % 1) / chopRate;
 }
 
-export function residentPose({ moving, gone, now, index, kind, job, working, still = false }) {
+export function residentPose({ moving, gone, now, index, kind, job, working, carry, still = false }) {
   const t = actorTime(still ? 0 : now, index);
   let legSwing = 0, armR = 0, armL = 0, spreadR = -0.13, lean = 0, sway = 0, nod = 0, lift = 0;
   if (moving) {
     const stride = still ? 0 : Math.sin(gone * 9);
     legSwing = stride * 0.62; armR = -stride * 0.5; armL = stride * 0.5; lean = -0.07; lift = still ? 0 : Math.abs(Math.cos(gone * 9)) * 0.007;
+    // A load stills the arm that holds it: both arms round a bundle, a hand up to steady a sack on the
+    // shoulder, an arm down for a basket or pail, and a little forward for anything else.
+    if (carry === 'bundle') { armR = armL = -1.05; lean = -0.1; }
+    else if (carry === 'sack') armR = -2.5;
+    else if (carry === 'basket' || carry === 'pail') armR = -0.08;
+    else if (carry) armR = -0.35;
   } else if (working && job === 'cut') {
     // Raise the tool slowly and bring it down fast.
     const s = (t * chopRate) % 1, up = s < 0.72 ? s / 0.72 : 1 - (s - 0.72) / 0.28;

@@ -22,7 +22,7 @@ function stroke(c, points, color, width) {
 // Tools are drawn at the hand's origin, on the same scale as the figure.
 function drawTool(c, tool, angle) {
   c.save();
-  if (tool !== 'pail') c.rotate(angle + 0.72);
+  if (tool !== 'pail' && tool !== 'basket') c.rotate(angle + 0.72);
   switch (tool) {
     case 'axe':
     case 'mallet':
@@ -76,6 +76,17 @@ function drawTool(c, tool, angle) {
       break;
     case 'bundle':
       for (const y of [-0.09, 0, 0.09]) stroke(c, [[-0.09, y], [0.26, y]], wood, 0.08);
+      break;
+    case 'basket':
+      stroke(c, [[-0.11, 0.14], [-0.06, 0.02], [0.06, 0.02], [0.11, 0.14]], outline, 0.04);
+      oval(c, -0.04, 0.13, 0.07, 0.05, '#d9b072'); oval(c, 0.05, 0.12, 0.065, 0.05, '#c98f55');
+      c.fillStyle = '#a8814f'; c.beginPath(); c.moveTo(-0.15, 0.15); c.lineTo(0.15, 0.15); c.lineTo(0.11, 0.3); c.lineTo(-0.11, 0.3); c.closePath(); c.fill();
+      c.strokeStyle = outline; c.lineWidth = 0.04; c.stroke();
+      stroke(c, [[-0.13, 0.22], [0.13, 0.22]], '#7d5c36', 0.025);
+      break;
+    case 'bolt':
+      oval(c, 0.08, 0.02, 0.17, 0.075, '#e3d8b8');
+      stroke(c, [[-0.02, 0.02], [0.2, 0.02]], '#c7b88f', 0.02);
       break;
   }
   c.restore();
