@@ -66,7 +66,7 @@ export function householdChoices(actor, { world, map }, offer, weary, rate) {
   if (!cottage) return;
   const days = pileDays(cottage, rate);
   // Whether the village woodpile or the oven has enough is the caller's to judge, by what this resident knows.
-  if (cottage.woodpile <= WOODPILE_HOLDS - 3) {
+  if (!cottage.lodging && cottage.woodpile <= WOODPILE_HOLDS - 3) {
     const want = rate > 0 ? (days < 1 ? 62 : days < 3 ? 46 : 24) : 12;
     offer('fetchWood', 'wood', want - weary,
       rate > 0 ? 'The woodpile at home holds ' + count(cottage.woodpile) + ', about ' + Math.floor(days) + ' days at this cold.'
@@ -135,8 +135,8 @@ export function burnHearths(world, homes, rate) {
   let hallTaken = 0;
   for (const home of homes) {
     const cottage = world.cottages?.[home];
-    if (!cottage) {
-      // The hall keeps its fire while the common store has a bundle for it.
+    if (!cottage || cottage.lodging) {
+      // The hall, and a family lodging in the barn or the alehouse loft, keep their fire from the common store.
       const want = rate + (world.fuelCarry || 0), whole = Math.floor(want + 1e-9);
       if (whole <= world.supplies.wood) {
         world.supplies.wood -= whole;

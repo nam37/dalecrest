@@ -106,7 +106,7 @@ function chooseChild(child, home, cottage, world, age, lesson, weather) {
   if (time < 500 || (cottage.hungry && time < 680) || weather.rain > 0.7 || weather.snow > 0.5) return ['rest', home];
   const day = dayOf(minute), order = Number(child.id.split('-').at(-1));
   if (age >= 8 && time >= 720 + order % 8 * 10 && time < 972 && !restDay(minute) && cottage.lastKindling !== day
-      && cottage.woodpile < 5 && world.supplies.wood > 2) return ['kindling', 'wood'];
+      && !cottage.lodging && cottage.woodpile < 5 && world.supplies.wood > 2) return ['kindling', 'wood'];
   if (time >= 565 + order % 8 * 10) return ['play', 'green'];
   return ['rest', home];
 }

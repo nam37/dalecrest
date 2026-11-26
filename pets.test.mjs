@@ -8,7 +8,7 @@ const person = (id, name, home, traits = []) => ({ id, name, home, traits, memor
 function village() {
   const world = { minute: 10 * DAY + 360, seed: 99, cottages: { 'cottage-1': { larder: 3 }, 'cottage-2': { larder: 0 }, 'cottage-3': { larder: 2 } }, supplies: { grain: 300 } };
   const actors = [person('agnes', 'Agnes Reed', 'cottage-1', ['generous']), person('hugh', 'Hugh Fen', 'cottage-2'), person('mabel', 'Mabel Ash', 'cottage-3')];
-  return { world, actors, map: { seed: 7, places: [] } };
+  return { world, actors, map: { seed: 7, places: ['cottage-1', 'cottage-2', 'cottage-3'].map(id => ({ id, kind: 'cottage' })) } };
 }
 const dawns = (state, n, events = []) => {
   for (let i = 0; i < n; i++) { state.world.minute += DAY; dawnPets(state, (type, text, ids, outcome) => events.push({ type, text, ids, outcome })); }

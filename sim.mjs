@@ -6,7 +6,7 @@ import { place, placesOf, route, walkingSegment } from './engine/roads.mjs';
 import * as civic from './engine/civic.mjs';
 import { civicChoices, enactCivicChoice, normalizeCivicNews } from './engine/civic-news.mjs';
 import { grownChild, newcomer, wantsNewcomer } from './engine/people.mjs';
-import { arrivingFamily, recordFamilyBreakfasts } from './engine/families.mjs';
+import { addBarn, arrivingFamily, feedOxen, recordFamilyBreakfasts, settleLodgingFamilies } from './engine/families.mjs';
 import { lessonOffer, prepareChildren, teachMinute, tickChildren } from './engine/children.mjs';
 import { dawnLives, finishLifeConversation, lifeChoices, lifeVerbs, maybeCourt, normalizeLife, tickLives, tooIll } from './engine/lives.mjs';
 import * as standing from './engine/standing.mjs';
@@ -137,6 +137,7 @@ function normalize({ world, actors, map }) {
   normalizeCivicNews({ world, actors, map });
   normalizeVillageWork({ world, actors, map });
   addStorehouse(map);
+  addBarn(map);
   spreadWood(map);
   raiseFell(map);
   normalizeSmallholding({ world, map });
@@ -378,7 +379,9 @@ function choose(actor, state, menu, diagnostics) {
   const lodging = civic.isLodger(actor, map);
   // Someone chilled through goes home to the fire, if there is one.
   const chilled = !night && actor.needs.cold > 45 && !world.coldHearths.includes(actor.home);
-  offer('rest', (night ? 'Sleeping ' : chilled ? 'Warming up ' : 'Resting ') + (!lodging ? 'at home' : actor.home === STOREHOUSE ? 'at the storehouse' : 'at the hall'), actor.home, night ? 105 : 54,
+  const lodged = place(map, actor.home)?.kind;
+  offer('rest', (night ? 'Sleeping ' : chilled ? 'Warming up ' : 'Resting ') + (!lodging ? 'at home' : actor.home === STOREHOUSE ? 'at the storehouse'
+    : lodged === 'barn' ? 'in the barn' : lodged === 'alehouse' ? 'in the alehouse loft' : 'at the hall'), actor.home, night ? 105 : 54,
     fatigue + (night ? 48 : -9) + (chilled ? (actor.needs.cold - 45) * 0.9 : 0),
     night ? 'It is time to sleep and recover for tomorrow.' : chilled ? 'I am chilled through and there is a fire at home.' : 'My fatigue has reached ' + Math.round(fatigue) + ' out of 100.');
   // Seek a friend with a reachable destination. Recent pleasant meetings favor a return visit.
@@ -786,6 +789,7 @@ function stepMinute(state, events, externalActions, records, pilot, songDrafts) 
     dawnVisitors(state, emit, () => random(world), sky);
     dawnSmallholding(state, emit);
     dawnPets(state, emit);
+    feedOxen(world);
     const burned = fuelHearths(state);
     issueAllowance(state);
     emit('village', 'Dawn breaks ' + sky.phrase + '. The households collect water and take what they need from the village stores'
@@ -811,6 +815,7 @@ function stepMinute(state, events, externalActions, records, pilot, songDrafts) 
       actors.push(grown);
       emit('life', grown.name + ' has come of age and takes up work as a ' + grown.role.toLowerCase() + '.', [grown.id], { life: 'grown' });
     });
+    settleLodgingFamilies(state, emit);
     recordFamilyBreakfasts(state);
   }
   const spoiled = spoilFreshFood(world);

@@ -8,7 +8,7 @@ const PEAS_RIPE = 56 * DAY, PEAS_LAST = 25 * DAY;
 export const FRUIT_RIPE = 150 * DAY;
 const SPRING_MONTHS = [30, 31, 30, 31, 31, 30, 31];
 const MAX_SHEEP = 8, HAY_BATCH = 24;
-const WINTER = new Set([12, 1, 2]);
+export const WINTER = new Set([12, 1, 2]);
 export const farmStock = { peas: 16, apples: 22, mutton: 12, hay: 184 };
 export const farmSites = {
   garden: { id: 'kitchen-garden', name: 'Kitchen garden' },

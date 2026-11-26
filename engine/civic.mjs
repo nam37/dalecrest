@@ -7,7 +7,7 @@ import { prepareCottage } from './village-work.mjs';
 import { GRANARY, foodDays, keepStores, mouths, ripen, storeDays } from './stores.mjs';
 import { witnessProposal } from './civic-news.mjs';
 import { weatherAt } from './seasons.mjs';
-import { familyCottageNeeded, isFamilyCottage } from './families.mjs';
+import { familyCottageNeeded, isFamilyCottage, lodgingFamilyOf, lodgingName, moveFamilyIn } from './families.mjs';
 
 // Shifts of labour and bundles of wood each kind of work needs.
 export const WORKS = {
@@ -44,7 +44,14 @@ export function concerns(actor, state) {
     if (weight < 25 || world.cooldown[key] > world.minute || world.projects.some(p => p.key === key)) return;
     out.push({ key, kind: key.split(':')[0], weight, claim });
   };
-  if (isLodger(actor, map)) add('cottage:' + actor.id, 90, actor.home === 'storehouse' ? 'that a cot among the storehouse shelves is no home' : 'that a corner of the hall is no home');
+  if (isLodger(actor, map)) {
+    // A couple lodging together ask once, for the family.
+    const spouse = actors.find(a => a.id === actor.spouse), sharing = spouse && spouse.home === actor.home && isLodger(spouse, map);
+    const lodging = place(map, actor.home), children = world.cottages?.[actor.home]?.children?.length || 0;
+    if (!sharing || actor.id < spouse.id) add('cottage:' + actor.id, sharing ? 95 : 90, actor.home === 'storehouse' ? 'that a cot among the storehouse shelves is no home'
+      : lodging?.kind === 'barn' || lodging?.kind === 'alehouse' ? 'that a family of ' + (children + (sharing ? 2 : 1)) + ' cannot go on living in ' + lodgingName(lodging)
+      : 'that a corner of the hall is no home');
+  }
   for (const other of actors) {
     if (other === actor || !isLodger(other, map)) continue;
     add('cottage:' + other.id, 24 + (actor.relationships[other.id] || 0) * 0.5 + (actor.traits.includes('generous') ? 14 : 0)
@@ -137,14 +144,16 @@ function begin(state, proposal, random, emit) {
 function describe(project, state) {
   if (isFamilyCottage(project.key)) return 'a cottage for an arriving family';
   const owner = project.for && state.actors.find(a => a.id === project.for);
-  return owner ? 'a cottage for ' + owner.name : WORKS[project.kind].a;
+  return owner ? 'a cottage for ' + ownerWords(owner, state.world) : WORKS[project.kind].a;
 }
+// A lodging parent asks for a cottage for the whole family.
+const ownerWords = (owner, world) => lodgingFamilyOf(world, owner.id) ? 'the ' + owner.name.split(' ').at(-1) + ' family' : owner.name;
 
 export function agendaTitle(proposal, state) {
   if (proposal.kind === 'cottage') {
     if (isFamilyCottage(proposal.key)) return 'a cottage for an arriving family';
     const owner = state.actors.find(a => a.id === proposal.key.split(':')[1]);
-    return 'a cottage for ' + (owner?.name || 'the lodger');
+    return 'a cottage for ' + (owner ? ownerWords(owner, state.world) : 'the lodger');
   }
   return (WORKS[proposal.kind] || BYLAWS[proposal.kind]).a;
 }
@@ -364,8 +373,12 @@ function complete(project, state, emit) {
   world.projects = world.projects.filter(p => p !== project);
   site.built = world.minute;
   if (project.kind === 'cottage') {
-    const owner = actors.find(a => a.id === project.for);
-    if (owner && isLodger(owner, map)) {
+    const owner = actors.find(a => a.id === project.for), family = owner && lodgingFamilyOf(world, owner.id);
+    const from = family && lodgingName(place(map, family.lodging)), moved = family ? moveFamilyIn(state, family, site) : [];
+    if (moved.length) {
+      tell('The cottage' + whereabouts(map, site) + ' is finished, and ' + moved.map(a => a.name).join(' and ') + ' have moved their family in from ' + from + '.', moved.map(a => a.id));
+      for (const parent of moved) remember(parent, world.minute, parent.name + ' moved the family into a cottage of their own' + whereabouts(map, site) + '.', moved.map(a => a.id), 'work');
+    } else if (owner && isLodger(owner, map)) {
       owner.home = site.id;
       prepareCottage(world, owner, site);
       tell('The cottage' + whereabouts(map, site) + ' is finished, and ' + owner.name + ' has moved in from the hall.', [owner.id]);

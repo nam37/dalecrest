@@ -58,7 +58,7 @@ export function dawnPets(state, emit) {
     }
   }
   // A stray comes now and then, and at most about two for every five households keep one.
-  const cottages = Object.keys(world.cottages ?? {});
+  const cottages = Object.keys(world.cottages ?? {}).filter(home => map.places?.find(p => p.id === home)?.kind === 'cottage');
   const homes = cottages.filter(home => adultsAt(actors, home).length && !world.pets.some(p => p.home === home));
   const room = world.pets.length < Math.max(1, Math.round(cottages.length * 0.4));
   const due = world.petDue != null && minute >= world.petDue;

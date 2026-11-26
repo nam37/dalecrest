@@ -110,3 +110,44 @@ export function drawPet(c, pet, toScreen, scale, sun = PLAIN_LIGHT) {
   }
   c.restore();
 }
+
+// An ox from above, given where it stands and which way it faces, in the colour of a working ox.
+export function drawOx(c, ox, toScreen, scale, sun = PLAIN_LIGHT) {
+  const [sx, sy] = toScreen(ox.x, ox.y), size = Math.max(5.5, scale * 0.44), coat = '#6f4a33', face = '#4f3424';
+  c.save(); c.translate(sx, sy);
+  animalShade(c, sun, ox.heading, size, 1, 0.55);
+  c.rotate(ox.heading); c.scale(size, size);
+  const oval = (u, v, a, b, color, edge) => {
+    c.beginPath(); c.ellipse(u, v, a, b, 0, 0, tau); c.fillStyle = color; c.fill();
+    if (edge) { c.strokeStyle = edge; c.lineWidth = 0.15; c.stroke(); }
+  };
+  oval(0, 0, 0.91, 0.5, coat, '#3e2c1e');
+  oval(-0.36, 0.12, 0.36, 0.32, blend(coat, '#3a2618', 0.5));
+  const nose = 0.85 + (ox.graze || 0) * 0.19;
+  // Horns, then the head.
+  c.strokeStyle = '#e6d7b4'; c.lineWidth = 0.1; c.lineCap = 'round';
+  c.beginPath(); c.moveTo(nose - 0.12, -0.18); c.quadraticCurveTo(nose - 0.05, -0.5, nose + 0.12, -0.46); c.moveTo(nose - 0.12, 0.18); c.quadraticCurveTo(nose - 0.05, 0.5, nose + 0.12, 0.46); c.stroke();
+  oval(nose, 0, 0.32, 0.24, face);
+  c.restore();
+}
+
+// A two-wheeled cart from above, its bed laden with a family's goods, shafts forward.
+export function drawCart(c, cart, toScreen, scale, sun = PLAIN_LIGHT) {
+  const [sx, sy] = toScreen(cart.x, cart.y), k = Math.max(2.5, scale);
+  c.save(); c.translate(sx, sy);
+  animalShade(c, sun, cart.heading, k, 0.6, 0.38);
+  c.rotate(cart.heading); c.scale(k, k);
+  c.lineWidth = 0.035; c.strokeStyle = '#3e3020';
+  // Shafts reach forward to the yoke.
+  c.beginPath(); c.moveTo(0.3, -0.18); c.lineTo(1.05, -0.12); c.moveTo(0.3, 0.18); c.lineTo(1.05, 0.12); c.stroke();
+  // Wheels stand out at either side of the bed.
+  c.fillStyle = '#4c3b29';
+  for (const side of [-1, 1]) c.fillRect(-0.24, side * 0.3 - 0.04, 0.48, 0.08);
+  c.fillStyle = '#9a7a52'; c.fillRect(-0.45, -0.26, 0.82, 0.52); c.strokeRect(-0.45, -0.26, 0.82, 0.52);
+  // The load: sacks, a chest and a rolled bundle.
+  const oval = (u, v, a, b, color) => { c.beginPath(); c.ellipse(u, v, a, b, 0, 0, tau); c.fillStyle = color; c.fill(); c.stroke(); };
+  oval(-0.22, -0.1, 0.14, 0.1, '#d9cba3'); oval(-0.22, 0.12, 0.13, 0.1, '#cdbd94');
+  c.fillStyle = '#6b4f33'; c.fillRect(0.02, -0.17, 0.26, 0.2); c.strokeRect(0.02, -0.17, 0.26, 0.2);
+  oval(0.15, 0.15, 0.15, 0.06, '#b6a37c');
+  c.restore();
+}

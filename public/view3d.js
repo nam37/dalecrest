@@ -12,6 +12,7 @@ import { cloudField, cloudsOver, cloudOverhead, cloudShade, cloudDrift } from '.
 import { puddleFill, puddles, rainRings, wetness } from './wet.js';
 import { kinds } from '/card.js';
 import { createPets } from './pets.js';
+import { cartsOf } from './carts.js';
 import { animalCoats, animalPose, appleSpots, createAnglers, createPlay, fenceSpans, logsIn, orchardFruit, ovenLoaves, parishLayout, raisedOf, strayCattle, visibleSheep, workHeading } from './parish.js';
 import { isFarmSite } from '../engine/smallholding.mjs';
 import { residentActivity, residentScale } from './resident-pose.js';
@@ -181,10 +182,10 @@ const contactMat = new THREE.MeshBasicMaterial({ color: '#2b2618', transparent: 
 // The windows of a finished building, which flank its door on the wall that faces the lane. Gives
 // how far along the wall each one sits and how high, in the building's own frame. A granary has none.
 function panesOf(p) {
-  const w = p.w || 1.3, tall = p.kind === 'hall' ? 0.85 : p.kind === 'mill' ? 0.95 : p.kind === 'granary' ? 0.7 : p.kind === 'alehouse' || p.kind === 'storehouse' ? 0.75 : 0.62;
+  const w = p.w || 1.3, tall = p.kind === 'hall' ? 0.85 : p.kind === 'mill' || p.kind === 'barn' ? 0.95 : p.kind === 'granary' ? 0.7 : p.kind === 'alehouse' || p.kind === 'storehouse' ? 0.75 : 0.62;
   const lift = p.kind === 'granary' ? 0.22 : 0, bw = p.kind === 'oven' ? w * 0.58 : w, bx = p.kind === 'oven' ? -w * 0.21 : 0;
   const along = p.a === undefined ? 0 : Math.max(-w / 2 + 0.3, Math.min(w / 2 - 0.3, (p.at[0] - p.x) * Math.cos(p.a) + (p.at[1] - p.y) * Math.sin(p.a)));
-  const xs = p.kind === 'granary' ? [] : [-1, 1].map(s => bx + (p.kind === 'oven' ? 0 : along) + s * Math.min(0.8, bw * 0.3)).filter(x => Math.abs(x - bx) <= bw / 2 - 0.2);
+  const xs = p.kind === 'granary' || p.kind === 'barn' ? [] : [-1, 1].map(s => bx + (p.kind === 'oven' ? 0 : along) + s * Math.min(0.8, bw * 0.3)).filter(x => Math.abs(x - bx) <= bw / 2 - 0.2);
   return { xs, y: lift + tall * 0.62 };
 }
 
@@ -193,7 +194,7 @@ function panesOf(p) {
 function buildRising(p, map, raised) {
   const g = new THREE.Group(), w = p.w, d = p.d;
   g.position.set(p.x, heightAt(map, p.x, p.y), p.y); g.rotation.y = -(p.a || 0);
-  const tall = p.kind === 'hall' ? 0.85 : p.kind === 'mill' ? 0.95 : p.kind === 'granary' ? 0.7 : p.kind === 'alehouse' || p.kind === 'storehouse' ? 0.75 : 0.62;
+  const tall = p.kind === 'hall' ? 0.85 : p.kind === 'mill' || p.kind === 'barn' ? 0.95 : p.kind === 'granary' ? 0.7 : p.kind === 'alehouse' || p.kind === 'storehouse' ? 0.75 : 0.62;
   const rise = p.kind === 'granary' ? 0.75 : p.kind === 'hall' ? 0.8 : 0.6;
   const walls = Math.min(1, raised / 0.6), thatch = Math.max(0, (raised - 0.6) / 0.4);
   if (walls > 0.02) {
@@ -230,7 +231,7 @@ function buildPlace(p, map, glow) {
     for (let i = 0; i < 4; i++) g.add(box(1.5, 0.07, 0.09, '#9a7d55', -w * 0.15 + (i % 2) * 0.05, 0.05 + Math.floor(i / 2) * 0.08, d / 2 + 0.5 + (i % 2) * 0.11));
     return g;
   }
-  const tall = p.kind === 'hall' ? 0.85 : p.kind === 'mill' ? 0.95 : p.kind === 'granary' ? 0.7 : p.kind === 'alehouse' || p.kind === 'storehouse' ? 0.75 : 0.62;
+  const tall = p.kind === 'hall' ? 0.85 : p.kind === 'mill' || p.kind === 'barn' ? 0.95 : p.kind === 'granary' ? 0.7 : p.kind === 'alehouse' || p.kind === 'storehouse' ? 0.75 : 0.62;
   const rise = p.kind === 'granary' ? 0.75 : p.kind === 'hall' ? 0.8 : 0.6;
   const lift = p.kind === 'granary' ? 0.22 : 0;
   if (p.stage === 1) {
@@ -248,8 +249,8 @@ function buildPlace(p, map, glow) {
     g.add(box(0.07, 0.07, d, '#a98a5d', -w / 2, tall, 0), box(0.07, 0.07, d, '#a98a5d', w / 2, tall, 0));
     return g;
   }
-  const wall = p.kind === 'mill' ? '#d8c9a4' : p.kind === 'granary' ? '#b99a6b' : p.kind === 'hall' ? '#dccb9f' : p.kind === 'storehouse' ? '#cbb68c' : '#e6d5a8';
-  const top = p.kind === 'hall' ? '#8e7459' : p.kind === 'mill' ? '#9b7858' : p.kind === 'granary' ? '#a8935f' : p.kind === 'alehouse' ? '#9a6a4c' : p.kind === 'storehouse' ? '#7d6b52' : roofs[h % roofs.length];
+  const wall = p.kind === 'mill' ? '#d8c9a4' : p.kind === 'granary' ? '#b99a6b' : p.kind === 'hall' ? '#dccb9f' : p.kind === 'storehouse' ? '#cbb68c' : p.kind === 'barn' ? '#a88b62' : '#e6d5a8';
+  const top = p.kind === 'hall' ? '#8e7459' : p.kind === 'mill' ? '#9b7858' : p.kind === 'granary' ? '#a8935f' : p.kind === 'alehouse' ? '#9a6a4c' : p.kind === 'storehouse' ? '#7d6b52' : p.kind === 'barn' ? '#8a7656' : roofs[h % roofs.length];
   const bw = p.kind === 'oven' ? w * 0.58 : w, bx = p.kind === 'oven' ? -w * 0.21 : 0;
   g.add(box(bw, tall + 0.6, d, wall, bx, lift + tall / 2 - 0.3, 0));
   if (lift) for (const x of [-w / 2 + 0.25, 0, w / 2 - 0.25]) for (const z of [-d / 2 + 0.2, d / 2 - 0.2]) g.add(box(0.22, lift + 0.5, 0.22, '#aaa290', x, lift / 2 - 0.25, z));
@@ -257,8 +258,9 @@ function buildPlace(p, map, glow) {
   g.add(box(bw + 0.05, 0.07, d + 0.05, timber, bx, lift + tall - 0.03, 0));
   if (p.kind !== 'granary') g.add(box(bw + 0.04, 0.05, d + 0.04, timber, bx, lift + tall * 0.5, 0));
   g.add(roof(bw, d, rise, top, lift + tall));
-  const doorH = Math.min(0.46, tall * 0.72);
-  g.add(box(p.kind === 'hall' ? 0.5 : 0.26, doorH, 0.05, '#4c3b29', bx + (p.kind === 'oven' ? 0 : along), lift + doorH / 2, side * d / 2));
+  // A barn has great doors, tall and wide enough for a laden cart.
+  const doorH = p.kind === 'barn' ? tall * 0.85 : Math.min(0.46, tall * 0.72);
+  g.add(box(p.kind === 'hall' ? 0.5 : p.kind === 'barn' ? 1.05 : 0.26, doorH, 0.05, '#4c3b29', bx + (p.kind === 'oven' ? 0 : along), lift + doorH / 2, side * d / 2));
   const panes = panesOf(p);
   for (const x of panes.xs) {
     const pane = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.18, 0.04), glow);
@@ -266,7 +268,14 @@ function buildPlace(p, map, glow) {
     g.add(pane);
   }
   if (p.kind === 'cottage' || p.kind === 'alehouse' || p.kind === 'hall') g.add(box(0.2, rise + 0.25, 0.2, '#8f8672', bw * 0.28, lift + tall + rise * 0.55, -side * d * 0.12));
-  if (p.kind === 'alehouse') { g.add(box(0.05, 0.9, 0.05, timber, -w / 2 - 0.25, 0.45, side * (d / 2 + 0.3)), box(0.42, 0.26, 0.04, '#c9a45c', -w / 2 - 0.25, 0.75, side * (d / 2 + 0.3))); }
+  if (p.kind === 'alehouse') {
+    g.add(box(0.05, 0.9, 0.05, timber, -w / 2 - 0.25, 0.45, side * (d / 2 + 0.3)), box(0.42, 0.26, 0.04, '#c9a45c', -w / 2 - 0.25, 0.75, side * (d / 2 + 0.3)));
+    // The ale-stake: a pole out from the wall over the door, with a bush tied to its end.
+    g.add(box(0.04, 0.04, 0.6, timber, along + 0.45, tall * 0.88, side * (d / 2 + 0.3)));
+    const bush = new THREE.Mesh(new THREE.IcosahedronGeometry(0.15, 0), mat('#5f7a45')); bush.position.set(along + 0.45, tall * 0.88 - 0.12, side * (d / 2 + 0.62)); bush.castShadow = true; g.add(bush);
+    // A loft door high in the gable, where the beds are.
+    g.add(box(0.05, 0.22, 0.2, '#4c3b29', w / 2 + 0.005, tall + 0.18, 0));
+  }
   // Barrels and a stack of sacks stand by the storehouse door.
   if (p.kind === 'storehouse') {
     for (const dx of [-0.7, -0.38]) {
@@ -390,6 +399,47 @@ export function createWalk(container, onSelect, onNote) {
   // How far the wind has carried the rain and the snow, kept as a running sum so a shift of wind bends their path without a jump.
   const blown = [0, 0];
   const piles = [], sheepModels = [], cattleModels = [];
+  // Families' ox-carts and their oxen, built the first time each is needed.
+  const cartModels = new Map();
+  function makeCart() {
+    const g = new THREE.Group(), wheels = [];
+    g.add(box(0.82, 0.05, 0.5, '#9a7a52', 0, 0.3, 0));
+    for (const side of [-1, 1]) g.add(box(0.82, 0.09, 0.03, '#8a6a45', 0, 0.36, side * 0.25), box(0.75, 0.03, 0.03, '#6b4f33', 0.75, 0.3, side * 0.12));
+    for (const side of [-1, 1]) {
+      const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.05, 12), mat('#5f4a32'));
+      wheel.rotation.x = Math.PI / 2; wheel.position.set(0, 0.24, side * 0.3); wheel.castShadow = true; g.add(wheel); wheels.push(wheel);
+    }
+    // The family's goods: sacks, a chest and a rolled bundle.
+    for (const [x, z, s] of [[-0.22, -0.1, 1], [-0.22, 0.12, 0.9]]) { const sack = new THREE.Mesh(animalShape, mat('#d9cba3')); sack.scale.set(0.12 * s, 0.1 * s, 0.1 * s); sack.position.set(x, 0.42, z); sack.castShadow = true; g.add(sack); }
+    g.add(box(0.24, 0.16, 0.2, '#6b4f33', 0.14, 0.41, -0.06));
+    const roll = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.3, 8), mat('#b6a37c')); roll.rotation.x = Math.PI / 2; roll.position.set(0.14, 0.38, 0.16); g.add(roll);
+    return { object: g, wheels };
+  }
+  function moveCarts(now, dt) {
+    const carts = cartsOf(map, world, actors, id => drawnAt.get(id) ?? motion.at(id, now), calm.matches ? 0 : now);
+    for (const cart of carts) {
+      let model = cartModels.get(cart.id);
+      if (!model) {
+        model = { ...makeCart(), oxen: [0, 1].map(() => makeAnimal('cattle', 1)) };
+        for (const ox of model.oxen) {
+          ox.animal.scale.multiplyScalar(1.08);
+          for (const side of [-1, 1]) { const horn = new THREE.Mesh(new THREE.ConeGeometry(0.012, 0.07, 5), mat('#e6d7b4')); horn.position.set(0.04, 0.06, side * 0.045); horn.rotation.x = side * 0.9; ox.head.add(horn); }
+          people.add(ox.animal);
+        }
+        cartModels.set(cart.id, model); people.add(model.object);
+      }
+      model.object.position.set(cart.x, ground(cart.x, cart.y), cart.y); model.object.rotation.y = -cart.heading;
+      for (const wheel of model.wheels) wheel.rotation.y = -cart.gone / 0.24;
+      cart.oxen.forEach((ox, i) => {
+        const { animal, head, legs } = model.oxen[i];
+        animal.position.set(ox.x, ground(ox.x, ox.y), ox.y); animal.rotation.y = -ox.heading;
+        head.position.y = 0.233 - (ox.graze || 0) * 0.073; head.rotation.z = -(ox.graze || 0) * 1.24;
+        const stride = ox.moving ? Math.sin(ox.gone * 9) * 0.32 : 0;
+        legs.forEach((leg, j) => { leg.rotation.z = stride * (j === 0 || j === 3 ? 1 : -1); });
+      });
+    }
+    for (const [id, model] of cartModels) if (!carts.some(c => c.id === id)) { people.remove(model.object); for (const ox of model.oxen) people.remove(ox.animal); cartModels.delete(id); }
+  }
   // Dogs and cats, placed from where their owners are drawn, and the models that show them.
   const petsAt = createPets(), drawnAt = new Map(), petModels = new Map();
   function movePets(now, dt) {
@@ -1172,6 +1222,7 @@ export function createWalk(container, onSelect, onNote) {
     moveAnimals(sheepModels, visibleSheep(parish, world), animalTime);
     moveAnimals(cattleModels, cattle, animalTime);
     movePets(now, dt);
+    moveCarts(now, dt);
     for (const wheel of wheels) wheel.rotation.z += dt * 0.7 * wheel.userData.spin;
     sky(now, dt);
     renderer.render(scene, camera);

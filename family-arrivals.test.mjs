@@ -33,6 +33,8 @@ test('families keep their place in the housing queue and arrive only as a provis
   const unoccupied = addCottage(village);
   assert.equal(familyEvents(at(village, 0, 540)).length, 0, 'the family arrivals have not been queued');
   world.familyArrivals = [];
+  // With the barn out of use the family has nowhere to lodge, so it keeps its place in the queue for a cottage.
+  place(village.map, 'barn').stage = 1;
   const lodger = village.actors.find(a => a.id === 'robin');
   const unfinished = place(village.map, lodger.home);
   unfinished.stage = 1;
@@ -72,6 +74,58 @@ test('families keep their place in the housing queue and arrive only as a provis
   assert.ok(cottage.children.every(child => child.parents.join() === event.actorIds.join()));
   assert.ok(cottage.children.every(child => child.position.x === parents[0].position.x && child.position.y === parents[0].position.y));
   assert.equal(new Set(cottage.children.map(child => child.name)).size, 4);
+});
+
+test('with no cottage free a family lodges in the barn and moves in together when one is built', () => {
+  const village = stockedVillage(), { world, map } = village;
+  world.familyArrivals = [];
+  const [event] = familyEvents(at(village, 0, 540));
+  assert.ok(event, 'the family comes although no cottage stands empty');
+  assert.equal(event.outcome.home, 'barn');
+  assert.equal(event.outcome.lodging, 'barn');
+  assert.match(event.text, /ox-cart/);
+  assert.match(event.text, /the barn/);
+  const family = world.familyArrivals[0];
+  assert.equal(family.lodging, 'barn');
+  assert.deepEqual(family.cart, { oxen: 2 });
+  const parents = village.actors.filter(actor => family.parents.includes(actor.id));
+  assert.ok(parents.every(parent => parent.home === 'barn'));
+  const lodged = world.cottages.barn;
+  assert.equal(lodged.lodging, true);
+  assert.equal(lodged.children.length, 4);
+  assert.ok(lodged.larder > 0);
+
+  // One parent asks the moot for a cottage for the family, and the other does not ask again.
+  const asking = parents.map(parent => civic.concerns(parent, village).find(c => c.kind === 'cottage' && c.key === 'cottage:' + parent.id)).filter(Boolean);
+  assert.equal(asking.length, 1);
+  assert.match(asking[0].claim, /family of 6 cannot go on living in the barn/);
+
+  // A second family finds the barn taken.
+  world.familyArrivals[0].fedDawns = 3;
+  world.supplies.bread = 40;
+  assert.equal(familyEvents(at(village, 1, 540)).length, 0, 'one family lodges in a place at a time');
+
+  // A finished cottage takes the whole household at dawn: parents, children and larder.
+  const larder = lodged.larder;
+  const home = addCottage(village);
+  at(village, 2, 360);
+  assert.ok(parents.every(parent => parent.home === home.id));
+  assert.equal(world.cottages.barn, undefined);
+  assert.equal(world.cottages[home.id].children.length, 4);
+  assert.ok(world.cottages[home.id].larder >= Math.min(larder, 1));
+  assert.equal(family.lodging, undefined);
+  assert.equal(family.home, home.id);
+});
+
+test('a finished alehouse puts a family up in its loft before the barn', () => {
+  const village = stockedVillage(), { world, map } = village;
+  world.familyArrivals = [];
+  const alehouse = addPlace(map, 'alehouse', pickLot(map, 'alehouse', () => 0), { name: 'The Plough' });
+  const [event] = familyEvents(at(village, 0, 540));
+  assert.equal(event.outcome.lodging, alehouse.id);
+  assert.match(event.text, /the loft over The Plough/);
+  const parent = village.actors.find(actor => actor.id === event.actorIds[0]);
+  assert.equal(parent.home, alehouse.id);
 });
 
 test('the next family waits through a hungry dawn and three fed dawns, including after reload', () => {
@@ -239,4 +293,24 @@ test('the hosted clock saves a family, their household and their bread together'
     if (created) await admin.query('DROP DATABASE ' + name);
     await admin.end();
   }
+});
+
+test('a family’s oxen eat a little stored hay in winter and none the rest of the year', async () => {
+  const { feedOxen, OX_HAY } = await import('./engine/families.mjs');
+  const world = { familyArrivals: [{ cart: { oxen: 2 } }], supplies: { hay: 40 } };
+  let winter = 0, summer = 0;
+  for (let day = 0; day < 400 && (!winter || !summer); day++) {
+    const minute = day * DAY + 360, month = (await import('./engine/calendar.mjs')).dateOf(minute).month;
+    if (!winter && [12, 1, 2].includes(month)) winter = minute;
+    if (!summer && month === 7) summer = minute;
+  }
+  world.minute = summer;
+  for (let i = 0; i < 30; i++) feedOxen(world);
+  assert.equal(world.supplies.hay, 40, 'they graze through the summer');
+  world.minute = winter;
+  for (let i = 0; i < 30; i++) feedOxen(world);
+  assert.equal(world.supplies.hay, 40 - Math.round(30 * 2 * OX_HAY), 'a pair eats about a fifth of a bundle a winter day');
+  world.supplies.hay = 0;
+  for (let i = 0; i < 10; i++) feedOxen(world);
+  assert.equal(world.supplies.hay, 0, 'with the hay gone they make do');
 });

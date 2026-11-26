@@ -19,7 +19,7 @@
 | 3. A village with stakes | Built, awaiting the live measure | 7 | 0 | 0 |
 | 3a. The common store | Built, awaiting the live measure | 6 | 1 | 0 |
 | 3b. A menu worth choosing from | Built, awaiting the live measure and wording pass | 5 | 0 | 1 |
-| 3c. Families and village lessons | Built, awaiting live arrivals | 5 | 1 | 1 |
+| 3c. Families and village lessons | Built, awaiting live arrivals | 8 | 1 | 1 |
 | 3d. What feeds the village | Built, awaiting live measures | 5 | 0 | 0 |
 | 3e. Pets | Built, first stray due at the next live dawn | 4 | 0 | 1 |
 | 4. Voices: competing interests and the moot | Built, awaiting a live moot | 5 | 0 | 0 |
@@ -31,7 +31,7 @@
 | 8. The world comes to Dalecrest (A–C) | Proposed, not begun | 0 | 0 | 9 |
 | 9. Taking part | Groundwork only | 0 | 1 | 4 |
 | 10. A wider world | Not begun | 0 | 0 | 1 |
-| All stages | | 77 | 8 | 32 |
+| All stages | | 80 | 8 | 32 |
 
 **Reading the live village.** `readout.mjs` reads every "Done when" measure the database can answer, stage by stage, and marks it met, not met, no data or needing a viewer. On the server: `docker exec dalecrest-app node readout.mjs`, for the last 168 real hours by default. It does not replace `tools/pilot-report.mjs`, which breaks Stage 0 down further.
 
@@ -391,6 +391,9 @@ The live village had eleven residents, two hall lodgers, no vacant finished cott
 - [x] **Children have their own days.** Younger children stay close to home. Older children walk to play on the green and can bring kindling home. A completed trip moves one bundle from the village woodpile to the cottage, at most once per household per day. The clock runs these routines until the child turns fourteen.
 - [x] **Lessons in the hall.** A literate parent keeps their trade and can choose to teach letters and reading on Monday, Wednesday and Saturday mornings. The teacher must be present and the hall free of a moot. School-age children walk to the lesson and the record counts the time each actually attends. A dedicated schoolhouse can come later if the village asks for one.
 - [x] **See what children do.** Children can be selected and followed in Map and Walk. Household records show their activities and link to them on the map. Their IDs follow them into adult resident records. The first lesson with pupils appears in the chronicle.
+- [x] **Arrive by ox-cart and lodge until a cottage is built.** Added 25 November 2026. With no cottage free, a family still comes once the food check passes and it is travel season. They come up the road with their goods on a two-wheeled ox-cart and keep house in the barn, drawing fuel from the common store and bread for the children as any household does. One parent asks the moot for a cottage for the family. When it is built, or a cottage stands empty, the whole household moves in together, with the children and the larder. The cart and the two oxen stay by the family’s home. The oxen graze for most of the year and eat a tenth of a bundle of stored hay each a day through the winter months. One family lodges in a place at a time. A cart was ordinary for a family moving in 1312; living in it was not, which is why they lodge.
+- [x] **The alehouse keeps a loft.** Added 25 November 2026. Once the alehouse is finished, its loft takes an arriving family in place of the barn. A village alehouse in 1312 was a house where ale was brewed and sold, and one with a spare chamber putting up a newcomer family for a few weeks is in keeping. An ale-stake over the door marks it in both views. Travellers can use the loft later, with Stage 8A.
+- [x] **The barn stands on the map.** Added 25 November 2026. The village has kept its barley in a barn since the seasonal year. It is now a building near the fields in both views, added once to existing maps.
 - [x] **Children at play.** Added 25 November 2026, after it was built. Both views set children playing on the green running round it in a chasing game, spaced out and now and then turning to run the other way, instead of standing on one spot. A child taking kindling home carries the bundle. Checked in preview with stand-in children, since the live village has none yet.
 - [ ] **Children in the residents’ thinking.** Not begun. Children reach the model today only as reasons on household offers, such as breakfast being due. Name each child in their parents’ requests, with their age and what they did that day: a lesson attended, a breakfast missed, kindling brought home, an afternoon at play. Later, let older children make small choices of their own through the same request path, within the routines the clock runs for them now.
 

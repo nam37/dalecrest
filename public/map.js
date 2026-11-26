@@ -9,7 +9,8 @@ import { cloudField, cloudsOver, cloudShade, cloudDrift, SHADE_EDGE } from './cl
 import { puddleFill, puddles, rainRings, wetness } from './wet.js';
 
 import { drawMapFigure } from './map-figure.js';
-import { drawAnimal, drawGarden, drawPet, drawWoodpile } from './map-parish.js';
+import { drawAnimal, drawCart, drawGarden, drawOx, drawPet, drawWoodpile } from './map-parish.js';
+import { cartsOf } from './carts.js';
 import { createPets } from './pets.js';
 import { drawGame, drawFish } from './map-wildlife.js';
 import { wildlife } from './wildlife.js';
@@ -128,7 +129,7 @@ function building(c, p, line, lodgers, snowed = color => color, toward = PLAIN_L
   }
   // The roof plane turned to the light is the paler one.
   const sunny = toward[1] * Math.cos(p.a) - toward[0] * Math.sin(p.a) > 0 ? 1 : -1;
-  const roof = p.kind === 'hall' ? '#8e7459' : p.kind === 'mill' ? '#9b7858' : p.kind === 'granary' ? '#a8935f' : p.kind === 'alehouse' ? '#9a6a4c' : p.kind === 'storehouse' ? '#7d6b52' : roofs[h % roofs.length];
+  const roof = p.kind === 'hall' ? '#8e7459' : p.kind === 'mill' ? '#9b7858' : p.kind === 'granary' ? '#a8935f' : p.kind === 'alehouse' ? '#9a6a4c' : p.kind === 'storehouse' ? '#7d6b52' : p.kind === 'barn' ? '#8a7656' : roofs[h % roofs.length];
   c.fillStyle = snowed(roof); c.fillRect(-hw, -hd, w, d);
   c.fillStyle = '#fff5d02e'; c.fillRect(-hw, sunny < 0 ? -hd : 0, w, hd);
   c.fillStyle = '#3a2f2026'; c.fillRect(-hw, sunny < 0 ? 0 : -hd, w, hd);
@@ -145,7 +146,14 @@ function building(c, p, line, lodgers, snowed = color => color, toward = PLAIN_L
   // A mark on the eaves facing the lane shows the door.
   const side = (p.at[0] - p.x) * -Math.sin(p.a) + (p.at[1] - p.y) * Math.cos(p.a) > 0 ? 1 : -1;
   const along = (p.at[0] - p.x) * Math.cos(p.a) + (p.at[1] - p.y) * Math.sin(p.a);
-  if (Math.abs(along) < hw) { c.fillStyle = '#4c3f2e'; c.fillRect(along - 0.2, side * hd - 0.09, 0.4, 0.18); }
+  // A barn has great doors, wide enough for a laden cart.
+  const door = p.kind === 'barn' ? 0.55 : 0.2;
+  if (Math.abs(along) < hw) { c.fillStyle = '#4c3f2e'; c.fillRect(along - door, side * hd - 0.09, door * 2, 0.18); }
+  // An ale-stake: a pole out over the door with a bush tied to it, the old sign that ale is sold.
+  if (p.kind === 'alehouse' && p.stage === 2 && Math.abs(along) < hw) {
+    c.strokeStyle = '#5f4e39'; c.lineWidth = line * 1.6; c.beginPath(); c.moveTo(along + 0.45, side * hd); c.lineTo(along + 0.45, side * (hd + 0.55)); c.stroke();
+    disc(c, along + 0.45, side * (hd + 0.6), 0.17, snowed('#5f7a45'), '#3e5230', line * 0.8);
+  }
   if (p.kind === 'mill') {
     c.fillStyle = '#a1845b'; c.strokeStyle = ink; c.lineWidth = line;
     c.fillRect(-0.75, -side * hd - (side > 0 ? 0.7 : 0), 1.5, 0.7); c.strokeRect(-0.75, -side * hd - (side > 0 ? 0.7 : 0), 1.5, 0.7);
@@ -1081,6 +1089,11 @@ export function createMap(canvas, onSelect, cards) {
       c.restore();
     }
     const walkers = actors.filter(a => !indoors(a)).map(a => motion.at(a.id, time)).filter(Boolean);
+    // Families' ox-carts, on the road in or standing by the house, with the oxen.
+    for (const cart of cartsOf(map, world, actors, id => drawnAt.get(id) ?? motion.at(id, time), still)) {
+      for (const ox of cart.oxen) drawOx(c, ox, toScreen, view.scale, look.sun);
+      drawCart(c, cart, toScreen, view.scale, look.sun);
+    }
     for (const pet of petsAt(map, world?.pets, actors, id => drawnAt.get(id) ?? motion.at(id, time), still, sky.dark, reduced.matches ? 10 : Math.min(0.25, Math.max(0, (time - (lastPetAt || time)) / 1000)))) drawPet(c, pet, toScreen, view.scale, look.sun);
     lastPetAt = time;
     for (const animal of look.wild.game) drawGame(c, animal, still, toScreen, view.scale, look, walkers);

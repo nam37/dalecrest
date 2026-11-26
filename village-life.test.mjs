@@ -44,3 +44,18 @@ test('children at play run round the green and come back when play ends', () => 
   for (let t = 80; t < 200; t++) { play.begin(map, home, () => here, t * 100); a = play.place('a', here, 0.1); }
   assert.equal(a, here);
 });
+
+test('a family’s ox-cart travels with them and then stands at the end of their house', async () => {
+  const { cartsOf } = await import('./public/carts.js');
+  const map = { places: [{ id: 'barn', kind: 'barn', x: 50, y: 50, w: 5, d: 2.8, a: 0, at: [50, 52] }] };
+  const world = { familyArrivals: [{ home: 'barn', lodging: 'barn', parents: ['ma', 'pa'], cart: { oxen: 2 } }] };
+  const parent = kind => [{ id: 'ma', action: { kind, phase: kind === 'arrive' ? 'travelling' : 'working' } }, { id: 'pa', action: { kind: 'rest', phase: 'working' } }];
+  const [road] = cartsOf(map, world, parent('arrive'), () => ({ x: 20, y: 30, heading: 0, moving: true, gone: 3 }), 1000);
+  assert.ok(road.moving);
+  assert.ok(road.x < 20, 'the cart follows behind the oxen');
+  assert.equal(road.oxen.length, 2);
+  const [home] = cartsOf(map, world, parent('rest'), () => null, 1000);
+  assert.equal(home.moving, false);
+  assert.ok(Math.abs(home.x - (50 + 2.5 + 0.85)) < 1e-9, 'it stands at the gable end');
+  assert.deepEqual(cartsOf(map, { familyArrivals: [{ home: 'barn', parents: [] }] }, [], () => null, 0), [], 'no cart, nothing drawn');
+});
