@@ -7,6 +7,7 @@ import { memoryKey, remember } from './engine/memory.mjs';
 import { place } from './engine/roads.mjs';
 import { readSongDraft } from './song-drafts.mjs';
 import { recordPage } from './record-pages.mjs';
+import { journalEntries } from './robin-journal.mjs';
 
 const compose = 'compose:write:green';
 const villageMinute = 1080;
@@ -14,11 +15,11 @@ const note = 'At the mill, Robin saw Hugh feeding barley to the millstones.';
 const lines = ['I heard the turning wheel', 'And saw the barley fall', 'The dust lay on the sill', 'As dusk came over all'];
 const title = 'The Turning Wheel';
 
-function prepareEvening(robin, map) {
+function prepareEvening(robin, map, minute = villageMinute) {
   const [x, y] = place(map, 'green').at;
   robin.position = { x, y };
-  robin.rounds = { mill: villageMinute - 55 };
-  robin.action = { kind: 'waiting', phase: 'waiting', since: villageMinute - 1, remaining: 0, target: 'green',
+  robin.rounds = { mill: minute - 55 };
+  robin.action = { kind: 'waiting', phase: 'waiting', since: minute - 1, remaining: 0, target: 'green',
     reason: 'Will decide after gathering news.', previous: { kind: 'report', label: 'Gathering news', target: 'mill' } };
 }
 
@@ -88,6 +89,54 @@ test('a published verse uses only offered memories and screens names and extra f
   assert.equal(read({ lines: ['<em>A turning wheel</em>', ...lines.slice(1)] }).status, 'invalid');
 });
 
+test('a completed manuscript survives the start of Robin’s next song', () => {
+  const village = createVillage(undefined, { songwriting: true });
+  const robin = village.actors.find(actor => actor.id === 'robin');
+  const song = robin.songwriting;
+  village.world.minute = villageMinute;
+  prepareEvening(robin, village.map);
+  const key = addFieldNote(robin);
+  song.title = title;
+  song.verses.push({ minute: villageMinute - 20, lines, sources: [{ key, minute: villageMinute - 55, kind: 'fieldnote' }] });
+  song.used.push(key);
+  assert.ok(startChosen(robin, village, 'compose:finish:green', { id: 1 }));
+  const finished = stepVillage(village, { minutes: 12, externalActions: true }).find(event => event.type === 'song').outcome.song;
+  assert.equal(finished.status, 'finished');
+  assert.deepEqual(finished.manuscript.verses[0].lines, lines);
+
+  village.world.minute = villageMinute + 1440;
+  prepareEvening(robin, village.map, village.world.minute);
+  assert.ok(startChosen(robin, village, 'compose:begin:green', { id: 2 }));
+  const drafts = [];
+  const events = stepVillage(village, { minutes: 40, externalActions: true, songDrafts: drafts });
+  assert.ok(events.some(event => event.outcome?.song?.status === 'started'));
+  assert.ok(!events.some(event => event.outcome?.song?.status === 'archive'));
+  assert.equal(song.status, 'writing');
+  assert.deepEqual(song.verses, []);
+  assert.equal(drafts[0].version, song.version);
+  assert.equal(drafts[0].title, null);
+  assert.equal(finished.manuscript.title, title);
+  assert.equal(finished.manuscript.closedAt, villageMinute + 12);
+});
+
+test('dated entries describe recorded acts and preserve exact authored words', () => {
+  const words = 'I intend to bring my notes back to the hall.';
+  const evidence = [
+    { id: '1', minute: 1000, kind: 'note', text: note },
+    { id: '2', minute: 1005, kind: 'note', text: note },
+    { id: '3', minute: 2450, kind: 'choice', detail: 'meeting', text: 'Attending the moot' },
+    { id: '4', minute: 2460, kind: 'song', detail: 'interrupted', text: 'Robin Marsh put down his writing to attend the moot.' },
+    { id: '5', minute: 2500, kind: 'words', text: words, public: true },
+    { id: '6', minute: 4000, kind: 'song', detail: 'archive', text: 'Archive' },
+  ];
+  const [second, first] = journalEntries(evidence);
+  assert.deepEqual(second.lines.map(line => line.text), ['I set out for the moot.', 'I put down my writing to attend the moot.', words]);
+  assert.equal(second.lines[2].source.href, '/days/2#event-5');
+  assert.equal(first.lines.length, 1);
+  assert.match(first.lines[0].text, /I saw Hugh/);
+  assert.equal(journalEntries(evidence).length, 2);
+});
+
 const adminUrl = process.env.DALECREST_TEST_ADMIN_URL;
 
 test('PostgreSQL applies Robin’s choice and publishes a sourced verse while the clock keeps moving', { skip: !adminUrl }, async () => {
@@ -146,6 +195,19 @@ test('PostgreSQL applies Robin’s choice and publishes a sourced verse while th
     assert.deepEqual(journal.verses[0].lines, lines);
     assert.equal(journal.verses[0].sources[0].key, key);
     assert.equal(journal.entries.length, 2);
+
+    await pool.query(`INSERT INTO dalecrest.events(minute,kind,actor_ids,description,salience)
+      VALUES (300,'fieldnote',ARRAY['robin','hugh'],$1,1)`, [note]);
+    const manuscript = { title: 'An Earlier Song', status: 'finished', started: 450, closedAt: 1500, verses: journal.verses };
+    await pool.query(`INSERT INTO dalecrest.events(minute,kind,actor_ids,description,outcome,salience)
+      VALUES (1500,'song',ARRAY['robin'],'Robin Marsh finished his song.',$1,1)`, [{ song: { lifetime: 0, status: 'finished', manuscript } }]);
+    await pool.query("UPDATE dalecrest.world SET state=jsonb_set(state,'{minute}','13000') WHERE id=1");
+    const current = (await recordPage(pool, { kind: 'residents', id: 'robin' }, new URLSearchParams())).body.journal;
+    assert.equal(current.catalog[0].title, manuscript.title);
+    assert.ok(current.olderBefore);
+    const backfill = (await recordPage(pool, { kind: 'residents', id: 'robin' }, new URLSearchParams({ journalBefore: current.olderBefore }))).body.journal;
+    assert.equal(backfill.olderBefore, null);
+    assert.ok(backfill.days.find(day => day.minute === 0)?.lines.some(line => /I saw Hugh/.test(line.text)));
   } finally {
     await db?.pool.end();
     if (created) await admin.query('DROP DATABASE ' + name);

@@ -377,9 +377,22 @@ footer { display: flex; justify-content: space-between; gap: 14px; flex-wrap: wr
 .record-part ul { margin: .4em 0 0; padding-left: 1.3em; }
 #journal { margin-block-start: 1.6rem; padding-block-start: 1.25rem; border-block-start: 1px solid var(--rule); scroll-margin-block-start: 1rem; }
 .journal-name { color: var(--muted); font: 1rem var(--caps); letter-spacing: .08em; text-align: center; }
-.journal-song, .journal-thoughts, .journal-log { max-inline-size: 35rem; margin-inline: auto; }
-.journal-song-head { margin-block: .4rem 0; text-align: center; }
-.journal-song-head h3 { font-size: clamp(1.85rem, 5vw, 2.6rem); line-height: 1.12; }
+.journal-daily, .journal-songs { max-inline-size: 35rem; margin-inline: auto; }
+.journal-daily { margin-block-start: 1.05rem; }
+.journal-songs { margin-block-start: 1.7rem; padding-block-start: 1.1rem; border-block-start: 1px solid var(--rule); }
+.journal-days { margin-block: .65rem; }
+.journal-entry { padding-block: .55rem; border-block-end: 1px solid var(--rule-soft); }
+.journal-entry > summary, .journal-catalog-song > summary { width: fit-content; font-family: var(--display); font-size: 1.1rem; cursor: pointer; }
+.journal-entry-body { margin-block-start: .55rem; }
+.journal-entry-body > p + p { margin-block-start: .35rem; }
+.journal-quote { margin: .65rem 0; padding-inline-start: .75rem; border-inline-start: 1px solid var(--rule); }
+.journal-quote figcaption { color: var(--muted); font-family: var(--caps); font-size: .9rem; }
+.journal-quote blockquote { margin: .2rem 0 0; font-style: italic; }
+.journal-entry-body > .journal-disclosure { margin-block-start: .6rem; border: 0; }
+.journal-entry-sources > li + li { margin-block-start: .25rem; }
+.journal-daily > .journal-meta:empty { display: none; }
+.journal-song-head { margin-block: .85rem 0; text-align: center; }
+.journal-song-head h4 { margin: 0; font: 400 clamp(1.85rem, 5vw, 2.6rem)/1.12 var(--display); }
 .journal-meta { margin-block-start: .35rem; color: var(--muted); font-size: .93rem; }
 .journal-lyrics { margin: 1.45rem 0 1.55rem; font-size: 1.15rem; line-height: 1.45; font-style: italic; text-align: center; overflow-wrap: anywhere; }
 .song-verse + .song-verse { margin-block-start: 1.15em; }
@@ -387,13 +400,11 @@ footer { display: flex; justify-content: space-between; gap: 14px; flex-wrap: wr
 .journal-disclosure summary { width: fit-content; color: var(--ink-soft); cursor: pointer; }
 .journal-disclosure summary:hover { color: var(--ink); }
 .journal-verse-notes { margin: .55rem 0 .15rem; padding-inline-start: 1.35rem; }
-.journal-verse-notes > li + li, .journal-entries > li + li { margin-block-start: .65rem; }
+.journal-verse-notes > li + li { margin-block-start: .65rem; }
 .journal-verse-notes > li > ul { margin-block-start: .15rem; }
-.journal-log { margin-block-start: .35rem; }
-.journal-entries > li > a { color: var(--muted); font-size: .93rem; }
-.journal-entries > li > span { display: block; }
-.journal-thoughts { padding-block: .75rem; border-block-start: 1px solid var(--rule-soft); }
-.journal-thoughts blockquote { margin: .3rem 0 .65rem; font-style: italic; }
+.journal-catalog { margin-block-start: .6rem; }
+.journal-catalog-song { margin-block-start: .45rem; padding-inline-start: .85rem; }
+.journal-catalog-song > summary .journal-meta { margin-inline-start: .65rem; font-family: var(--body); }
 .record-part .request-entry > a + a { margin-left: .75em; }
 .record-part .request-entry[aria-current="location"] { background: #e9dfc4; outline: 3px solid #e9dfc4; }
 .record-part .kind { margin-left: .75em; }

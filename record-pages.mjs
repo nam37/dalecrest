@@ -1,8 +1,10 @@
 import { placeName } from './sim.mjs';
 import { PUBLIC } from './engine/chronicle.mjs';
 import { childView } from './engine/children.mjs';
+import { songManuscript } from './engine/songwriting.mjs';
 import { eventAccount } from './civic-accounts.mjs';
 import { eventRequestKey, validCursor } from './request-archive.mjs';
+import { readRobinEntries } from './robin-journal.mjs';
 import { dayLink, housing, householdLink, mootLink, residentLink, validRecordMinute } from './public/record-links.js';
 
 export const eventMootKey = "outcome->>'mootId'";
@@ -67,12 +69,13 @@ function residentRecord(village, ref, params) {
   return result({ person, minute: village.minute, household: house(village, person.home) }, residentLink(person));
 }
 
-async function robinJournal(db, village, person) {
+async function robinJournal(db, village, person, before) {
   if (person.id !== 'robin' || person.arrived !== 0) return null;
   const song = person.left == null ? village.songwriting : village.departed?.find(resident =>
     resident.id === person.id && resident.minute === person.left)?.songwriting;
   if (!song) return null;
-  const day = Math.floor((person.left ?? village.minute) / dayMinutes);
+  const through = person.left ?? village.minute;
+  const day = Math.floor(through / dayMinutes);
   const firstDay = Math.max(Math.floor(song.since / dayMinutes), day - 6);
   const { rows: [journal] } = await db.query(`WITH entries AS (
       SELECT id, minute, description, outcome#>>'{song,status}' AS status FROM dalecrest.events
@@ -87,8 +90,15 @@ async function robinJournal(db, village, person) {
           WHERE actor_id='robin' AND applied_minute BETWEEN $1 AND $3 AND statement IS NOT NULL
             AND result->'applied' @> '[{"goal":"songwriting"}]'::jsonb
           ORDER BY applied_minute DESC LIMIT 4) intentions), '[]'::jsonb) AS intentions`,
-    [song.since, firstDay * dayMinutes, person.left ?? village.minute]);
-  const cited = [...new Set(song.verses.flatMap(verse => verse.sources.map(source => source.key)))];
+    [song.since, firstDay * dayMinutes, through]);
+  const { rows: archived } = await db.query(`SELECT outcome#>'{song,manuscript}' AS manuscript
+    FROM dalecrest.events WHERE kind='song' AND actor_ids @> ARRAY['robin'] AND minute BETWEEN $1 AND $2
+      AND outcome#>>'{song,lifetime}'='0' AND outcome#>>'{song,manuscript,status}'='finished'
+    ORDER BY (outcome#>>'{song,manuscript,closedAt}')::bigint DESC, id DESC`, [song.since, through]);
+  const catalog = archived.map(row => row.manuscript);
+  const original = song.status === 'finished' && !song.archived && songManuscript(song);
+  if (original) catalog.unshift(original);
+  const cited = [...new Set([song, ...catalog].flatMap(draft => draft.verses.flatMap(verse => verse.sources.map(source => source.key))))];
   const evidence = new Map();
   if (cited.length) {
     const { rows } = await db.query(`SELECT o.actor_id || ':' || o.seq AS key, e.id::text AS id,
@@ -98,12 +108,14 @@ async function robinJournal(db, village, person) {
     [cited.map(key => Number(key.split(':')[1]))]);
     for (const item of rows) evidence.set(item.key, item);
   }
-  const verses = song.verses.map(verse => ({ ...verse, sources: verse.sources.map(source => {
+  const sourced = verses => verses.map(verse => ({ ...verse, sources: verse.sources.map(source => {
     const item = evidence.get(source.key);
     return { ...source, ...(item?.public && { href: dayLink(source.minute) + '#event-' + item.id }),
       ...(item?.note && { note: item.note }) };
   }) }));
-  return { title: song.title ?? null, status: song.status, verses, windowDays: day - firstDay + 1, ...journal };
+  const daily = await readRobinEntries(db, person.left ?? day * dayMinutes - 1, before);
+  return { title: song.title ?? null, status: song.status, verses: sourced(song.verses), windowDays: day - firstDay + 1,
+    catalog: catalog.map(draft => ({ ...draft, verses: sourced(draft.verses) })), ...journal, ...daily };
 }
 
 function householdRecord(village, id) {
@@ -205,7 +217,9 @@ export async function recordPage(db, ref, params) {
   const record = ref.kind === 'residents' ? residentRecord(village, ref, params) : householdRecord(village, ref.id);
   if (record.status !== 200) return record;
   if (record.body.person) {
-    const journal = await robinJournal(db, village, record.body.person);
+    const before = params.get('journalBefore');
+    if (before !== null && !validRecordMinute(before)) return { status: 400, body: { error: 'Invalid Journal date.' } };
+    const journal = await robinJournal(db, village, record.body.person, before === null ? null : Number(before));
     if (journal) record.body.journal = journal;
   }
   record.body.cursor = village.cursor;

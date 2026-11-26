@@ -29,10 +29,15 @@ export function prepareSongwriter(actor, world) {
 
 export function offerSongwriting(actor, { world, map }, offer, weary) {
   const song = actor.songwriting, minute = world.minute, day = Math.floor(minute / DAY), time = minute % DAY;
-  if (!world.songwritingPilot || song?.status !== 'writing' || !activeGoals(actor).some(goal => goal.id === GOAL) ||
+  if (!world.songwritingPilot || !song || !activeGoals(actor).some(goal => goal.id === GOAL) ||
       !reportedToday(actor, day) || song.lastSession >= day * DAY || time < 1020 || time >= 1220 || place(map, 'green')?.stage !== 2) return;
   const daysSince = day - Math.floor((song.lastSession ?? song.since) / DAY);
   const score = 64 + Math.min(16, daysSince * 5) - weary;
+  if (song.status !== 'writing') {
+    offer('compose', 'Starting a new song', 'green', 40, score,
+      'My last draft is put away. I have time to begin another song.', { songTask: 'begin', songVersion: song.version });
+    return;
+  }
   const lyrics = song.verses.length;
   if (lyrics < MAX_VERSES) offer('compose', lyrics ? 'Writing another verse' : 'Starting a song', 'green', 40, score,
     'My rounds are done for now. I have time to work on a song of my own.', { songTask: 'write', songVersion: song.version });
@@ -48,9 +53,9 @@ export function offerSongwriting(actor, { world, map }, offer, weary) {
 
 export function songwritingContext(actor, world) {
   const song = actor.songwriting;
-  if (!world.songwritingPilot || !song || song.status !== 'writing') return null;
+  if (!world.songwritingPilot || !song) return null;
   const day = Math.floor(world.minute / DAY);
-  return { title: song.title ?? null, verses: song.verses.length, roundsToday: reportedToday(actor, day),
+  return { title: song.title ?? null, status: song.status, verses: song.verses.length, roundsToday: reportedToday(actor, day),
     eveningsSinceLastSession: song.lastSession == null ? null : day - Math.floor(song.lastSession / DAY) };
 }
 
@@ -67,12 +72,16 @@ function material(actor, minute, used, revising) {
 export function finishSongSession(actor, minute, emit, interrupted = false) {
   const song = actor.songwriting, action = actor.action;
   const { songTask: task, songStarted: started, songVersion: version, target, decisionTraceId } = action;
-  if (!song || song.status !== 'writing' || started == null) return;
+  if (!song || started == null) return;
+  const beginning = task === 'begin';
+  if (beginning !== (song.status !== 'writing')) return;
   const lifetime = actor.arrived ?? 0, id = [actor.id, lifetime, started].join(':');
   const details = { id, actorId: actor.id, lifetime, started, ended: minute, site: target, task,
     version, basis: action.basis?.kind ?? 'local', ...(decisionTraceId != null && { decisionTraceId }) };
+  if (beginning) song.closedAt ??= song.lastSession;
   song.lastSession = minute;
-  const record = (status, words) => emit('song', actor.name + ' ' + words + '.', [actor.id], { song: { ...details, status } }, target);
+  const record = (status, words, extra) => emit('song', actor.name + ' ' + words + '.', [actor.id],
+    { song: { ...details, status, ...extra } }, target);
   if (interrupted) {
     record('interrupted', 'put down his writing to attend the moot');
     return;
@@ -83,13 +92,37 @@ export function finishSongSession(actor, minute, emit, interrupted = false) {
   }
   if (task === 'finish' || task === 'set_aside') {
     song.status = task === 'finish' ? 'finished' : 'set_aside';
+    song.closedAt = minute;
     song.version++;
-    record(song.status, task === 'finish' ? 'finished his song' : 'set his song aside');
+    const manuscript = songManuscript(song);
+    record(song.status, task === 'finish' ? 'finished his song' : 'set his song aside', manuscript && { manuscript });
+    song.archived = Boolean(manuscript);
     return;
+  }
+  if (beginning) {
+    // Earlier villages closed a draft without storing the lyrics on the event. Save it before starting a new one.
+    const prior = !song.archived && songManuscript(song);
+    if (prior) record('archive', 'saved the previous draft', { manuscript: prior });
+    song.status = 'writing';
+    song.started = started;
+    song.verses = [];
+    song.used = [];
+    song.version++;
+    delete song.title;
+    delete song.closedAt;
+    delete song.archived;
+    record('started', 'started a new song on the green');
   }
   const sources = material(actor, minute, song.used, task === 'revise');
   const hasMaterial = sources.length > 0;
   record(hasMaterial ? 'session' : 'no_material', hasMaterial ? 'spent time writing on the green' :
     'spent time writing on the green without finding material for a verse');
-  if (hasMaterial) return { ...details, sources, title: song.title ?? null, verses: song.verses.map(verse => verse.lines) };
+  if (hasMaterial) return { ...details, task: task === 'revise' ? 'revise' : 'write', version: song.version,
+    sources, title: song.title ?? null, verses: song.verses.map(verse => verse.lines) };
+}
+
+export function songManuscript(song) {
+  if (!song.title || !song.verses.length) return null;
+  return { title: song.title, status: song.status, closedAt: song.closedAt ?? song.lastSession,
+    started: song.started ?? song.since, verses: song.verses };
 }

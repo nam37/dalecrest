@@ -33,28 +33,12 @@ function section(heading, ...children) {
   return area;
 }
 
-function songJournal(journal) {
-  const area = section('Robin’s Journal');
-  area.id = 'journal';
-  area.tabIndex = -1;
-  const heading = area.firstElementChild;
-  heading.id = 'journal-title';
-  heading.className = 'journal-name';
-  area.setAttribute('aria-labelledby', heading.id);
-
-  const progress = { writing: 'In progress', finished: 'Finished', set_aside: 'Set aside' };
-  const count = journal.verses.length;
-  const song = el('article', null, 'journal-song');
-  const head = el('header', null, 'journal-song-head');
-  head.append(el('h3', journal.title || 'Robin’s song'), el('p', count
-    ? progress[journal.status] + ' · ' + count + (count === 1 ? ' verse' : ' verses')
-    : 'Waiting for a first verse', 'journal-meta'));
-  song.append(head);
-
+function songVerses(verses) {
+  const song = el('div', null, 'journal-verse-sheet');
   const lyrics = el('blockquote', null, 'journal-lyrics');
   const notes = el('ol', null, 'journal-verse-notes');
   const sourceLabel = { fieldnote: 'Field note', observation: 'Observation', social: 'Conversation' };
-  for (const verse of journal.verses) {
+  for (const verse of verses) {
     const stanza = el('p', null, 'song-verse');
     verse.lines.forEach((line, index) => {
       if (index) stanza.append(el('br'));
@@ -74,34 +58,109 @@ function songJournal(journal) {
     note.append(dated(verse.minute), sources);
     notes.append(note);
   }
-  if (count) {
-    const disclosure = el('details', null, 'journal-disclosure');
-    disclosure.append(el('summary', 'Verse dates and sources'), notes);
-    song.append(lyrics, disclosure);
-  }
-  area.append(song);
-
-  if (journal.intentions.length) {
-    const thoughts = el('section', null, 'journal-thoughts');
-    thoughts.append(el('h3', 'In Robin’s own words'));
-    for (const entry of journal.intentions) thoughts.append(dated(entry.minute), el('blockquote', entry.text));
-    area.append(thoughts);
-  }
-  if (journal.entries.length) {
-    const log = el('details', null, 'journal-disclosure journal-log');
-    const list = el('ul', null, 'journal-entries');
-    for (const entry of journal.entries) {
-      const item = el('li');
-      item.append(dated(entry.minute), el('span', entry.text));
-      list.append(item);
-    }
-    log.append(el('summary', 'Writing log'),
-      el('p', 'Worked on the green on ' + journal.composingDays + ' of the last ' + journal.windowDays + ' village days.', 'journal-meta'), list);
-    area.append(log);
-  }
+  const disclosure = el('details', null, 'journal-disclosure');
+  disclosure.append(el('summary', 'Verse dates and sources'), notes);
+  song.append(lyrics, disclosure);
+  return song;
 }
 
-function resident({ person, household, minute, journal }) {
+function journalDay(day, open = false) {
+  const entry = el('details', null, 'journal-entry');
+  entry.open = open;
+  entry.append(el('summary', formatDate(day.minute)));
+  const body = el('div', null, 'journal-entry-body');
+  const list = el('ul', null, 'journal-entry-sources');
+  for (const line of day.lines) {
+    if (line.kind === 'words') {
+      const quote = el('figure', null, 'journal-quote');
+      quote.append(el('figcaption', 'Robin’s own words'), el('blockquote', line.text));
+      body.append(quote);
+    } else body.append(el('p', line.text));
+    const item = el('li');
+    item.append(line.source.href ? link(line.source.label, line.source.href) : line.source.label, ' · ', line.source.text);
+    list.append(item);
+  }
+  const evidence = el('details', null, 'journal-disclosure');
+  evidence.append(el('summary', 'Entry sources'), list);
+  body.append(evidence);
+  entry.append(body);
+  return entry;
+}
+
+function journalEntries(journal, path) {
+  const area = el('section', null, 'journal-daily');
+  area.append(el('h3', 'Daily Journal Entries'), el('p', 'From Robin’s recorded choices, field notes and statements.', 'journal-meta'));
+  const days = el('div', null, 'journal-days');
+  const empty = el('p', 'No entries were recorded for these days.', 'empty');
+  if (!journal.days.length) days.append(empty);
+  days.append(...journal.days.map((day, index) => journalDay(day, index === 0)));
+  area.append(days);
+  if (!journal.olderBefore) return area;
+
+  const older = el('button', 'Load older entries');
+  older.type = 'button';
+  const feedback = el('p', '', 'journal-meta');
+  feedback.setAttribute('role', 'status');
+  let before = journal.olderBefore;
+  older.onclick = async () => {
+    older.disabled = true;
+    feedback.textContent = '';
+    try {
+      const { journal: earlier } = await fetchRecord(path, new URLSearchParams({ journalBefore: before }));
+      if (earlier.days.length) {
+        empty.remove();
+        days.append(...earlier.days.map(day => journalDay(day)));
+      } else feedback.textContent = 'No entries were recorded for that week.';
+      before = earlier.olderBefore;
+      older.hidden = !before;
+    } catch { feedback.textContent = 'Could not load older entries. Try again.'; }
+    finally { older.disabled = false; }
+  };
+  area.append(older, feedback);
+  return area;
+}
+
+function journalSongs(journal) {
+  const area = el('section', null, 'journal-songs');
+  area.append(el('h3', 'Songs'));
+  if (journal.status !== 'finished') {
+    const current = el('article', null, 'journal-song');
+    const head = el('header', null, 'journal-song-head');
+    const count = journal.verses.length;
+    const status = journal.status === 'set_aside' ? 'Set aside' : 'In progress';
+    head.append(el('h4', journal.title || 'Current song'), el('p', count
+      ? status + ' · ' + count + (count === 1 ? ' verse' : ' verses') : 'Waiting for a first verse', 'journal-meta'));
+    current.append(head);
+    if (count) current.append(songVerses(journal.verses));
+    if (journal.composingDays) current.append(el('p', 'Wrote on the green on ' + journal.composingDays + ' of the last ' + journal.windowDays + ' village days.', 'journal-meta'));
+    area.append(current);
+  }
+  const catalog = el('details', null, 'journal-disclosure journal-catalog');
+  catalog.append(el('summary', 'Completed Songs' + (journal.catalog.length ? ' · ' + journal.catalog.length : '')));
+  if (!journal.catalog.length) catalog.append(el('p', 'Robin hasn’t finished a song yet.', 'journal-meta'));
+  for (const manuscript of journal.catalog) {
+    const song = el('details', null, 'journal-catalog-song');
+    const summary = el('summary', manuscript.title);
+    summary.append(el('span', formatDate(manuscript.closedAt), 'journal-meta'));
+    song.append(summary, songVerses(manuscript.verses));
+    catalog.append(song);
+  }
+  area.append(catalog);
+  return area;
+}
+
+function songJournal(journal, path) {
+  const area = section('Robin’s Journal');
+  area.id = 'journal';
+  area.tabIndex = -1;
+  const heading = area.firstElementChild;
+  heading.id = 'journal-title';
+  heading.className = 'journal-name';
+  area.setAttribute('aria-labelledby', heading.id);
+  area.append(journalEntries(journal, path), journalSongs(journal));
+}
+
+function resident({ person, household, minute, journal, path }) {
   const living = person.left == null;
   title('Resident', person.name, person.role || (living ? 'Lives in Dalecrest' : 'Former resident'));
   if (living) {
@@ -129,7 +188,7 @@ function resident({ person, household, minute, journal }) {
   if (life.length) section('Life in Dalecrest', ...life);
   if (person.backstory) section('Background', el('p', person.backstory));
   if (living && person.action?.label) section('Current activity', el('p', person.action.label));
-  if (journal) songJournal(journal);
+  if (journal) songJournal(journal, path);
 }
 
 function household({ household, residents, children, stores, stage, cold, minute }) {
