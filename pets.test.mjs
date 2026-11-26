@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { register } from 'node:module';
 import { dawnPets, dogOf, normalizePets } from './engine/pets.mjs';
 import { keepStores } from './engine/stores.mjs';
 
@@ -60,4 +61,29 @@ test('cats keep the mice from the barley', () => {
   const plain = { supplies: { grain: 300 }, grainLoss: 0 }, guarded = { supplies: { grain: 300 }, grainLoss: 0, pets: [{ kind: 'cat' }, { kind: 'cat' }] };
   for (let i = 0; i < 30; i++) { keepStores(plain); keepStores(guarded); }
   assert.ok(guarded.supplies.grain > plain.supplies.grain);
+});
+
+// The views import with the paths the web server serves: /engine/… from the project and anything
+// else under / from public/. Map those onto files so the views' own code can run here.
+const served = new URL('./', import.meta.url).href;
+register('data:text/javascript,' + encodeURIComponent(`
+  export async function resolve(spec, context, next) {
+    if (spec.startsWith('/engine/')) return next(${JSON.stringify(served)} + spec.slice(1), context);
+    if (spec.startsWith('/') && !spec.startsWith('//') && context.parentURL?.startsWith(${JSON.stringify(served)})) return next(${JSON.stringify(served)} + 'public' + spec, context);
+    return next(spec, context);
+  }`));
+
+test('a dog at its owner’s heels faces the way they are walking', async () => {
+  const { createPets } = await import('./public/pets.js');
+  const placePets = createPets(), map = { seed: 7, places: [] };
+  const pets = [{ id: 'dog-1', kind: 'dog', owner: 'robin', home: 'cottage-1', came: 0 }];
+  const actors = [{ id: 'robin', action: { kind: 'work', phase: 'travelling', target: 'storehouse' } }];
+  // Robin walks north (up the map, toward smaller y) at a steady pace, twenty frames a second.
+  let dog;
+  for (let i = 0; i < 80; i++) {
+    const where = { x: 50, y: 60 - i * 0.04, heading: -Math.PI / 2, moving: true };
+    [dog] = placePets(map, pets, actors, () => where, i * 50, 0, 0.05);
+  }
+  assert.ok(dog.moving, 'trotting, not sliding');
+  assert.ok(Math.abs(Math.atan2(Math.sin(dog.heading + Math.PI / 2), Math.cos(dog.heading + Math.PI / 2))) < 0.3, 'facing north as they go');
 });

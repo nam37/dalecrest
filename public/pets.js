@@ -16,6 +16,12 @@ function doorstep(p, out = 0.4) {
   return [p.x + Math.cos(p.a) * along - Math.sin(p.a) * side * reach, p.y + Math.sin(p.a) * along + Math.cos(p.a) * side * reach, Math.atan2(Math.cos(p.a) * side, -Math.sin(p.a) * side)];
 }
 
+// Turns a pet's heading toward the angle given, at about two turns a second, the short way round.
+function turnTo(cur, angle, dt) {
+  const d = Math.atan2(Math.sin(angle - cur.heading), Math.cos(angle - cur.heading));
+  cur.heading += d * Math.min(1, dt * 12);
+}
+
 // Make one for each view. Each frame, call it with the map, the pets, the actors, a lookup from an
 // actor's id to where they are drawn ({ x, y, heading, moving }), the time in milliseconds, how dark it
 // is from 0 to 1, and the seconds since the last frame. It gives each pet as { id, kind, coat, x, y,
@@ -60,10 +66,16 @@ export function createPets() {
       }
       const was = stood.get(pet.id), cur = was ?? { x: tx, y: ty, gone: 0, heading: face ?? 0 };
       const gap = Math.hypot(tx - cur.x, ty - cur.y), step = gap > 8 ? gap : Math.min(gap, dt * Math.max(pace, gap > 1.5 ? 3 : 0));
+      // The way it goes this frame: straight for where it wants to be.
+      const way = gap > 1e-6 ? Math.atan2(ty - cur.y, tx - cur.x) : null;
       if (gap) { cur.x += (tx - cur.x) / gap * step; cur.y += (ty - cur.y) / gap * step; cur.gone += step; }
-      const moving = gap - step > 0.04 && step > 0;
-      if (moving) cur.heading = Math.atan2(ty - cur.y, tx - cur.x);
-      else if (face !== undefined) cur.heading = face;
+      // A dog at its owner's heels catches up every frame, so it counts as moving whenever it covers
+      // ground at a walk, not only while it lags behind. It turns to face the way it goes, quickly but
+      // not in a snap. A jump across the map is not a walk.
+      const walked = step < 8 && step > dt * 0.08 && way !== null;
+      const moving = step > 0 && step < 8 && (gap - step > 0.04 || walked);
+      if (moving && way !== null) turnTo(cur, way, step >= 8 ? 10 : dt);
+      else if (face !== undefined) turnTo(cur, face, dt);
       stood.set(pet.id, cur);
       out.push({ id: pet.id, kind: pet.kind, coat: petCoats[pet.kind][pet.coat ?? 0] ?? petCoats[pet.kind][0], name: pet.name,
         x: cur.x, y: cur.y, heading: cur.heading, moving, gone: cur.gone, lying: lying && !moving });
