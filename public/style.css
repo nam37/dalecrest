@@ -146,6 +146,19 @@ h1 { font-size: clamp(2.2rem, 3.6vw, 3.5rem); line-height: 1.02; }
 .page-title p { margin-top: 6px; color: var(--muted); font-style: italic; }
 .eyebrow, .kind, .number, .journal-day { font-family: var(--caps); font-size: .84rem; letter-spacing: .1em; text-transform: lowercase; color: var(--muted); }
 
+.development { max-width: 880px; padding-bottom: 48px; }
+.development a { text-underline-offset: .17em; }
+.development-entry {
+  display: grid; grid-template-columns: 9rem minmax(0, 1fr); gap: 6px clamp(14px, 3vw, 30px);
+  padding-block: 18px; border-top: 1px solid var(--rule);
+}
+.development-entry time { padding-top: 4px; color: var(--ink-soft); font-size: .94rem; }
+.development-entry h2 { font-size: clamp(1.5rem, 3vw, 1.9rem); line-height: 1.15; }
+.development-entry p { margin-top: .4rem; line-height: 1.5; }
+@media (max-width: 600px) {
+  .development-entry { grid-template-columns: minmax(0, 1fr); padding-block: 14px; }
+}
+
 /* The clock is a small engraved label: it sits on the plate in the village, beside the title elsewhere. */
 .clock { display: flex; align-items: center; gap: 10px; white-space: nowrap; }
 .clock div { display: grid; gap: 0; }

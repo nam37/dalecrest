@@ -2,6 +2,8 @@
 
 These decisions describe the running village. When a change alters a decision, record the reason here and update any affected operator instructions. Planned changes are in the [roadmap](roadmap.md) and are not described here until they are built.
 
+With each visitor-facing release, add a short entry to the [public development updates](../public/development.html). Keep entries newest first, group changes published on the same Eastern date, and describe what visitors can see or do.
+
 ### 1. The village clock belongs to the server
 
 Villagers should be able to finish a shift or meet a friend while nobody is watching. The Node.js server advances the simulation in village minutes. It locks the world row before each tick and commits the new world, resident states, events, and active decision traces together. A browser reads a snapshot. Pausing the view freezes only that observer’s snapshot. When the server stops, the clock stops at its last committed tick.

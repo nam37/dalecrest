@@ -55,6 +55,7 @@ function siteNavigation(path) {
     <div class="site-publications">${link('/daily.html', 'Dalecrest Daily')}${songwritingPilot ? link('/residents/robin#journal', 'Robin’s Journal') : ''}</div>
     <details class="site-more"><summary>More</summary><div class="site-more-links">
       ${link('/following.html', 'Following')}${link('/growth.html', 'Growth')}${link('/atlas.html', 'Sandbox')}
+      ${link('/development.html', 'Development')}
     </div></details>
   </nav><script type="module" src="/site-navigation.js"></script>`;
 }
