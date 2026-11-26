@@ -1079,6 +1079,18 @@ export function createMap(canvas, onSelect, cards) {
     // Nearer figures overlap those behind them. The selected resident is drawn last of all.
     markers.sort((a, b) => Number(a.actor.id === selectedId) - Number(b.actor.id === selectedId) || a.y - b.y);
     const s = Math.max(11, Math.min(22, view.scale * 1.55));
+    // After dark everyone out of doors carries a lantern, and it lights the ground about them.
+    const lamp = smooth(0.35, 0.6, sky.dark);
+    if (lamp > 0.01) {
+      c.save(); c.globalCompositeOperation = 'lighter';
+      for (const { actor, x, y, home } of markers) {
+        if (home || indoors(actor)) continue;
+        const r = Math.max(16, view.scale * 2.4), ly = y - s * 0.3, g = c.createRadialGradient(x, ly, 0, x, ly, r);
+        g.addColorStop(0, 'rgba(255,190,100,' + (0.34 * lamp).toFixed(3) + ')'); g.addColorStop(0.4, 'rgba(255,160,70,' + (0.11 * lamp).toFixed(3) + ')'); g.addColorStop(1, 'rgba(255,150,60,0)');
+        c.fillStyle = g; c.fillRect(x - r, ly - r, r * 2, r * 2);
+      }
+      c.restore();
+    }
     for (const { actor, index, x, y, p, home } of markers) {
       const chosen = actor.id === selectedId, inside = indoors(actor);
       if (chosen && home) {
@@ -1092,8 +1104,14 @@ export function createMap(canvas, onSelect, cards) {
       if (!inside) {
         const activity = residentActivity(actor, p.moving);
         const heading = activity.job === 'fish' ? p.heading : workHeading(p, activity, look.parish.common);
+        const facing = Math.cos(heading) >= 0 ? 1 : -1;
         drawMapFigure(c, { x, y, size: s * residentScale(actor), actor, activity, index, moving: p.moving, gone: p.gone, now: time,
-          facing: Math.cos(heading) >= 0 ? 1 : -1, still: reduced.matches });
+          facing, still: reduced.matches });
+        // The lantern itself, held out at the side, with a flame that flickers.
+        if (lamp > 0.01) {
+          const flicker = reduced.matches ? 1 : 0.85 + 0.15 * Math.sin(time * 0.019 + index * 2.3) * Math.sin(time * 0.007 + index);
+          disc(c, x + facing * s * 0.34, y - s * 0.38, Math.max(1.7, s * 0.085), 'rgba(255,228,150,' + (lamp * flicker).toFixed(3) + ')', 'rgba(70,50,30,' + (0.6 * lamp).toFixed(3) + ')', 0.7);
+        }
         if (actor.action?.kind === 'waiting') {
           const bx = x + s * 0.42, by = y - s * 1.06;
           disc(c, bx, by, Math.max(5.2, s * 0.3), '#fffdf2', '#5d5341', 0.9);
