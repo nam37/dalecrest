@@ -9,6 +9,18 @@ export const HUNGRY_AT_DAWN = 85;
 export const hungerPerMinute = cold => 0.042 + 0.012 * cold;
 const yieldPer = (job, input, output) => forageJobs[job].makes[output] / forageJobs[job].takes[input];
 
+// The ready food in the hall and the Storehouse, counted in loaves by how much hunger it relieves: bread,
+// salt fish and smoked meat, cooked portions, peas and apples, and raw fish, meat, game and mutton as the
+// portions they cook into. Grain and flour still wait on the mill and the oven, so they are not counted.
+export function readyLoaves(supplies) {
+  const meat = (supplies.meat || 0) + (supplies.game || 0) * yieldPer('dressGame', 'game', 'meat');
+  const meals = (supplies.fish || 0) * yieldPer('cookFish', 'fish', 'cooked') + meat * yieldPer('cookMeat', 'meat', 'cooked')
+    + (supplies.mutton || 0) * yieldPer('cookMutton', 'mutton', 'cooked');
+  const relief = (supplies.bread || 0) * HUNGER.bread + (supplies.preserved || 0) * HUNGER.preserved
+    + ((supplies.cooked || 0) + meals) * HUNGER.cooked + (supplies.peas || 0) * HUNGER.peas + (supplies.apples || 0) * HUNGER.apples;
+  return relief / HUNGER.bread;
+}
+
 // A mixed portion divides its actual relief in the same proportions as its ingredients.
 export function mealRecord(household, food, hungerRelieved, amounts, child) {
   const sources = amounts ?? { [food === 'bread' ? 'bread' : 'unknown']: 1 };

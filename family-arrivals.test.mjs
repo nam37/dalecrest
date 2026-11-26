@@ -45,15 +45,18 @@ test('families keep their place in the housing queue and arrive only as a provis
 
   unfinished.stage = 2;
   touch(village.map);
+  for (const item of ['fish', 'game', 'meat', 'mutton', 'cooked', 'peas', 'apples', 'preserved']) world.supplies[item] = 0;
   world.supplies.bread = 15;
   assert.equal(familyEvents(at(village, 3, 540)).length, 0, 'the village needs 10 loaves plus the family’s six');
   assert.equal(world.supplies.bread, 15);
-  world.supplies.bread = 24;
+  // Food other than bread counts toward the check, by the hunger it relieves.
+  world.supplies.preserved = 2;
+  world.supplies.apples = 2;
   const [event] = familyEvents(at(village, 4, 540));
-  assert.ok(event);
+  assert.ok(event, 'salt fish and apples make up the shortfall in bread');
   assert.equal(event.outcome.home, unfinished.id);
   assert.equal(event.outcome.bread, 6);
-  assert.equal(world.supplies.bread, 18);
+  assert.equal(world.supplies.bread, 9);
   const parents = village.actors.filter(actor => event.actorIds.includes(actor.id));
   assert.equal(parents.length, 2);
   assert.equal(parents[0].trade, 'bake');

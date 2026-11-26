@@ -3,6 +3,7 @@ import { vacantCottages, waitingLodgers } from './households.mjs';
 import { newcomer, POPULATION_LIMIT, travelSeason } from './people.mjs';
 import { LARDER_HOLDS, adultAllowance, eatingChildren, stockLarder, storehouseOf } from './storehouse.mjs';
 import { prepareCottage } from './village-work.mjs';
+import { readyLoaves } from './nutrition.mjs';
 
 const FED_DAWNS = 3;
 const FAMILIES = [
@@ -46,8 +47,11 @@ export function arrivingFamily(state, random) {
   const reserve = Math.ceil(actors.length * adultBread + childBread);
   const allowance = 2 * adultBread + profile.children.length;
   const larder = world.cottages?.[site.id]?.larder ?? 0;
-  const bread = Math.max(0, Math.min(Math.floor(allowance), LARDER_HOLDS) - larder);
-  if (world.supplies.bread < reserve + bread) return;
+  const wanted = Math.max(0, Math.min(Math.floor(allowance), LARDER_HOLDS) - larder);
+  // The village must hold ready food of any kind for everyone's allowance and the family's first larder,
+  // counted in loaves. The new larder gets bread as far as the shelves allow.
+  if (readyLoaves(world.supplies) < reserve + wanted) return;
+  const bread = Math.min(wanted, Math.floor(world.supplies.bread));
 
   const family = { home: site.id, town: profile.town };
   const mother = newcomer(state, random, profile.trades[0], { ...family, sex: 'f', age: profile.ages[0] });
