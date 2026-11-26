@@ -6,6 +6,7 @@ import re
 import subprocess
 from datetime import date
 from html import escape
+from itertools import groupby
 from pathlib import Path
 
 
@@ -18,6 +19,23 @@ VISITOR_FILES = (
 )
 MAINTENANCE = re.compile(r"^(?:build|chore|ci|deploy|docs|refactor|test)(?:\([^)]*\))?!?:", re.I)
 PREFIX = re.compile(r"^(?:feat|fix|perf|style)(?:\([^)]*\))?!?:\s*", re.I)
+TOPICS = [(name, re.compile(pattern, re.I)) for name, pattern in (
+    ("Development updates", r"\b(?:changelog|development (?:changes|notes|updates)|release (?:notes|summaries))\b"),
+    ("Dalecrest Daily", r"\b(?:the Daily|Dalecrest Daily|daily (?:archive|search|editions?|editor)|newspaper)\b"),
+    ("Robin’s Journal", r"\b(?:Robin|songwriting|songs?|verses?)\b"),
+    ("Map and Walk", r"\b(?:map|walk|camera|zoom|pinch|paths?|portraits?)\b"),
+    ("Village decisions", r"\b(?:moots?|ballots?|promises?|goals?|choices?|decisions?)\b"),
+)]
+PAST_TENSE = {
+    "add": "added", "allow": "allowed", "bring": "brought", "enable": "enabled", "expand": "expanded",
+    "fix": "fixed", "give": "gave", "group": "grouped", "improve": "improved", "keep": "kept", "let": "let",
+    "make": "made", "move": "moved", "open": "opened", "publish": "published", "record": "recorded",
+    "remove": "removed", "restore": "restored", "schedule": "scheduled", "show": "showed",
+    "summarize": "summarized", "support": "added support for", "turn": "turned", "update": "updated",
+}
+MAX_HIGHLIGHTS = 3
+COMPOUND_START = re.compile(r", and ([a-z]+)\b")
+REVISION = re.compile(r"[0-9a-f]{40}")
 
 
 def release_changes(repo, base, revision):
@@ -36,12 +54,33 @@ def release_changes(repo, base, revision):
     return notes
 
 
-def with_release(history, day, changes):
+def with_release(history, day, revision, changes):
     seen = {note["sha"] for notes in history.values() for note in notes}
-    new = [note for note in changes if note["sha"] not in seen]
+    new = [{**note, "release": revision} for note in changes if note["sha"] not in seen]
     if new:
         return {**history, day: new + history.get(day, [])}
     return history
+
+
+def recover_release_ids(history, archive):
+    missing = {note["sha"]: note for notes in history.values() for note in notes if "release" not in note}
+    if not missing:
+        return
+    snapshots = sorted((path for path in archive.glob("*.json") if REVISION.fullmatch(path.stem)),
+                       key=lambda path: path.stat().st_mtime_ns)
+    # A commit first appears in the history snapshot of the deploy that published it.
+    for path in snapshots:
+        try:
+            earlier = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        for notes in earlier.values():
+            for note in notes:
+                original = missing.pop(note["sha"], None)
+                if original is not None:
+                    original["release"] = note.get("release", path.stem)
+        if not missing:
+            break
 
 
 def note_link(note):
@@ -50,7 +89,62 @@ def note_link(note):
 
 def note_list(notes):
     items = "".join(f"\n          <li>{note_link(note)}</li>" for note in notes)
-    return f'<ul class="development-changes">{items}\n        </ul>' if items else ""
+    return f'<ul class="development-changes">{items}\n        </ul>'
+
+
+def group_topics(changes):
+    groups = {}
+    for change in changes:
+        topic = next((name for name, pattern in TOPICS if pattern.search(change["title"])), "Village life")
+        groups.setdefault(topic, []).append(change)
+    return groups
+
+
+def release_summary(groups):
+    # Cover each highlighted topic before using the remaining space for related changes.
+    topics = list(groups)[:MAX_HIGHLIGHTS]
+    remaining = MAX_HIGHLIGHTS - len(topics)
+    sentences = []
+    subject = "Dalecrest "
+    for topic in topics:
+        titles = list(dict.fromkeys(note["title"].rstrip(".!?") for note in groups[topic]))
+        take = min(len(titles), 1 + remaining)
+        remaining -= take - 1
+        clauses, other = [], []
+        has_compound = False
+        for title in titles[:take]:
+            verb, _, rest = title.partition(" ")
+            if rest and verb.lower() in PAST_TENSE:
+                readable = COMPOUND_START.sub(lambda match: " and " + PAST_TENSE[match[1]]
+                                              if match[1] in PAST_TENSE else match[0], rest)
+                has_compound |= readable != rest
+                clauses.append(f"{PAST_TENSE[verb.lower()]} {readable}")
+            else:
+                other.append(title + ".")
+        if clauses:
+            separator = ", and " if len(clauses) > 2 or has_compound else " and "
+            text = separator.join([", ".join(clauses[:-1]), clauses[-1]]) if len(clauses) > 1 else clauses[0]
+            sentences.append(subject + text + ".")
+            subject = "It also "
+        sentences.extend(other)
+    return ", ".join(topics), " ".join(sentences)
+
+
+def render_release(changes, heading):
+    groups = group_topics(changes)
+    title, summary = release_summary(groups)
+    count = len(changes)
+    details = "".join(f"<div><strong>{escape(topic)}</strong>{note_list(notes)}</div>" for topic, notes in groups.items())
+    commits = "commit" if count == 1 else "commits"
+    return f'''
+        <section class="development-release">
+          <{heading}>{escape(title)}</{heading}>
+          <p>{escape(summary)}</p>
+          <details>
+            <summary>View {count} {commits}</summary>
+            {details}
+          </details>
+        </section>'''
 
 
 def render_page(template, history):
@@ -60,14 +154,16 @@ def render_page(template, history):
     for day, notes in sorted(history.items(), reverse=True):
         when = date.fromisoformat(day)
         slot = f"<!-- development-notes:{day} -->"
+        heading = "h3" if slot in template else "h2"
+        # Older history was stored as one list per date. It still renders as a dated summary.
+        releases = "".join(render_release(list(changes), heading) for _, changes in groupby(notes, lambda note: note.get("release")))
         if slot in template:
-            template = template.replace(slot, note_list(notes), 1)
+            template = template.replace(slot, releases.strip(), 1)
             continue
         articles.append(f'''
     <article class="development-entry" id="{day}">
       <time datetime="{day}">{when.day} {when:%B %Y}</time>
-      <div>
-        <h2>{note_link(notes[0])}</h2>{note_list(notes[1:])}
+      <div>{releases}
       </div>
     </article>
 ''')
@@ -87,12 +183,13 @@ def main():
 
     if args.history.is_file():
         history = json.loads(args.history.read_text(encoding="utf-8"))
+        recover_release_ids(history, args.history.parent)
         base = args.previous
     else:
         history = {}
         base = BACKFILLED_THROUGH
     changes = release_changes(args.repo, base, args.revision)
-    updated = with_release(history, args.date.isoformat(), changes)
+    updated = with_release(history, args.date.isoformat(), args.revision, changes)
     args.page.write_text(render_page(args.page.read_text(encoding="utf-8"), updated), encoding="utf-8")
     args.output_history.write_text(json.dumps(updated, ensure_ascii=False) + "\n", encoding="utf-8")
 

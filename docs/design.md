@@ -2,7 +2,7 @@
 
 These decisions describe the running village. When a change alters a decision, record the reason here and update any affected operator instructions. Planned changes are in the [roadmap](roadmap.md) and are not described here until they are built.
 
-The [public development updates](../public/development.html) grow during deployment. Use commit titles that describe what visitors can see or do. The deployer collects titles from changes to the public site and simulation, groups them by Eastern deployment date, and links them to their commits. Maintenance prefixes such as `test:`, `docs:`, `chore:`, and `refactor:` and titles marked `[skip changelog]` stay out of the public notes.
+The [public development updates](../public/development.html) grow during deployment. Use commit titles that describe what visitors can see or do. Each deploy groups related changes into one short summary under its Eastern deployment date. Expand the commits to see all titles and links grouped by topic. Older generated notes use archived snapshots to recover their original deploys. Maintenance prefixes such as `test:`, `docs:`, `chore:`, and `refactor:` and titles marked `[skip changelog]` stay out of the public notes.
 
 ### 1. The village clock belongs to the server
 
