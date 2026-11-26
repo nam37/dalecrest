@@ -10,7 +10,7 @@ import { light, hearths, indoors, yearLook, skyOver, blend } from '/ambient.js';
 import { windAt } from '/engine/seasons.mjs';
 import { cloudField, cloudsOver, cloudOverhead, cloudShade, cloudDrift } from './clouds.js';
 import { kinds } from '/card.js';
-import { animalCoats, animalPose, appleSpots, fenceSpans, logsIn, orchardFruit, parishLayout, strayCattle, visibleSheep, workHeading } from './parish.js';
+import { animalCoats, animalPose, appleSpots, createAnglers, fenceSpans, logsIn, orchardFruit, parishLayout, strayCattle, visibleSheep, workHeading } from './parish.js';
 import { isFarmSite } from '../engine/smallholding.mjs';
 import { residentActivity, residentScale } from './resident-pose.js';
 import { sameGround } from './village-update.js';
@@ -145,6 +145,16 @@ function dispose(group) {
 const contactGeo = new THREE.CircleGeometry(0.115, 14);
 const contactMat = new THREE.MeshBasicMaterial({ color: '#2b2618', transparent: true, opacity: 0.3, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
 
+// The windows of a finished building, which flank its door on the wall that faces the lane. Gives
+// how far along the wall each one sits and how high, in the building's own frame. A granary has none.
+function panesOf(p) {
+  const w = p.w || 1.3, tall = p.kind === 'hall' ? 0.85 : p.kind === 'mill' ? 0.95 : p.kind === 'granary' ? 0.7 : p.kind === 'alehouse' || p.kind === 'storehouse' ? 0.75 : 0.62;
+  const lift = p.kind === 'granary' ? 0.22 : 0, bw = p.kind === 'oven' ? w * 0.58 : w, bx = p.kind === 'oven' ? -w * 0.21 : 0;
+  const along = p.a === undefined ? 0 : Math.max(-w / 2 + 0.3, Math.min(w / 2 - 0.3, (p.at[0] - p.x) * Math.cos(p.a) + (p.at[1] - p.y) * Math.sin(p.a)));
+  const xs = p.kind === 'granary' ? [] : [-1, 1].map(s => bx + (p.kind === 'oven' ? 0 : along) + s * Math.min(0.8, bw * 0.3)).filter(x => Math.abs(x - bx) <= bw / 2 - 0.2);
+  return { xs, y: lift + tall * 0.62 };
+}
+
 function buildPlace(p, map, glow) {
   const g = new THREE.Group(), h = tag(p.id);
   const base = heightAt(map, p.x, p.y);
@@ -198,11 +208,10 @@ function buildPlace(p, map, glow) {
   g.add(roof(bw, d, rise, top, lift + tall));
   const doorH = Math.min(0.46, tall * 0.72);
   g.add(box(p.kind === 'hall' ? 0.5 : 0.26, doorH, 0.05, '#4c3b29', bx + (p.kind === 'oven' ? 0 : along), lift + doorH / 2, side * d / 2));
-  for (const s of [-1, 1]) {
-    const x = bx + (p.kind === 'oven' ? 0 : along) + s * Math.min(0.8, bw * 0.3);
-    if (Math.abs(x - bx) > bw / 2 - 0.2 || p.kind === 'granary') continue;
+  const panes = panesOf(p);
+  for (const x of panes.xs) {
     const pane = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.18, 0.04), glow);
-    pane.position.set(x, lift + tall * 0.62, side * (d / 2 + 0.005));
+    pane.position.set(x, panes.y, side * (d / 2 + 0.005));
     g.add(pane);
   }
   if (p.kind === 'cottage' || p.kind === 'alehouse' || p.kind === 'hall') g.add(box(0.2, rise + 0.25, 0.2, '#8f8672', bw * 0.28, lift + tall + rise * 0.55, -side * d * 0.12));
@@ -297,6 +306,9 @@ export function createWalk(container, onSelect, onNote) {
   scene.add(land, built, people, names);
   const ringMark = new THREE.Mesh(new THREE.RingGeometry(0.16, 0.21, 20), new THREE.MeshBasicMaterial({ color: '#f6e7b4', transparent: true, opacity: 0.9, depthWrite: false }));
   ringMark.rotation.x = -Math.PI / 2; ringMark.visible = false; scene.add(ringMark);
+  // A chosen resident who is indoors is ringed on the front wall of their house instead, where its window glows after dark.
+  const windowMark = new THREE.Mesh(new THREE.RingGeometry(0.22, 0.27, 28), new THREE.MeshBasicMaterial({ color: '#b0502f', transparent: true, opacity: 0.95, side: THREE.DoubleSide, depthWrite: false }));
+  windowMark.visible = false; scene.add(windowMark);
   // A staff with a pennant and a note stands where the chronicle says something lately happened.
   const posted = new THREE.Group(), pennantGeo = new THREE.BufferGeometry();
   pennantGeo.setAttribute('position', new THREE.Float32BufferAttribute([0, 0.1, 0, 0, -0.1, 0, 0.32, 0, 0], 3)); pennantGeo.computeVertexNormals();
@@ -306,6 +318,8 @@ export function createWalk(container, onSelect, onNote) {
   let marks = [], postedKey = '', hold = null;
 
   const motion = createMotion();
+  // Anglers step down from the landing to the water's edge.
+  const anglers = createAnglers();
   const figures = new Map(), scenery = new Map(), wheels = [];
   let solids = [], grid = null, shadowSpan = 0;
   let map = null, actors = [], selectedId = null, active = false, frame = 0, last = 0, clock = 600;
@@ -328,6 +342,17 @@ export function createWalk(container, onSelect, onNote) {
   rain.frustumCulled = snowfall.frustumCulled = false; rain.visible = snowfall.visible = false;
   scene.add(rain, snowfall);
   const look = { yaw: 2.2, pitch: 0.3, dist: 4.4, target: new THREE.Vector3(80, 0, 60), ready: false, touched: -1e9 };
+
+  // The window of a building nearest the middle of its front wall, just proud of the wall, and the way
+  // that wall faces. With no window, the middle of the wall. Null for a place with no walls.
+  function windowOf(id) {
+    const p = map.places.find(q => q.id === id);
+    if (!p?.w || !p.at || p.a === undefined) return null;
+    const side = (p.at[0] - p.x) * -Math.sin(p.a) + (p.at[1] - p.y) * Math.cos(p.a) > 0 ? 1 : -1;
+    const nx = -Math.sin(p.a) * side, nz = Math.cos(p.a) * side, out = p.d / 2 + 0.06;
+    const { xs, y } = panesOf(p), along = xs.length ? xs.reduce((a, b) => Math.abs(b) < Math.abs(a) ? b : a) : 0;
+    return { x: p.x + Math.cos(p.a) * along + nx * out, y: heightAt(map, p.x, p.y) + (xs.length ? y : 0.42), z: p.y + Math.sin(p.a) * along + nz * out, nx, nz };
+  }
 
   // Height of the drawn ground. The mesh is flat between its vertices, so the exact height function can sit
   // above or below it by a hand's breadth on a slope: enough to leave a figure hovering or wading.
@@ -883,9 +908,11 @@ export function createWalk(container, onSelect, onNote) {
     const dt = Math.min(0.1, (now - last) / 1000 || 0.016); last = now;
     const crowd = new Map();
     let followed = null;
+    anglers.begin(map, actors, id => motion.at(id, now));
     actors.forEach((actor, index) => {
-      const p = motion.at(actor.id, now);
-      if (!p) return;
+      const at = motion.at(actor.id, now);
+      if (!at) return;
+      const p = anglers.place(actor.id, at, calm.matches ? 10 : dt);
       let f = figures.get(actor.id);
       if (!f) {
         f = makeFigure(actor, index);
@@ -914,14 +941,17 @@ export function createWalk(container, onSelect, onNote) {
       f.visible = !indoors(actor);
       f.userData.label.userData.hidden = !f.visible && actor.id !== selectedId;
       const activity = residentActivity(actor, p.moving);
-      const heading = activity.working && activity.job === 'fish' ? 0 : workHeading(p, activity, parish.common);
+      const heading = activity.working && activity.job === 'fish' ? p.heading : workHeading(p, activity, parish.common);
       let turn = -heading - f.rotation.y;
       turn = Math.atan2(Math.sin(turn), Math.cos(turn));
       f.rotation.y += turn * Math.min(1, dt * 8);
       poseFigure(f, { ...activity, moving: p.moving, gone: p.gone, now, dt, still: calm.matches });
-      f.userData.label.position.set(x, y + 0.56 * scale, z);
+      // The name of someone indoors hangs over the window that stands in for them.
+      const home = f.visible ? null : windowOf(actor.action.target);
+      if (home) f.userData.label.position.set(home.x, home.y + 0.48, home.z);
+      else f.userData.label.position.set(x, y + 0.56 * scale, z);
       f.userData.label.userData.always = actor.id === selectedId;
-      if (actor.id === selectedId) followed = { x, y, z, heading: p.heading, moving: p.moving, at: p.moving ? null : actor.action.target };
+      if (actor.id === selectedId) followed = { x, y, z, heading: p.heading, moving: p.moving, at: p.moving ? null : actor.action.target, home };
     });
     for (const [id, f] of figures) if (!actors.some(a => a.id === id)) { people.remove(f); names.remove(f.userData.label); figures.delete(id); }
     if (hold) {
@@ -930,7 +960,7 @@ export function createWalk(container, onSelect, onNote) {
       if (!look.ready || look.target.distanceTo(goal) > 40) { look.target.copy(goal); look.ready = true; }
       else look.target.lerp(goal, Math.min(1, dt * 2.5));
       if (now - look.touched > 3500 && !calm.matches) look.yaw += dt * 0.045;
-      ringMark.visible = false;
+      ringMark.visible = windowMark.visible = false;
       followed = null;
     } else if (followed) {
       const goal = new THREE.Vector3(followed.x, followed.y + 0.36, followed.z);
@@ -942,8 +972,11 @@ export function createWalk(container, onSelect, onNote) {
         d = Math.atan2(Math.sin(d), Math.cos(d));
         look.yaw += d * Math.min(1, dt * 0.9);
       }
-      ringMark.visible = true; ringMark.position.set(followed.x, followed.y + 0.02, followed.z);
-    } else ringMark.visible = false;
+      const home = followed.home;
+      ringMark.visible = !home; windowMark.visible = Boolean(home);
+      if (home) { windowMark.position.set(home.x, home.y, home.z); windowMark.lookAt(home.x + home.nx, home.y, home.z + home.nz); }
+      else ringMark.position.set(followed.x, followed.y + 0.02, followed.z);
+    } else ringMark.visible = windowMark.visible = false;
     // A resident at a door has that building at their back. If the camera would sit behind its
     // wall, it swings round to the open side unless the visitor is steering.
     const at = hold ? hold.id : followed?.at, own = at && solids.find(b => b.id === at);

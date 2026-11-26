@@ -11,7 +11,7 @@ import { drawMapFigure } from './map-figure.js';
 import { drawAnimal, drawGarden, drawWoodpile } from './map-parish.js';
 import { drawGame, drawFish } from './map-wildlife.js';
 import { wildlife } from './wildlife.js';
-import { appleSpots, orchardFruit, parishLayout, strayCattle, visibleSheep, workHeading } from './parish.js';
+import { appleSpots, createAnglers, orchardFruit, parishLayout, strayCattle, visibleSheep, workHeading } from './parish.js';
 import { isFarmSite } from '../engine/smallholding.mjs';
 import { residentActivity, residentScale } from './resident-pose.js';
 
@@ -596,6 +596,9 @@ export function createMap(canvas, onSelect, cards) {
   let wx = null, cold = [], world = null, cattle = [];
   // The wind now blowing, and the cloud cover as it is drawn, which eases from one spell of weather to the next.
   let wind = null, cover = null, coverAt = 0;
+  // Anglers step down from the landing to the water's edge.
+  const anglers = createAnglers();
+  let stepAt = 0;
   // How far the wind has carried the rain or snow sideways, kept as a running sum so a shift of wind bends its path without a jump.
   let blown = 0, blownAt = 0;
   const veil = document.createElement('canvas');
@@ -975,9 +978,12 @@ export function createMap(canvas, onSelect, cards) {
     const crowd = new Map(), markers = [];
     // The ring that marks a chosen resident who is indoors, round their window.
     const ringed = Math.max(6, view.scale * 0.34);
+    const stepped = reduced.matches ? 10 : Math.min(0.25, Math.max(0, (time - stepAt) / 1000)); stepAt = time;
+    anglers.begin(map, actors, id => motion.at(id, time));
     for (const [index, actor] of actors.entries()) {
-      const p = motion.at(actor.id, time);
-      if (!p) continue;
+      const at = motion.at(actor.id, time);
+      if (!at) continue;
+      const p = anglers.place(actor.id, at, stepped);
       const home = indoors(actor) && insideAt(actor.action.target);
       if (home) {
         const [hx, hy] = toScreen(home[0], home[1]);
@@ -1006,7 +1012,7 @@ export function createMap(canvas, onSelect, cards) {
       // Someone at home is out of sight. Their lit window stands in for them.
       if (!inside) {
         const activity = residentActivity(actor, p.moving);
-        const heading = workHeading(p, activity, look.parish.common);
+        const heading = activity.job === 'fish' ? p.heading : workHeading(p, activity, look.parish.common);
         drawMapFigure(c, { x, y, size: s * residentScale(actor), actor, activity, index, moving: p.moving, gone: p.gone, now: time,
           facing: Math.cos(heading) >= 0 ? 1 : -1, still: reduced.matches });
         if (actor.action?.kind === 'waiting') {

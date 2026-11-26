@@ -1,5 +1,6 @@
 // Scene details are derived from the stored map in both views, including older maps.
-import { clamp, dist, hash2, lerp, polysTouch, rectPoly, smooth, TAU } from '../engine/geom.mjs';
+import { clamp, dist, hash2, lerp, polysTouch, rectPoly, segDist, smooth, TAU } from '../engine/geom.mjs';
+import { heightAt, WATER_LEVEL } from '../engine/terrain.mjs';
 import { dateOf } from '../engine/calendar.mjs';
 import { place } from '../engine/roads.mjs';
 import { freeGround } from '../engine/sites.mjs';
@@ -157,4 +158,56 @@ export function appleSpots([x, y], seed, count) {
   const turn = hash2(seed, x * 10, y * 10) * TAU;
   return Array.from({ length: count }, (_, i) => [turn + i * 2.4 + (hash2(seed + 11, x * 10 + i, y * 10) - 0.5) * 0.7,
     0.42 + 0.4 * hash2(seed + 12, x * 10 + i, y * 10), hash2(seed + 13, x * 10 + i, y * 10) * 1.1 - 0.55]);
+}
+
+// Where people fishing stand: at the water's edge off the fishing bank, a few steps apart when there
+// are several, each looking out over the water. Gives [x, y, heading] for each of count anglers.
+export function fishingStands(map, count) {
+  const bank = map.places.find(p => p.kind === 'fishing'), river = map.terrain.river;
+  if (!bank || !count) return [];
+  let near = null;
+  for (let i = 1; i < river.length; i++) {
+    const hit = segDist([bank.x, bank.y], river[i - 1], river[i]);
+    if (!near || hit.d < near.d) near = hit;
+  }
+  const d = near.d || 1, out = [(near.x - bank.x) / d, (near.y - bank.y) / d], along = [-out[1], out[0]];
+  return Array.from({ length: count }, (_, i) => {
+    const shift = (i - (count - 1) / 2) * 0.9;
+    let x = bank.x + along[0] * shift, y = bank.y + along[1] * shift;
+    // Out from the landing until one more step would be in the water.
+    for (let s = 0; s < 8 && heightAt(map, x + out[0] * 0.3, y + out[1] * 0.3) > WATER_LEVEL + 0.04; s += 0.1) { x += out[0] * 0.1; y += out[1] * 0.1; }
+    return [x, y, Math.atan2(out[1], out[0])];
+  });
+}
+
+// Someone at the fishing bank with a line in the water.
+const angling = (actor, p) => Boolean(p) && !p.moving && actor.action?.target === 'fishing-bank' && actor.action.phase === 'working'
+  && actor.action.job === 'fish' && actor.action.cast && !actor.action.queued;
+
+// The engine leaves anglers on the landing. A view walks each of them the last few steps to their
+// place at the water's edge, and back to the landing when they finish. Make one for each view, then
+// for each frame call begin with the actors and their places, and place for each resident.
+export function createAnglers() {
+  const stood = new Map(), stands = new Map();
+  let seen = null, fishers = [];
+  return {
+    begin(map, actors, at) {
+      if (map !== seen) { seen = map; stands.clear(); }
+      fishers = actors.filter(a => angling(a, at(a.id))).map(a => a.id).sort();
+      if (fishers.length && !stands.has(fishers.length)) stands.set(fishers.length, fishingStands(map, fishers.length));
+    },
+    // Where to draw a resident whose place on the path is p, dt seconds after the last frame.
+    place(id, p, dt) {
+      const i = fishers.indexOf(id), stand = i >= 0 ? stands.get(fishers.length)[i] : null, was = stood.get(id);
+      if (!stand && !was) return p;
+      const [tx, ty] = stand ?? [p.x, p.y], cur = was ?? { x: p.x, y: p.y };
+      const gap = Math.hypot(tx - cur.x, ty - cur.y), step = gap > 6 ? gap : Math.min(gap, dt * (stand ? 1.1 : 3));
+      if (gap) { cur.x += (tx - cur.x) / gap * step; cur.y += (ty - cur.y) / gap * step; }
+      const left = gap - step;
+      if (!stand && left < 0.01) { stood.delete(id); return p; }
+      stood.set(id, cur);
+      return { ...p, x: cur.x, y: cur.y, moving: p.moving || left > 0.02,
+        heading: left > 0.02 ? Math.atan2(ty - cur.y, tx - cur.x) : stand ? stand[2] : p.heading };
+    },
+  };
 }
