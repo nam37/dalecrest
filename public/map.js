@@ -4,7 +4,7 @@ import { heightAt, TREE_LINE } from '/engine/terrain.mjs';
 import { rectPoly, rng, hash2, smooth, TAU } from '/engine/geom.mjs';
 import { createMotion } from '/motion.js';
 import { light, hearths, indoors, yearLook, skyOver, sunOver, blend, PLAIN_LIGHT } from '/ambient.js';
-import { windAt } from '/engine/seasons.mjs';
+import { sunDay, windAt } from '/engine/seasons.mjs';
 import { cloudField, cloudsOver, cloudShade, cloudDrift, SHADE_EDGE } from './clouds.js';
 import { puddleFill, puddles, rainRings, wetness } from './wet.js';
 
@@ -754,6 +754,7 @@ export function createMap(canvas, onSelect, cards) {
       c.closePath();
     }
     c.clip(); c.drawImage(paper, 0, 0, w, h); c.restore();
+    cornWind(time, sky);
     wetWays(sky);
     cloudShadows(time, sky);
     // Mist lies along the river as the light comes up, and the sun burns it off through the morning.
@@ -790,6 +791,36 @@ export function createMap(canvas, onSelect, cards) {
         c.fillStyle = 'rgba(246,240,224,' + ((1 - f) * 0.5).toFixed(3) + ')';
         c.beginPath(); c.arc(x, y, (0.22 + f * 0.75) * k, 0, TAU); c.fill();
       }
+    }
+  }
+
+  // Wind running over standing barley. The ears bow before each gust and show their paler side, so
+  // light bands roll across the corn the way the wind blows: faint and slow in a breeze, broad and
+  // quick in a gale. The corn stands from late spring until the harvest.
+  function cornWind(time, sky) {
+    if (!time || !wind || look.snow > 0.3) return;
+    const day = (sunDay(clock) - 1) % 365 + 1, standing = smooth(120, 160, day) * (1 - smooth(226, 238, day));
+    const strength = standing * smooth(0.12, 0.5, wind.strength) * (0.35 + 0.65 * sky.bright);
+    if (strength < 0.02) return;
+    const k = view.scale, [tx, ty] = wind.toward, nx = -ty, ny = tx, gap = 3.4, run = time * 0.001 * (1.2 + 3.2 * wind.strength);
+    for (const f of map.places) {
+      if (f.kind !== 'field' || f.stage !== 2) continue;
+      const [sx, sy] = toScreen(f.x, f.y), reach = Math.hypot(f.w, f.d) / 2 + gap;
+      if (sx < -reach * k || sy < -reach * k || sx > w + reach * k || sy > h + reach * k) continue;
+      c.save(); c.translate(sx, sy); c.rotate(f.a); c.beginPath();
+      if (c.roundRect) c.roundRect(-f.w / 2 * k, -f.d / 2 * k, f.w * k, f.d * k, 1.1 * k); else c.rect(-f.w / 2 * k, -f.d / 2 * k, f.w * k, f.d * k);
+      c.rotate(-f.a); c.clip();
+      c.lineCap = 'butt';
+      // Each band sits at its own distance along the wind and drifts on with it.
+      for (let u = -reach - (run % gap); u < reach; u += gap) {
+        const gust = 0.55 + 0.45 * Math.sin((u + run) * 0.9 + tag(f.id) * 0.01 + time * 0.0004);
+        const [ax, ay] = [(tx * u - nx * reach) * k, (ty * u - ny * reach) * k], [bx, by] = [(tx * u + nx * reach) * k, (ty * u + ny * reach) * k];
+        for (const [wide, alpha] of [[1, 0.1], [0.6, 0.12], [0.3, 0.12]]) {
+          c.strokeStyle = 'rgba(255,247,214,' + (alpha * gust * strength).toFixed(3) + ')'; c.lineWidth = gap * wide * 0.5 * k;
+          c.beginPath(); c.moveTo(ax, ay); c.lineTo(bx, by); c.stroke();
+        }
+      }
+      c.restore();
     }
   }
 
