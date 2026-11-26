@@ -155,6 +155,8 @@ h1 { font-size: clamp(2.2rem, 3.6vw, 3.5rem); line-height: 1.02; }
 .development-entry time { padding-top: 4px; color: var(--ink-soft); font-size: .94rem; }
 .development-entry h2 { font-size: clamp(1.5rem, 3vw, 1.9rem); line-height: 1.15; }
 .development-entry p { margin-top: .4rem; line-height: 1.5; }
+.development-changes { margin: .4rem 0 0; padding-inline-start: 1.2rem; line-height: 1.5; }
+.development-changes li + li { margin-top: .2rem; }
 @media (max-width: 600px) {
   .development-entry { grid-template-columns: minmax(0, 1fr); padding-block: 14px; }
 }

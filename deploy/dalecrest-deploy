@@ -4,11 +4,16 @@ umask 077
 stack=/opt/stacks/dalecrest
 state=/opt/git-deploy/dalecrest
 repo="$state/repo.git"
-install -d -m 700 "$state" "$state/backups"
+notes="$state/development-notes"
+install -d -m 700 "$state" "$state/backups" "$notes"
 exec 9>"$state/deploy.lock"
 flock -n 9 || exit 0
 if [[ ! -d "$repo" ]]; then git init -q --bare "$repo"; fi
-git --git-dir="$repo" fetch -q --depth=1 https://github.com/nam37/dalecrest.git refs/heads/main
+fetch_depth=()
+if [[ "$(git --git-dir="$repo" rev-parse --is-shallow-repository)" == true ]]; then
+  fetch_depth=(--unshallow)
+fi
+git --git-dir="$repo" fetch -q --no-tags "${fetch_depth[@]}" https://github.com/nam37/dalecrest.git refs/heads/main
 revision=$(git --git-dir="$repo" rev-parse --verify 'FETCH_HEAD^{commit}')
 previous=$(cat "$state/deployed-sha" 2>/dev/null || true)
 [[ "$revision" != "$previous" ]] || exit 0
@@ -16,7 +21,19 @@ if [[ -f "$state/failed-sha" && "$(cat "$state/failed-sha")" == "$revision" && "
 echo "Deploying Dalecrest $revision"
 compose=(docker compose --project-directory "$stack" -f "$stack/compose.yaml")
 export DALECREST_RELEASE="$revision"
-if ! git --git-dir="$repo" archive "$revision" | docker build --label "org.opencontainers.image.revision=$revision" --tag "dalecrest-app:$revision" -; then
+build=$(mktemp -d "$state/.release-build.XXXXXX")
+trap 'rm -rf -- "$build"' EXIT
+prepare_build() {
+  git --git-dir="$repo" archive "$revision" | tar -xf - -C "$build" || return
+  # An installed deployer can be upgraded before the first release with the generator.
+  if [[ -f "$build/deploy/development-notes.py" ]]; then
+    python3 "$build/deploy/development-notes.py" --repo "$repo" --previous "$previous" --revision "$revision" \
+      --date "$(TZ=America/New_York date +%F)" --history "$notes/$previous.json" \
+      --output-history "$build/.development-notes.json" --page "$build/public/development.html"
+  fi
+}
+if ! prepare_build ||
+   ! tar -cf - -C "$build" . | docker build --label "org.opencontainers.image.revision=$revision" --tag "dalecrest-app:$revision" -; then
   echo "$revision" > "$state/failed-sha"
   exit 1
 fi
@@ -32,6 +49,9 @@ if ! "${compose[@]}" up -d --no-deps --wait --wait-timeout 90 app; then
     DALECREST_RELEASE="$previous" "${compose[@]}" up -d --no-deps --wait --wait-timeout 90 app
   fi
   exit 1
+fi
+if [[ -f "$build/.development-notes.json" ]]; then
+  mv "$build/.development-notes.json" "$notes/$revision.json"
 fi
 echo "$revision" > "$state/deployed-sha.pending"
 mv "$state/deployed-sha.pending" "$state/deployed-sha"

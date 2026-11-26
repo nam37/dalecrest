@@ -2,7 +2,7 @@
 
 These decisions describe the running village. When a change alters a decision, record the reason here and update any affected operator instructions. Planned changes are in the [roadmap](roadmap.md) and are not described here until they are built.
 
-With each visitor-facing release, add a short entry to the [public development updates](../public/development.html). Keep entries newest first, group changes published on the same Eastern date, and describe what visitors can see or do.
+The [public development updates](../public/development.html) grow during deployment. Use commit titles that describe what visitors can see or do. The deployer collects titles from changes to the public site and simulation, groups them by Eastern deployment date, and links them to their commits. Maintenance prefixes such as `test:`, `docs:`, `chore:`, and `refactor:` and titles marked `[skip changelog]` stay out of the public notes.
 
 ### 1. The village clock belongs to the server
 
@@ -52,6 +52,8 @@ Robin Marsh makes reporting rounds at public places. His eyewitness notes are pe
 ### 5. Deploy the application independently of the village data
 
 The VPS runs the application and a dedicated PostgreSQL 17 service in separate containers. The database uses a private network and persistent volume. Caddy serves the observatory over HTTPS. A systemd timer polls GitHub `main` about every two minutes. The deployer builds and tests the candidate, takes a database dump, switches the application container, and checks that it can read the residents. A failed health check can roll back the app image. Restoring village data is a separate operator decision. Administered host files and their installation paths are described in [the deployment scripts](../deploy/).
+
+The deployer uses Git history and Python 3 to bake the development notes into each candidate image. The initial six entries are kept in the page template. Generated notes carry forward from the history of the last healthy revision in `/opt/git-deploy/dalecrest/development-notes/`. The app and its notes roll back together. Install updates to the [host deployer](../deploy/dalecrest-deploy) at `/usr/local/sbin/dalecrest-deploy` before running a release that needs them.
 
 ### 6. Choose the model by what the simulation needs back
 
