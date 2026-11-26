@@ -79,3 +79,34 @@ export function drawAnimal(c, animal, time, toScreen, scale, sun = PLAIN_LIGHT) 
   oval(nose, 0, 0.32, 0.24, face);
   c.restore();
 }
+
+// A dog or cat seen from above, at its true size, with a lift of its legs as it trots. Lying down it
+// curls up. pet comes from createPets in pets.js.
+export function drawPet(c, pet, toScreen, scale, sun = PLAIN_LIGHT) {
+  const dog = pet.kind === 'dog', [sx, sy] = toScreen(pet.x, pet.y), size = Math.max(dog ? 3 : 2.3, scale * (dog ? 0.17 : 0.11));
+  const dark = blend(pet.coat, '#2a2219', 0.45), stride = pet.moving ? Math.sin(pet.gone * 14) : 0;
+  c.save(); c.translate(sx, sy);
+  animalShade(c, sun, pet.heading, size, pet.lying ? 0.7 : 1, 0.5);
+  c.rotate(pet.heading); c.scale(size, size);
+  const oval = (u, v, a, b, color, edge, turn = 0) => {
+    c.beginPath(); c.ellipse(u, v, a, b, turn, 0, tau); c.fillStyle = color; c.fill();
+    if (edge) { c.strokeStyle = edge; c.lineWidth = 0.14; c.stroke(); }
+  };
+  if (pet.lying) {
+    // Curled round, nose to tail.
+    oval(0, 0, 0.62, 0.48, pet.coat, '#3d3324');
+    oval(0.34, 0.2, 0.26, 0.2, dark);
+    c.strokeStyle = dark; c.lineWidth = dog ? 0.16 : 0.12; c.lineCap = 'round';
+    c.beginPath(); c.arc(0, 0, 0.5, 0.6, 2.6); c.stroke();
+  } else {
+    // Legs show at the corners as it goes.
+    for (const [u, v, s] of [[0.42, 0.32, 1], [0.42, -0.32, -1], [-0.42, 0.32, -1], [-0.42, -0.32, 1]]) oval(u + stride * s * 0.12, v, 0.1, 0.08, dark);
+    oval(0, 0, 0.62, dog ? 0.3 : 0.26, pet.coat, '#3d3324');
+    oval(0.7, 0, dog ? 0.26 : 0.22, dog ? 0.22 : 0.2, pet.coat, '#3d3324');
+    for (const side of [-1, 1]) oval(dog ? 0.66 : 0.72, side * (dog ? 0.2 : 0.16), dog ? 0.12 : 0.07, 0.06, dark, null, side * 0.5);
+    if (dog) oval(0.94, 0, 0.1, 0.08, dark);
+    c.strokeStyle = pet.coat; c.lineWidth = dog ? 0.14 : 0.1; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(-0.6, 0); c.quadraticCurveTo(-0.9, (dog ? 0.25 : 0.4) * (pet.moving ? Math.sin(pet.gone * 9) : 0.6), -1.05, dog ? 0.1 : 0.35); c.stroke();
+  }
+  c.restore();
+}

@@ -9,10 +9,11 @@ import { cloudField, cloudsOver, cloudShade, cloudDrift, SHADE_EDGE } from './cl
 import { puddleFill, puddles, rainRings, wetness } from './wet.js';
 
 import { drawMapFigure } from './map-figure.js';
-import { drawAnimal, drawGarden, drawWoodpile } from './map-parish.js';
+import { drawAnimal, drawGarden, drawPet, drawWoodpile } from './map-parish.js';
+import { createPets } from './pets.js';
 import { drawGame, drawFish } from './map-wildlife.js';
 import { wildlife } from './wildlife.js';
-import { appleSpots, createAnglers, orchardFruit, parishLayout, strayCattle, visibleSheep, workHeading } from './parish.js';
+import { appleSpots, createAnglers, createPlay, orchardFruit, ovenLoaves, parishLayout, raisedOf, strayCattle, visibleSheep, workHeading } from './parish.js';
 import { isFarmSite } from '../engine/smallholding.mjs';
 import { residentActivity, residentScale } from './resident-pose.js';
 
@@ -95,7 +96,7 @@ function windowAt(p) {
   return [p.x - Math.sin(p.a) * side * p.d * 0.5, p.y + Math.cos(p.a) * side * p.d * 0.5];
 }
 
-function building(c, p, line, lodgers, snowed = color => color, toward = PLAIN_LIGHT.toward) {
+function building(c, p, line, lodgers, snowed = color => color, toward = PLAIN_LIGHT.toward, raised = 0) {
   const [w, d] = [p.w, p.d], hw = w / 2, hd = d / 2;
   c.save();
   c.translate(p.x, p.y); c.rotate(p.a);
@@ -114,6 +115,15 @@ function building(c, p, line, lodgers, snowed = color => color, toward = PLAIN_L
     for (let x = -hw + 0.45; x < hw; x += 0.45) { c.moveTo(x, -hd); c.lineTo(x, hd); }
     c.moveTo(-hw, 0); c.lineTo(hw, 0);
     c.lineWidth = line; c.stroke();
+    // The thatch goes on from one gable as the work goes on.
+    if (raised > 0.02) {
+      const span = w * raised;
+      c.fillStyle = snowed('#b59a66'); c.fillRect(-hw, -hd, span, d);
+      c.strokeStyle = '#7d6a4688'; c.lineWidth = line * 0.7; c.beginPath();
+      for (let x = -hw + 0.2; x < -hw + span; x += 0.36) { c.moveTo(x, -hd + 0.1); c.lineTo(x, -0.08); c.moveTo(x + 0.18, 0.08); c.lineTo(x + 0.18, hd - 0.1); }
+      c.stroke();
+      c.strokeStyle = ink; c.lineWidth = line; c.beginPath(); c.moveTo(-hw, 0); c.lineTo(-hw + span, 0); c.moveTo(-hw + span, -hd); c.lineTo(-hw + span, hd); c.stroke();
+    }
     c.restore(); return;
   }
   // The roof plane turned to the light is the paler one.
@@ -382,7 +392,15 @@ function paintPaper(c, map, look, scale) {
       building(c, house, line, false, snowed, sun.toward); roofed.push(rectPoly(house));
       const ox = p.x + Math.cos(p.a) * p.w * 0.27, oy = p.y + Math.sin(p.a) * p.w * 0.27;
       disc(c, ox + castX * 0.16, oy + castY * 0.16, 0.62, small); disc(c, ox, oy, 0.6, '#c2946e', ink, line * 1.2); disc(c, ox - 0.15, oy - 0.15, 0.2, '#d8b08a'); disc(c, ox, oy, 0.14, '#5f5142');
-    } else if (p.w && p.kind !== 'field' && !isFarmSite(p.kind)) { building(c, p, line, look.lodgers, snowed, sun.toward); if (p.stage === 2) roofed.push(rectPoly(p)); }
+    } else if (p.w && p.kind !== 'field' && !isFarmSite(p.kind)) { building(c, p, line, look.lodgers, snowed, sun.toward, look.raised?.get(p.id)); if (p.stage === 2) roofed.push(rectPoly(p)); }
+  }
+  // Chips about the chopping block where the woodward splits logs.
+  const block = look.parish?.block;
+  if (block) {
+    c.fillStyle = snowed('#d9c39a');
+    for (const [x, y, r, turn] of block.chips) { c.save(); c.translate(x, y); c.rotate(turn); c.fillRect(-r, -r * 0.45, r * 2, r * 0.9); c.restore(); }
+    disc(c, block.x, block.y, 0.2, '#8a6d48', ink, line);
+    disc(c, block.x, block.y, 0.12, '#b8996b');
   }
   // A roof covers the shade beneath it, so the trees' shade is laid again over the roofs alone.
   if (roofed.length && shady) {
@@ -603,6 +621,10 @@ export function createMap(canvas, onSelect, cards) {
   let rime = null;
   // Anglers step down from the landing to the water's edge.
   const anglers = createAnglers();
+  // Children at play run about the green.
+  const play = createPlay();
+  // Dogs and cats, placed from where their owners are drawn.
+  const petsAt = createPets(), drawnAt = new Map();
   let stepAt = 0;
   // How far the wind has carried the rain or snow sideways, kept as a running sum so a shift of wind bends its path without a jump.
   let blown = 0, blownAt = 0;
@@ -614,6 +636,9 @@ export function createMap(canvas, onSelect, cards) {
     wx = skyOver(clock, map.seed);
     wind = windAt(clock, map.seed);
     look.wet = wetness(clock, map.seed);
+    // Thatch on a building in progress spreads as the work is done.
+    const raised = new Map(), raisedKey = map.places.filter(p => p.stage === 1).map(p => { const f = Math.round(raisedOf(world, p.id) * 12) / 12; raised.set(p.id, f); return p.id + f; }).join();
+    if (raisedKey !== look.raisedKey) { look.raisedKey = raisedKey; look.raised = raised; stale = true; }
     // The orchard is redrawn as its apples swell, colour and are picked.
     const fruit = orchardFruit(world, clock), fruitKey = fruit ? [fruit.each, Math.round(fruit.red * 6), Math.round(fruit.size * 10)].join(':') : '';
     if (fruitKey !== look.fruitKey) { look.fruitKey = fruitKey; look.fruit = fruit; stale = true; }
@@ -1019,7 +1044,7 @@ export function createMap(canvas, onSelect, cards) {
     c.restore();
   }
 
-  let lastPaint = 0;
+  let lastPaint = 0, lastPetAt = 0;
   function paint(time) {
     frame = 0;
     if (!map || !w || canvas.offsetParent === null) { if (card) { card.hidden = true; shown = null; } return; }
@@ -1042,7 +1067,22 @@ export function createMap(canvas, onSelect, cards) {
     for (const pile of look.parish.piles) drawWoodpile(c, pile, world, look.snow, toScreen, view.scale);
     for (const animal of visibleSheep(look.parish, world)) drawAnimal(c, animal, still, toScreen, view.scale, look.sun);
     for (const animal of cattle) drawAnimal(c, animal, still, toScreen, view.scale, look.sun);
+    // Loaves out on a board by the oven while a bake is on.
+    const bake = ovenLoaves(map, actors);
+    if (bake?.count) {
+      const [bx, by] = toScreen(bake.x, bake.y), k = view.scale;
+      c.save(); c.translate(bx, by); c.rotate(bake.a);
+      c.fillStyle = '#9a7a52'; c.strokeStyle = '#524d3b'; c.lineWidth = Math.max(0.6, k * 0.03);
+      c.fillRect(-0.25 * k, -0.09 * k, 0.5 * k, 0.18 * k); c.strokeRect(-0.25 * k, -0.09 * k, 0.5 * k, 0.18 * k);
+      for (let i = 0; i < bake.count; i++) {
+        c.beginPath(); c.ellipse((-0.18 + i * 0.09) * k, 0, 0.04 * k, 0.055 * k, 0, 0, TAU); c.fillStyle = '#c98f55'; c.fill(); c.stroke();
+        c.beginPath(); c.ellipse((-0.19 + i * 0.09) * k, -0.015 * k, 0.016 * k, 0.022 * k, 0, 0, TAU); c.fillStyle = '#e2b97e'; c.fill();
+      }
+      c.restore();
+    }
     const walkers = actors.filter(a => !indoors(a)).map(a => motion.at(a.id, time)).filter(Boolean);
+    for (const pet of petsAt(map, world?.pets, actors, id => drawnAt.get(id) ?? motion.at(id, time), still, sky.dark, reduced.matches ? 10 : Math.min(0.25, Math.max(0, (time - (lastPetAt || time)) / 1000)))) drawPet(c, pet, toScreen, view.scale, look.sun);
+    lastPetAt = time;
     for (const animal of look.wild.game) drawGame(c, animal, still, toScreen, view.scale, look, walkers);
     drawFish(c, look.wild.fish, still, toScreen, view.scale, sky, wx);
     ambient(still, sky, lit);
@@ -1085,10 +1125,12 @@ export function createMap(canvas, onSelect, cards) {
     const ringed = Math.max(6, view.scale * 0.34);
     const stepped = reduced.matches ? 10 : Math.min(0.25, Math.max(0, (time - stepAt) / 1000)); stepAt = time;
     anglers.begin(map, actors, id => motion.at(id, time));
+    play.begin(map, actors, id => motion.at(id, time), reduced.matches ? 0 : time);
     for (const [index, actor] of actors.entries()) {
       const at = motion.at(actor.id, time);
       if (!at) continue;
-      const p = anglers.place(actor.id, at, stepped);
+      const p = play.place(actor.id, anglers.place(actor.id, at, stepped), stepped);
+      drawnAt.set(actor.id, p);
       const home = indoors(actor) && insideAt(actor.action.target);
       if (home) {
         const [hx, hy] = toScreen(home[0], home[1]);

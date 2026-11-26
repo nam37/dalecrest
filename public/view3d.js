@@ -11,7 +11,8 @@ import { windAt } from '/engine/seasons.mjs';
 import { cloudField, cloudsOver, cloudOverhead, cloudShade, cloudDrift } from './clouds.js';
 import { puddleFill, puddles, rainRings, wetness } from './wet.js';
 import { kinds } from '/card.js';
-import { animalCoats, animalPose, appleSpots, createAnglers, fenceSpans, logsIn, orchardFruit, parishLayout, strayCattle, visibleSheep, workHeading } from './parish.js';
+import { createPets } from './pets.js';
+import { animalCoats, animalPose, appleSpots, createAnglers, createPlay, fenceSpans, logsIn, orchardFruit, ovenLoaves, parishLayout, raisedOf, strayCattle, visibleSheep, workHeading } from './parish.js';
 import { isFarmSite } from '../engine/smallholding.mjs';
 import { residentActivity, residentScale } from './resident-pose.js';
 import { sameGround } from './village-update.js';
@@ -69,6 +70,35 @@ function makeAnimal(kind, coat) {
   }
   if (cow) animal.scale.set(1.8, 1.62, 1.48);
   return { animal, head, legs };
+}
+// A dog or cat: long and low, with a head held up, ears, four legs and a tail. Faces +x.
+function makePet(kind, coat) {
+  const dog = kind === 'dog', animal = new THREE.Group(), body = new THREE.Group(), head = new THREE.Group(), tail = new THREE.Group();
+  const dark = blend(coat, '#2a2219', 0.4);
+  function oval(parent, color, [x, y, z], [w, h, d]) {
+    const m = new THREE.Mesh(animalShape, mat(color));
+    m.position.set(x, y, z); m.scale.set(w, h, d); m.castShadow = true;
+    parent.add(m);
+  }
+  const s = dog ? 1 : 0.62;
+  body.position.y = 0.1 * s; animal.add(body);
+  oval(body, coat, [0, 0, 0], [0.11 * s, 0.045 * s, 0.045 * s]);
+  head.position.set(0.1 * s, 0.035 * s, 0); body.add(head);
+  oval(head, coat, [0.02 * s, 0.01 * s, 0], [0.04 * s, 0.034 * s, 0.032 * s]);
+  if (dog) oval(head, dark, [0.055, -0.004, 0], [0.03, 0.017, 0.018]);
+  for (const side of [-1, 1]) {
+    const ear = new THREE.Mesh(new THREE.ConeGeometry(0.012 * (dog ? 1.3 : 1.6), dog ? 0.03 : 0.035, 4), mat(dark));
+    ear.position.set(0.012 * s, (dog ? 0.03 : 0.045) * s, side * 0.019 * s); if (dog) ear.rotation.x = side * 0.9; head.add(ear);
+  }
+  tail.position.set(-0.1 * s, 0.015 * s, 0); body.add(tail);
+  const tip = box(0.008 * s + 0.004, (dog ? 0.07 : 0.09) * s, 0.008 * s + 0.004, coat, 0, (dog ? 0.035 : 0.045) * s, 0); tail.add(tip);
+  tail.rotation.z = dog ? 0.7 : 0.25;
+  const legs = [];
+  for (const x of [-0.07 * s, 0.07 * s]) for (const z of [-0.025 * s, 0.025 * s]) {
+    const leg = new THREE.Group(); leg.position.set(x, 0.1 * s, z);
+    leg.add(box(0.016 * s + 0.003, 0.1 * s, 0.016 * s + 0.003, dark, 0, -0.05 * s, 0)); animal.add(leg); legs.push(leg);
+  }
+  return { animal, body, head, tail, legs, scale: s };
 }
 // A gable roof with its ridge along x, eaves at y = 0.
 function gable(w, d, rise, over = 0.16) {
@@ -156,6 +186,24 @@ function panesOf(p) {
   const along = p.a === undefined ? 0 : Math.max(-w / 2 + 0.3, Math.min(w / 2 - 0.3, (p.at[0] - p.x) * Math.cos(p.a) + (p.at[1] - p.y) * Math.sin(p.a)));
   const xs = p.kind === 'granary' ? [] : [-1, 1].map(s => bx + (p.kind === 'oven' ? 0 : along) + s * Math.min(0.8, bw * 0.3)).filter(x => Math.abs(x - bx) <= bw / 2 - 0.2);
   return { xs, y: lift + tall * 0.62 };
+}
+
+// The walls and thatch inside a standing frame, as far as the work has gone: the walls rise over the
+// first part of it and the thatch is laid from one gable over the rest.
+function buildRising(p, map, raised) {
+  const g = new THREE.Group(), w = p.w, d = p.d;
+  g.position.set(p.x, heightAt(map, p.x, p.y), p.y); g.rotation.y = -(p.a || 0);
+  const tall = p.kind === 'hall' ? 0.85 : p.kind === 'mill' ? 0.95 : p.kind === 'granary' ? 0.7 : p.kind === 'alehouse' || p.kind === 'storehouse' ? 0.75 : 0.62;
+  const rise = p.kind === 'granary' ? 0.75 : p.kind === 'hall' ? 0.8 : 0.6;
+  const walls = Math.min(1, raised / 0.6), thatch = Math.max(0, (raised - 0.6) / 0.4);
+  if (walls > 0.02) {
+    const high = tall * walls;
+    for (const [bw, bd, x, z] of [[w - 0.08, 0.06, 0, -d / 2], [w - 0.08, 0.06, 0, d / 2], [0.06, d - 0.08, -w / 2, 0], [0.06, d - 0.08, w / 2, 0]]) g.add(box(bw, high, bd, '#d8c8a0', x, high / 2, z));
+  }
+  if (thatch > 0.02) {
+    const r = roof(w * thatch, d, rise, '#b59a66', tall); r.position.x = -w / 2 + w * thatch / 2; g.add(r);
+  }
+  return g;
 }
 
 function buildPlace(p, map, glow) {
@@ -330,6 +378,8 @@ export function createWalk(container, onSelect, onNote) {
   const motion = createMotion();
   // Anglers step down from the landing to the water's edge.
   const anglers = createAnglers();
+  // Children at play run about the green.
+  const play = createPlay();
   const figures = new Map(), scenery = new Map(), wheels = [];
   let solids = [], grid = null, shadowSpan = 0;
   let map = null, actors = [], selectedId = null, active = false, frame = 0, last = 0, clock = 600;
@@ -340,6 +390,23 @@ export function createWalk(container, onSelect, onNote) {
   // How far the wind has carried the rain and the snow, kept as a running sum so a shift of wind bends their path without a jump.
   const blown = [0, 0];
   const piles = [], sheepModels = [], cattleModels = [];
+  // Dogs and cats, placed from where their owners are drawn, and the models that show them.
+  const petsAt = createPets(), drawnAt = new Map(), petModels = new Map();
+  function movePets(now, dt) {
+    const placed = petsAt(map, world?.pets, actors, id => drawnAt.get(id) ?? motion.at(id, now), calm.matches ? 0 : now, light(clock).dark, calm.matches ? 10 : dt);
+    for (const pet of placed) {
+      let model = petModels.get(pet.id);
+      if (!model) { model = makePet(pet.kind, pet.coat); petModels.set(pet.id, model); people.add(model.animal); }
+      const { animal, body, head, tail, legs, scale } = model;
+      animal.position.set(pet.x, ground(pet.x, pet.y), pet.y); animal.rotation.y = -pet.heading;
+      const stride = pet.moving ? Math.sin(pet.gone * 18) * 0.7 : 0;
+      legs.forEach((leg, i) => { leg.visible = !pet.lying; leg.rotation.z = (i === 0 || i === 3 ? 1 : -1) * stride; });
+      body.position.y = (pet.lying ? 0.035 : 0.1) * scale;
+      head.rotation.z = pet.lying ? -0.35 : 0.1;
+      tail.rotation.x = pet.kind === 'dog' && !pet.lying && !calm.matches ? Math.sin(now * 0.018) * 0.6 : 0;
+    }
+    for (const [id, model] of petModels) if (!placed.some(p => p.id === id)) { people.remove(model.animal); petModels.delete(id); }
+  }
   const dressed = { land: null, base: null, wet: null, fields: [], green: null, crowns: null, crownTones: [], cones: null, coneTones: [] };
   // Rain is drawn as short falling strokes and snow as drifting points, both in a box that travels with the camera.
   const DROPS = 900, FLAKES = 1100, SPAN = 26, TALL = 16;
@@ -540,10 +607,38 @@ export function createWalk(container, onSelect, onNote) {
     apples.count = n; apples.instanceMatrix.needsUpdate = true;
   }
 
+  // Walls and thatch inside each standing frame, rebuilt as the work moves on, and the loaves by the oven.
+  const rising = new Map();
+  const loafBoard = new THREE.Group(), loaves = [];
+  loafBoard.add(box(0.44, 0.025, 0.16, '#9a7a52', 0, 0.22, 0));
+  for (const x of [-0.18, 0.18]) loafBoard.add(box(0.03, 0.21, 0.13, '#7a5f3f', x, 0.105, 0));
+  for (let i = 0; i < 5; i++) { const loaf = new THREE.Mesh(new THREE.SphereGeometry(0.034, 10, 7), mat('#c98f55')); loaf.scale.set(1, 0.6, 1.3); loaf.position.set(-0.16 + i * 0.08, 0.245, 0); loaf.castShadow = true; loaves.push(loaf); loafBoard.add(loaf); }
+  loafBoard.visible = false; scene.add(loafBoard);
+  function showWork() {
+    const standing = new Set();
+    for (const p of map.places) {
+      if (p.stage !== 1 || !p.w || p.kind === 'field' || isFarmSite(p.kind)) continue;
+      const raised = Math.round(raisedOf(world, p.id) * 12) / 12, had = rising.get(p.id);
+      standing.add(p.id);
+      if (had?.raised === raised) continue;
+      if (had) built.remove(had.group);
+      const group = buildRising(p, map, raised);
+      built.add(group); rising.set(p.id, { raised, group });
+    }
+    for (const [id, had] of rising) if (!standing.has(id)) { built.remove(had.group); rising.delete(id); }
+    const bake = ovenLoaves(map, actors);
+    loafBoard.visible = Boolean(bake?.count);
+    if (bake) {
+      loafBoard.position.set(bake.x, ground(bake.x, bake.y), bake.y); loafBoard.rotation.y = -bake.a;
+      loaves.forEach((loaf, i) => { loaf.visible = i < bake.count; });
+    }
+  }
+
   function updateParish() {
     if (!map) return;
     cattle = strayCattle(map, world);
     hangApples();
+    showWork();
     for (const { pile, stack } of piles) {
       const count = logsIn(pile, world);
       stack.children.forEach((log, index) => { log.visible = index < count; });
@@ -660,6 +755,13 @@ export function createWalk(container, onSelect, onNote) {
       if (wheel) wheels.push(wheel);
     }
     for (const garden of parish.gardens) reuse('garden:' + garden.id, garden, () => ({ object: buildGarden(garden) }));
+    // The chopping block and the chips about it.
+    if (parish.block) reuse('block', parish.block, () => {
+      const g = new THREE.Group(), { x, y, chips } = parish.block, base = ground(x, y);
+      const stump = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.2, 0.24, 10), mat('#8a6d48')); stump.position.set(x, base + 0.12, y); stump.castShadow = true; g.add(stump);
+      for (const [cx, cz, r, turn] of chips) { const chip = box(r * 2, 0.012, r * 0.9, '#d9c39a', cx, ground(cx, cz) + 0.01, cz); chip.rotation.y = turn; chip.castShadow = false; g.add(chip); }
+      return { object: g };
+    });
     for (const pile of parish.piles) {
       const { object: stack } = reuse('pile:' + pile.id, pile, () => ({ object: buildPile(pile) }));
       piles.push({ pile, stack });
@@ -950,10 +1052,11 @@ export function createWalk(container, onSelect, onNote) {
     const crowd = new Map();
     let followed = null;
     anglers.begin(map, actors, id => motion.at(id, now));
+    play.begin(map, actors, id => motion.at(id, now), calm.matches ? 0 : now);
     actors.forEach((actor, index) => {
       const at = motion.at(actor.id, now);
       if (!at) return;
-      const p = anglers.place(actor.id, at, calm.matches ? 10 : dt);
+      const p = play.place(actor.id, anglers.place(actor.id, at, calm.matches ? 10 : dt), calm.matches ? 10 : dt);
       let f = figures.get(actor.id);
       if (!f) {
         f = makeFigure(actor, index);
@@ -976,6 +1079,7 @@ export function createWalk(container, onSelect, onNote) {
       }
       const y = isWater(map, x, z, 0.5) ? 0.25 : ground(x, z) + 0.012;
       f.position.set(x, y, z);
+      drawnAt.set(actor.id, { ...p, x, y: z });
       const scale = residentScale(actor);
       f.scale.setScalar(scale);
       // Someone at home is indoors. Their smoke and lit window stand in for them.
@@ -1067,6 +1171,7 @@ export function createWalk(container, onSelect, onNote) {
     const animalTime = calm.matches ? 0 : now;
     moveAnimals(sheepModels, visibleSheep(parish, world), animalTime);
     moveAnimals(cattleModels, cattle, animalTime);
+    movePets(now, dt);
     for (const wheel of wheels) wheel.rotation.z += dt * 0.7 * wheel.userData.spin;
     sky(now, dt);
     renderer.render(scene, camera);

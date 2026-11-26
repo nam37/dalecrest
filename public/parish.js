@@ -39,6 +39,9 @@ export function parishLayout(map) {
     const p = reserve(options);
     if (p) piles.push({ ...p, id: wood.id, common: true, columns: 4, rows: 4 });
   }
+  // The woodward splits logs on a block between where they stand and the common pile, and the chips
+  // lie about it.
+  const pile = piles.find(q => q.common), block = wood && pile ? chopping(map, wood.at, pile) : null;
 
   for (const p of map.places) {
     if (p.kind !== 'cottage' || p.stage !== 2) continue;
@@ -76,7 +79,7 @@ export function parishLayout(map) {
     return [x, y, 0.66, 0];
   }) : [];
   for (const pile of piles) pile.logs = woodLogs(pile);
-  return { gardens, piles, sheep, appleTrees, pasture, orchard, common: piles.find(p => p.common) };
+  return { gardens, piles, sheep, appleTrees, pasture, orchard, common: piles.find(p => p.common), block };
 }
 
 export function visibleSheep(layout, world) {
@@ -208,6 +211,78 @@ export function createAnglers() {
       stood.set(id, cur);
       return { ...p, x: cur.x, y: cur.y, moving: p.moving || left > 0.02,
         heading: left > 0.02 ? Math.atan2(ty - cur.y, tx - cur.x) : stand ? stand[2] : p.heading };
+    },
+  };
+}
+
+// A chopping block a little way from where the woodward stands, toward the pile, with chips scattered
+// round it as [x, y, size, turn].
+function chopping(map, [sx, sy], pile) {
+  const d = Math.hypot(pile.x - sx, pile.y - sy) || 1, x = sx + (pile.x - sx) / d * 0.55, y = sy + (pile.y - sy) / d * 0.55;
+  const chips = Array.from({ length: 34 }, (_, i) => {
+    const a = hash2(map.seed + 171, i, 1) * TAU, r = 0.18 + Math.pow(hash2(map.seed + 171, i, 2), 0.7) * 0.85;
+    return [x + Math.cos(a) * r, y + Math.sin(a) * r, 0.035 + hash2(map.seed + 171, i, 3) * 0.05, hash2(map.seed + 171, i, 4) * TAU];
+  });
+  return { x, y, chips };
+}
+
+// How far the walls and roof of a building in progress have gone, from 0 as its frame goes up to 1 as
+// it is finished. The frame stands at 35% of the work.
+export function raisedOf(world, id) {
+  const project = world?.projects?.find(p => p.id === id);
+  return project ? clamp((project.done / project.need - 0.35) / 0.65) : 0;
+}
+
+// While a bake is on, loaves come out onto a board by the oven mouth, up to five. Gives how many show,
+// and where the board stands as { x, y, a } with a the way the oven faces.
+export function ovenLoaves(map, actors) {
+  const oven = map.places.find(p => p.kind === 'oven' && p.stage === 2);
+  if (!oven) return null;
+  let made = 0;
+  for (const a of actors) {
+    const action = a.action;
+    if (action?.job !== 'bake' || action.phase !== 'working' || action.target !== oven.id) continue;
+    made = Math.max(made, Math.min(5, Math.floor(clamp(1 - (action.remaining ?? 58) / 58) * 6)));
+  }
+  const side = (oven.at[0] - oven.x) * -Math.sin(oven.a) + (oven.at[1] - oven.y) * Math.cos(oven.a) > 0 ? 1 : -1;
+  const lx = oven.w * 0.27 + 0.72, ly = side * 0.78;
+  return { count: made, x: oven.x + lx * Math.cos(oven.a) - ly * Math.sin(oven.a), y: oven.y + lx * Math.sin(oven.a) + ly * Math.cos(oven.a), a: oven.a };
+}
+
+// Children at play on the green. The engine leaves them standing where they arrived; a view sets them
+// running round a ring on the grass, spaced out as in a chasing game, now and then all turning to run
+// the other way. Each eases onto the ring when play begins and back to where the engine has them when
+// it ends. Make one for each view, then each frame call begin with the actors, their places and the
+// time, and place for each resident.
+export function createPlay() {
+  const stood = new Map();
+  let players = [], ring = null, time = 0, run = 0, last = 0;
+  return {
+    begin(map, actors, at, now) {
+      const green = map.places.find(p => p.kind === 'green');
+      players = green ? actors.filter(a => a.child && a.action?.kind === 'play' && a.action.phase === 'working' && a.action.target === green.id && at(a.id) && !at(a.id).moving)
+        .map(a => a.id).sort() : [];
+      ring = green && { x: green.x, y: green.y, rx: Math.max(1.2, (green.rx ?? 4) * 0.5), ry: Math.max(1, (green.ry ?? 3) * 0.5) };
+      // The game turns about every twenty seconds, so the ring runs one way and then the other.
+      const dt = Math.min(0.25, Math.max(0, (now - last) / 1000)); last = now; time = now;
+      run += dt * (Math.floor(now / 20000) % 2 ? -0.55 : 0.55);
+    },
+    place(id, p, dt) {
+      const i = players.indexOf(id), was = stood.get(id);
+      if (i < 0 && !was) return p;
+      let tx = p.x, ty = p.y, heading = p.heading;
+      if (i >= 0) {
+        const a = run + i * TAU / players.length, wobble = 1 + 0.12 * Math.sin(time * 0.0017 + i * 2.1);
+        tx = ring.x + Math.cos(a) * ring.rx * wobble; ty = ring.y + Math.sin(a) * ring.ry * wobble;
+        heading = Math.atan2(Math.cos(a) * ring.ry, -Math.sin(a) * ring.rx) + (Math.floor(time / 20000) % 2 ? Math.PI : 0);
+      }
+      const cur = was ?? { x: p.x, y: p.y, gone: 0 }, gap = Math.hypot(tx - cur.x, ty - cur.y);
+      const step = gap > 8 ? gap : Math.min(gap, dt * (i >= 0 ? 2.2 : 3));
+      if (gap) { cur.x += (tx - cur.x) / gap * step; cur.y += (ty - cur.y) / gap * step; }
+      cur.gone += i >= 0 ? Math.max(step, dt * 0.55 * Math.hypot(ring.rx, ring.ry) * 0.7) : step;
+      if (i < 0 && gap - step < 0.01) { stood.delete(id); return p; }
+      stood.set(id, cur);
+      return { ...p, x: cur.x, y: cur.y, moving: true, gone: cur.gone * 1.6, heading: gap - step > 0.05 ? Math.atan2(ty - cur.y, tx - cur.x) : heading };
     },
   };
 }
