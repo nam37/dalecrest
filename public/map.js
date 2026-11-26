@@ -9,8 +9,9 @@ import { cloudField, cloudsOver, cloudShade, cloudDrift, SHADE_EDGE } from './cl
 import { puddleFill, puddles, rainRings, wetness } from './wet.js';
 
 import { drawMapFigure } from './map-figure.js';
-import { drawAnimal, drawCart, drawDuck, drawGarden, drawOx, drawPet, drawWoodpile } from './map-parish.js';
+import { drawAnimal, drawBeast, drawCart, drawDuck, drawGarden, drawOx, drawPet, drawPitch, drawWoodpile } from './map-parish.js';
 import { cartsOf } from './carts.js';
+import { liveMinute, visitorsOf } from './travellers.js';
 import { createDucks, createTracks, millWork, stooksOf, washingOf } from './touches.js';
 import { createPets } from './pets.js';
 import { drawGame, drawFish } from './map-wildlife.js';
@@ -646,6 +647,8 @@ export function createMap(canvas, onSelect, cards) {
   // Dogs and cats, placed from where their owners are drawn.
   const petsAt = createPets(), drawnAt = new Map();
   let stepAt = 0;
+  // The current tick, so visitors from outside can walk smoothly between village minutes.
+  let tick = null;
   // Ducks on the river, and footprints left in lying snow.
   const ducksAt = createDucks(), tracks = createTracks();
   let lastDuckAt = 0;
@@ -1185,6 +1188,16 @@ export function createMap(canvas, onSelect, cards) {
     }
     for (const pet of petsAt(map, world?.pets, actors, id => drawnAt.get(id) ?? motion.at(id, time), still, sky.dark, reduced.matches ? 10 : Math.min(0.25, Math.max(0, (time - (lastPetAt || time)) / 1000)))) drawPet(c, pet, toScreen, view.scale, look.sun);
     lastPetAt = time;
+    // Visitors from beyond the parish: a peddler with a pack pony, the reeve, a drover and the strays.
+    const visiting = visitorsOf(map, world, reduced.matches ? clock : liveMinute(clock, tick, performance.now()), still);
+    if (visiting.pitch) drawPitch(c, visiting.pitch, toScreen, view.scale, look.sun);
+    for (const beast of visiting.animals) drawBeast(c, beast, toScreen, view.scale, look.sun);
+    for (const [i, v] of visiting.walkers.entries()) {
+      const [vx, vy] = toScreen(v.x, v.y), size = Math.max(11, Math.min(22, view.scale * 1.55));
+      drawMapFigure(c, { x: vx, y: vy, size, actor: v.actor, activity: { kind: 'visit', working: false, job: null, carry: v.carry }, index: 40 + i,
+        moving: v.moving, gone: v.gone, now: time, facing: Math.cos(v.heading) >= 0 ? 1 : -1, still: reduced.matches });
+      if (view.scale > 9) { c.textAlign = 'center'; c.textBaseline = 'middle'; c.globalAlpha = 0.85; label(v.name, vx, vy + size * 0.45, 11, true); c.globalAlpha = 1; }
+    }
     for (const animal of look.wild.game) drawGame(c, animal, still, toScreen, view.scale, look, walkers);
     drawFish(c, look.wild.fish, still, toScreen, view.scale, sky, wx);
     // Ducks on the river by day. At night they roost on the bank, out of sight.
@@ -1557,6 +1570,7 @@ export function createMap(canvas, onSelect, cards) {
       const lodgers = actors.some(a => a.home === 'hall');
       if (look && look.lodgers !== lodgers) { look.lodgers = lodgers; stale = true; }
       motion.update(actors, performance.now(), motionMs, extras?.liveTick);
+      tick = extras?.liveTick ?? null;
       // extras.events are the latest chronicle entries that have a place, newest first. Those that
       // happened on the same spot share one note.
       marks = [];

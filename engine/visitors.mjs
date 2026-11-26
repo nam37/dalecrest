@@ -12,6 +12,9 @@ import { dogOf } from './pets.mjs';
 const DAY = 1440;
 const PEDDLERS = ['Hamon of Ashby', 'Wymark the chapman', 'Old Ysolt of Pendle', 'Geoffrey Pack', 'Lettice of Stowe Ferry'];
 const DROVERS = ['Thornwick', 'Elmstead', 'Barrowby', 'Coldharbour'];
+// The peddler's visit is kept for this long after trading ends, while the views show them packing up
+// and going back down the road.
+export const PEDDLER_GOING = 150;
 
 export const visitorJobs = {
   driveHerd: { label: 'Driving the stray cattle out', task: 'driving out the cattle', duration: 30, makes: {} },
@@ -22,6 +25,9 @@ export const visitorJobs = {
 export function dawnVisitors(state, emit, random, sky) {
   const { world, map } = state, minute = world.minute, { month, day } = dateOf(minute);
   const roll = () => random();
+  // Yesterday's comings and goings are over. They were kept only so the views could show them leaving.
+  delete world.reeveVisit;
+  delete world.drover;
   // The rent: a tenth of the barley in store, and a length of linen.
   if ((month === 9 && day === 29) || (month === 3 && day === 25)) world.reeveAt = minute + 240;
   // A peddler in the open months, now and then.
@@ -75,13 +81,15 @@ export function tickVisitors(state, emit) {
     const grain = Math.floor(world.supplies.grain / 10), cloth = Math.min(1, world.supplies.cloth);
     world.supplies.grain -= grain;
     world.supplies.cloth -= cloth;
+    // Kept until the next dawn, so the views can show the reeve at the hall and riding off with the rent.
+    world.reeveVisit = { at: minute, grain, cloth };
     const feast = dateOf(minute).month === 9 ? 'Michaelmas' : 'Lady Day';
     emit('visit', 'The lord’s reeve came to the hall for the ' + feast + ' rent and took ' + (grain ? grain + (grain === 1 ? ' measure' : ' measures') + ' of barley' : 'what barley there was, which was none')
       + (cloth ? ' and a length of linen' : '') + '.', [], { rent: { grain, cloth } }, 'hall');
   }
   const p = world.peddler;
   if (p && minute === p.from) emit('visit', p.name + ', a peddler, has set out a pack on the green and will trade salt fish for linen until the afternoon.', [], { peddler: p.name }, 'green');
-  if (p && minute >= p.until) delete world.peddler;
+  if (p && minute >= p.until + PEDDLER_GOING) delete world.peddler;
   const h = world.herd;
   if (h && minute === h.from) {
     const field = place(map, h.field);
@@ -98,6 +106,8 @@ export function tickVisitors(state, emit) {
   }
   if (h && minute >= h.until) {
     delete world.herd;
+    // The drover takes the cattle home. Kept until the next dawn, so the views can show them going.
+    world.drover = { field: h.field, at: minute, from_: h.from_ };
     const field = place(map, h.field);
     emit('herd', 'A drover from ' + h.from_ + ' came for the strays, which had eaten ' + Math.round(h.eaten) + ' measures of barley in ' + field.name + '.', [], { herd: h.field, eaten: h.eaten }, h.field);
   }
@@ -130,10 +140,16 @@ export function finishVisitor(actor, { world, map }) {
   const { job } = actor.action;
   if (job === 'driveHerd') {
     const field = place(map, world.herd.field), eaten = Math.round(world.herd.eaten);
+    // Turned out of the field, the strays make off home on their own.
+    world.drover = { field: world.herd.field, at: world.minute, from_: world.herd.from_, driven: true };
     delete world.herd;
     return 'drove the stray cattle out of ' + field.name + (eaten ? ', after they had eaten ' + eaten + ' measures of barley' : ' before they did much harm');
   }
-  if (job === 'trade') return 'traded a length of linen with ' + world.peddler.name + ' for three salted fish';
+  if (job === 'trade') {
+    // Each length of linen goes onto the peddler's pack, and three fish come off it.
+    world.peddler.traded = (world.peddler.traded || 0) + 1;
+    return 'traded a length of linen with ' + world.peddler.name + ' for three salted fish';
+  }
 }
 
 // What a resident can see of visitors, for the action model.

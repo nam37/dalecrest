@@ -13,6 +13,7 @@ import { puddleFill, puddles, rainRings, wetness } from './wet.js';
 import { kinds } from '/card.js';
 import { createPets } from './pets.js';
 import { cartsOf } from './carts.js';
+import { liveMinute, visitorsOf } from './travellers.js';
 import { animalCoats, animalPose, appleSpots, createAnglers, createPlay, fenceSpans, logsIn, orchardFruit, ovenLoaves, parishLayout, raisedOf, strayCattle, visibleSheep, workHeading } from './parish.js';
 import { isFarmSite } from '../engine/smallholding.mjs';
 import { residentActivity, residentScale } from './resident-pose.js';
@@ -71,6 +72,56 @@ function makeAnimal(kind, coat) {
   }
   if (cow) animal.scale.set(1.8, 1.62, 1.48);
   return { animal, head, legs };
+}
+// A pony from beyond the parish: a longer neck and legs than the cattle, a tail, and panniers with a
+// pack roped across its back while it carries a load. Faces +x.
+const PONY_COATS = ['#7b5a3e', '#9a8a74'];
+function makePony(coat) {
+  const animal = new THREE.Group(), head = new THREE.Group(), load = new THREE.Group(), hide = PONY_COATS[coat || 0], dark = blend(hide, '#2a1f15', 0.5);
+  function oval(parent, color, [x, y, z], [w, h, d]) {
+    const m = new THREE.Mesh(animalShape, mat(color));
+    m.position.set(x, y, z); m.scale.set(w, h, d); m.castShadow = true;
+    parent.add(m);
+  }
+  oval(animal, hide, [0, 0.36, 0], [0.27, 0.12, 0.11]);
+  oval(animal, hide, [0.23, 0.45, 0], [0.1, 0.07, 0.06]);
+  oval(animal, dark, [0.22, 0.5, 0], [0.09, 0.03, 0.025]);
+  oval(animal, dark, [-0.28, 0.3, 0], [0.04, 0.12, 0.03]);
+  head.position.set(0.31, 0.5, 0);
+  oval(head, hide, [0.06, 0, 0], [0.1, 0.045, 0.045]);
+  for (const side of [-1, 1]) oval(head, dark, [-0.01, 0.05, side * 0.025], [0.015, 0.03, 0.012]);
+  animal.add(head);
+  const legs = [];
+  for (const x of [-0.17, 0.17]) {
+    for (const z of [-0.06, 0.06]) {
+      const leg = new THREE.Group();
+      leg.position.set(x, 0.3, z);
+      leg.add(box(0.04, 0.29, 0.04, dark, 0, -0.145, 0));
+      animal.add(leg); legs.push(leg);
+    }
+  }
+  for (const side of [-1, 1]) load.add(box(0.26, 0.17, 0.08, '#8a6a44', -0.02, 0.36, side * 0.15));
+  load.add(box(0.24, 0.12, 0.2, '#c9b48a', -0.02, 0.5, 0));
+  animal.add(load);
+  return { animal, head, legs, load };
+}
+// The peddler's goods on a cloth on the green: salt fish laid out, linen taken in trade piled at one
+// end, and the pack set down at the corner. Faces +x across the cloth.
+function makePitch(fish, linen) {
+  const g = new THREE.Group();
+  const cloth = box(1.32, 0.012, 0.8, '#d8cba6', 0, 0.006, 0); cloth.receiveShadow = true; g.add(cloth);
+  g.add(box(1.16, 0.013, 0.03, '#a2453a', 0, 0.007, -0.32), box(1.16, 0.013, 0.03, '#a2453a', 0, 0.007, 0.32));
+  for (let i = 0; i < fish; i++) {
+    const f = new THREE.Mesh(animalShape, mat('#b9b8a6'));
+    f.scale.set(0.09, 0.022, 0.035); f.position.set(-0.48 + (i % 4) * 0.22, 0.03, i < 4 ? -0.16 : 0.08); f.rotation.y = (i % 2 ? 1 : -1) * 0.15; f.castShadow = true; g.add(f);
+  }
+  for (let i = 0; i < linen; i++) {
+    const bolt = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.26, 10), mat('#efe6cc'));
+    bolt.rotation.z = Math.PI / 2; bolt.position.set(0.46, 0.06 + (i >= 3 ? 0.1 : 0), -0.22 + (i % 3) * 0.13); bolt.castShadow = true; g.add(bolt);
+  }
+  const pack = new THREE.Mesh(animalShape, mat('#8a6a44'));
+  pack.scale.set(0.2, 0.14, 0.15); pack.position.set(0.74, 0.12, 0.38); pack.castShadow = true; g.add(pack);
+  return g;
 }
 // A dog or cat: long and low, with a head held up, ears, four legs and a tail. Faces +x.
 function makePet(kind, coat) {
@@ -439,6 +490,61 @@ export function createWalk(container, onSelect, onNote) {
       });
     }
     for (const [id, model] of cartModels) if (!carts.some(c => c.id === id)) { people.remove(model.object); for (const ox of model.oxen) people.remove(ox.animal); cartModels.delete(id); }
+  }
+  // Visitors from beyond the parish, their beasts and the peddler's pitch, built the first time each is
+  // needed. The tick lets them walk smoothly between village minutes.
+  const visitorFigures = new Map(), beastModels = new Map();
+  let pitchModel = null, pitchKey = '', tick = null;
+  function moveVisitors(now, dt) {
+    const visiting = visitorsOf(map, world, calm.matches ? clock : liveMinute(clock, tick, now), calm.matches ? 0 : now);
+    for (const [i, v] of visiting.walkers.entries()) {
+      let f = visitorFigures.get(v.id);
+      if (!f) {
+        f = makeFigure(v.actor, 40 + i);
+        const patch = new THREE.Mesh(contactGeo, contactMat);
+        patch.rotation.x = -Math.PI / 2; patch.position.y = 0.006; patch.renderOrder = 1; f.add(patch);
+        f.userData.label = textSprite(v.name, false);
+        f.userData.label.userData.reach = 14; f.userData.label.userData.size = 0.105;
+        names.add(f.userData.label);
+        visitorFigures.set(v.id, f); people.add(f);
+      }
+      const y = ground(v.x, v.y) + 0.012;
+      f.position.set(v.x, y, v.y);
+      let turn = -v.heading - f.rotation.y;
+      turn = Math.atan2(Math.sin(turn), Math.cos(turn));
+      f.rotation.y += turn * Math.min(1, dt * 8);
+      poseFigure(f, { kind: 'visit', working: false, job: null, carry: v.carry, moving: v.moving, gone: v.gone, now, dt, still: calm.matches });
+      f.userData.label.position.set(v.x, y + 0.56, v.y);
+    }
+    for (const [id, f] of visitorFigures) if (!visiting.walkers.some(v => v.id === id)) { people.remove(f); names.remove(f.userData.label); visitorFigures.delete(id); }
+    for (const beast of visiting.animals) {
+      let model = beastModels.get(beast.id);
+      if (!model) {
+        model = beast.kind === 'pony' ? makePony(beast.coat) : makeAnimal('cattle', beast.coat || 0);
+        beastModels.set(beast.id, model); people.add(model.animal);
+      }
+      model.animal.position.set(beast.x, ground(beast.x, beast.y), beast.y); model.animal.rotation.y = -beast.heading;
+      if (model.load) model.load.visible = Boolean(beast.laden);
+      model.head.rotation.z = -(beast.graze || 0) * 1.1;
+      const stride = beast.moving ? Math.sin(beast.gone * 9) * 0.32 : 0;
+      model.legs.forEach((leg, j) => { leg.rotation.z = stride * (j === 0 || j === 3 ? 1 : -1); });
+    }
+    for (const [id, model] of beastModels) if (!visiting.animals.some(b => b.id === id)) { people.remove(model.animal); beastModels.delete(id); }
+    const key = visiting.pitch ? [visiting.pitch.x, visiting.pitch.y, visiting.pitch.fish, visiting.pitch.linen].join() : '';
+    if (key !== pitchKey) {
+      pitchKey = key;
+      if (pitchModel) { people.remove(pitchModel); pitchModel = null; }
+      if (visiting.pitch) {
+        pitchModel = makePitch(visiting.pitch.fish, visiting.pitch.linen);
+        // Laid on the highest ground under it, so the slope of the green does not swallow a corner.
+        const { x, y, a } = visiting.pitch, ca = Math.cos(a), sa = Math.sin(a);
+        const lie = Math.max(...[[0, 0], [0.4, 0.66], [0.4, -0.66], [-0.4, 0.66], [-0.4, -0.66], [0.4, 0.9], [-0.4, 0.9]]
+          .map(([u, v]) => ground(x + u * ca - v * sa, y + u * sa + v * ca)));
+        pitchModel.position.set(x, lie + 0.004, y);
+        pitchModel.rotation.y = -(visiting.pitch.a + Math.PI / 2);
+        people.add(pitchModel);
+      }
+    }
   }
   // Dogs and cats, placed from where their owners are drawn, and the models that show them.
   const petsAt = createPets(), drawnAt = new Map(), petModels = new Map();
@@ -1223,6 +1329,7 @@ export function createWalk(container, onSelect, onNote) {
     moveAnimals(cattleModels, cattle, animalTime);
     movePets(now, dt);
     moveCarts(now, dt);
+    moveVisitors(now, dt);
     for (const wheel of wheels) wheel.rotation.z += dt * 0.7 * wheel.userData.spin;
     sky(now, dt);
     renderer.render(scene, camera);
@@ -1327,6 +1434,7 @@ export function createWalk(container, onSelect, onNote) {
         figures.delete(actor.id);
       }
       motion.update(actors, performance.now(), motionMs, extras?.liveTick);
+      tick = extras?.liveTick ?? null;
       // extras.events are the latest chronicle entries that have a place, newest first, as on the map.
       marks = [];
       for (const e of extras?.events || []) {

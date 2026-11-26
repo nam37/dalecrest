@@ -169,3 +169,63 @@ export function drawDuck(c, duck, toScreen, k, time) {
   c.restore();
 }
 
+// A visitor's beast where it has been placed: a pony, with panniers when it carries a pack, or one of
+// a neighbour's cattle being taken home. beast comes from visitorsOf in travellers.js.
+const PONIES = ['#7b5a3e', '#9a8a74'];
+export function drawBeast(c, beast, toScreen, scale, sun = PLAIN_LIGHT) {
+  const pony = beast.kind === 'pony', [sx, sy] = toScreen(beast.x, beast.y), size = Math.max(pony ? 4.6 : 5.5, scale * (pony ? 0.36 : 0.44));
+  const coat = pony ? PONIES[beast.coat || 0] : animalCoats.cattle[beast.coat || 0], dark = blend(coat, '#2a1f15', 0.45);
+  const step = beast.moving ? Math.sin(beast.gone * 9) * 0.06 : 0;
+  c.save(); c.translate(sx, sy);
+  animalShade(c, sun, beast.heading, size, 1, 0.5);
+  c.rotate(beast.heading); c.scale(size, size);
+  const oval = (u, v, a, b, color, edge) => {
+    c.beginPath(); c.ellipse(u, v, a, b, 0, 0, tau); c.fillStyle = color; c.fill();
+    if (edge) { c.strokeStyle = edge; c.lineWidth = 0.13; c.stroke(); }
+  };
+  oval(step, 0, 0.88, pony ? 0.4 : 0.52, coat, '#3e2c1e');
+  const nose = (pony ? 0.95 : 0.85) + (beast.graze || 0) * 0.19;
+  if (pony) {
+    // The mane down the neck, and the head held out long.
+    c.strokeStyle = dark; c.lineWidth = 0.16; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(0.35, 0); c.lineTo(nose - 0.2, 0); c.stroke();
+    oval(nose, 0, 0.34, 0.18, coat, '#3e2c1e');
+    c.strokeStyle = dark; c.lineWidth = 0.14; c.beginPath(); c.moveTo(-0.86, 0); c.lineTo(-1.22, Math.sin((beast.gone || 0) * 3) * 0.08); c.stroke();
+    if (beast.laden) {
+      // Panniers hung either side and the pack roped across the back.
+      oval(-0.05, -0.47, 0.42, 0.17, '#8a6a44', '#4f3a25'); oval(-0.05, 0.47, 0.42, 0.17, '#8a6a44', '#4f3a25');
+      oval(-0.05, 0, 0.36, 0.3, '#c9b48a', '#6f5a3a');
+    }
+  } else {
+    oval(-0.36, 0.12, 0.36, 0.34, blend(coat, '#60422d', 0.56));
+    for (const side of [-1, 1]) oval(nose - 0.11, side * 0.28, 0.16, 0.1, '#dfc9a0');
+    oval(nose, 0, 0.32, 0.24, '#71523d');
+  }
+  c.restore();
+}
+
+// The peddler's goods set out on a cloth on the green: salt fish laid in a row, the lengths of linen
+// taken in trade piled at one end, and the empty pack beside. pitch comes from visitorsOf.
+export function drawPitch(c, pitch, toScreen, scale, sun = PLAIN_LIGHT) {
+  const [sx, sy] = toScreen(pitch.x, pitch.y), k = Math.max(3, scale);
+  c.save(); c.translate(sx, sy); c.rotate(pitch.a + Math.PI / 2); c.scale(k, k);
+  c.fillStyle = 'rgba(60,52,36,' + (0.2 * Math.max(0.3, sun.depth)).toFixed(3) + ')'; c.fillRect(-0.62, -0.36, 1.3, 0.8);
+  c.fillStyle = '#d8cba6'; c.strokeStyle = '#6f6248'; c.lineWidth = 0.035;
+  c.fillRect(-0.66, -0.42, 1.32, 0.8); c.strokeRect(-0.66, -0.42, 1.32, 0.8);
+  c.strokeStyle = '#a2453a88'; c.lineWidth = 0.04; c.strokeRect(-0.58, -0.34, 1.16, 0.64);
+  for (let i = 0; i < pitch.fish; i++) {
+    const u = -0.48 + (i % 4) * 0.22, v = i < 4 ? -0.16 : 0.08;
+    c.save(); c.translate(u, v); c.rotate(0.15 * ((i % 2) ? 1 : -1));
+    c.beginPath(); c.ellipse(0, 0, 0.09, 0.035, 0, 0, tau); c.fillStyle = '#b9b8a6'; c.fill(); c.strokeStyle = '#5f5d4e'; c.lineWidth = 0.02; c.stroke();
+    c.beginPath(); c.moveTo(-0.08, 0); c.lineTo(-0.13, -0.035); c.lineTo(-0.13, 0.035); c.closePath(); c.fillStyle = '#9c9a88'; c.fill();
+    c.restore();
+  }
+  for (let i = 0; i < pitch.linen; i++) {
+    const v = -0.22 + (i % 3) * 0.13, lift = i >= 3 ? -0.05 : 0;
+    c.beginPath(); c.ellipse(0.46, v + lift, 0.13, 0.055, 0, 0, tau); c.fillStyle = '#efe6cc'; c.fill(); c.strokeStyle = '#8f8466'; c.lineWidth = 0.02; c.stroke();
+  }
+  // The pack, unloaded and set down at the corner of the cloth.
+  c.beginPath(); c.ellipse(0.72, 0.36, 0.2, 0.15, 0.4, 0, tau); c.fillStyle = '#8a6a44'; c.fill(); c.strokeStyle = '#4f3a25'; c.lineWidth = 0.035; c.stroke();
+  c.beginPath(); c.moveTo(0.58, 0.3); c.lineTo(0.86, 0.43); c.strokeStyle = '#c9b48a'; c.lineWidth = 0.03; c.stroke();
+  c.restore();
+}
