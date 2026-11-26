@@ -130,6 +130,11 @@ export function makeFigure(actor, index) {
 
 const ease = (current, target, k) => current + (target - current) * k;
 
+// How some tools sit in the hand, as an angle above level ground, whatever the arm and the body are
+// doing: a rod held up over the water, a peel and a bundle carried level, a pail hanging, a board
+// tipped to the eye. Tools not named here swing with the arm.
+const AIM = { rod: 0.6, peel: 0, pail: 0, bundle: 0, shuttle: 0.1, board: 0.35 };
+
 // Poses a figure for this frame. state: { moving, gone, now, dt, kind, job, working }.
 export function poseFigure(figure, state) {
   const { moving, dt } = state;
@@ -149,11 +154,13 @@ export function poseFigure(figure, state) {
     rig.held = want;
   }
   const { legSwing, armR, armL, spreadR, lean, sway, nod, lift } = residentPose({ ...state, index: rig.index });
-  // A stride follows the ground exactly; everything else eases into place.
+  // A stride follows the ground exactly; everything else eases into place. The pose swings a limb
+  // forward as its angle goes negative, as the plan draws it. A turn about z goes the other way here.
   const q = moving ? 1 : k;
-  rig.legs[0].rotation.z = ease(rig.legs[0].rotation.z, legSwing, q);
-  rig.legs[1].rotation.z = ease(rig.legs[1].rotation.z, -legSwing, q);
-  right.rotation.z = ease(right.rotation.z, armR, q); left.rotation.z = ease(left.rotation.z, armL, q);
+  rig.legs[0].rotation.z = ease(rig.legs[0].rotation.z, -legSwing, q);
+  rig.legs[1].rotation.z = ease(rig.legs[1].rotation.z, legSwing, q);
+  right.rotation.z = ease(right.rotation.z, -armR, q); left.rotation.z = ease(left.rotation.z, -armL, q);
+  if (rig.held && Object.hasOwn(AIM, rig.held)) rig.tools.get(rig.held).rotation.z = AIM[rig.held] - right.rotation.z - rig.body.rotation.z;
   right.rotation.x = ease(right.rotation.x, spreadR, k);
   rig.body.rotation.z = ease(rig.body.rotation.z, lean, k);
   rig.body.rotation.x = ease(rig.body.rotation.x, sway, k);
