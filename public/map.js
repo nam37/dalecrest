@@ -154,12 +154,10 @@ function building(c, p, line, lodgers, snowed = color => color, toward = PLAIN_L
     c.strokeStyle = '#5f4e39'; c.lineWidth = line * 1.6; c.beginPath(); c.moveTo(along + 0.45, side * hd); c.lineTo(along + 0.45, side * (hd + 0.55)); c.stroke();
     disc(c, along + 0.45, side * (hd + 0.6), 0.17, snowed('#5f7a45'), '#3e5230', line * 0.8);
   }
+  // The mill wheel's frame. Its paddles are drawn turning over it with the moving water.
   if (p.kind === 'mill') {
     c.fillStyle = '#a1845b'; c.strokeStyle = ink; c.lineWidth = line;
     c.fillRect(-0.75, -side * hd - (side > 0 ? 0.7 : 0), 1.5, 0.7); c.strokeRect(-0.75, -side * hd - (side > 0 ? 0.7 : 0), 1.5, 0.7);
-    c.beginPath();
-    for (let x = -0.55; x < 0.7; x += 0.28) { c.moveTo(x, -side * hd); c.lineTo(x, -side * (hd + 0.7)); }
-    c.stroke();
   }
   if (lodgers && p.kind === 'hall') { c.fillStyle = '#f3e4b1'; c.fillRect(-hw + 0.25, -0.14, 0.28, 0.28); }
   // Barrels and sacks stand by the storehouse door.
@@ -809,6 +807,18 @@ export function createMap(canvas, onSelect, cards) {
     for (const p of map.places) {
       if (p.kind !== 'mill' || p.stage !== 2) continue;
       const side = (p.at[0] - p.x) * -Math.sin(p.a) + (p.at[1] - p.y) * Math.cos(p.a) > 0 ? 1 : -1;
+      // The wheel turns once in about eight seconds. Seen from above, each paddle comes up over the
+      // top, runs across the wheel and goes down the far side, so they bunch together at its ends.
+      const ca = Math.cos(p.a), sa = Math.sin(p.a), turn = time * 0.0008;
+      const at = (lx, ly) => toScreen(p.x + lx * ca - ly * sa, p.y + lx * sa + ly * ca);
+      c.lineWidth = Math.max(1, k * 0.07);
+      for (let i = 0; i < 10; i++) {
+        const th = turn + i * TAU / 10, lift = Math.sin(th);
+        if (lift <= 0) continue;
+        const lx = 0.68 * Math.cos(th), [x0, y0] = at(lx, -side * (p.d / 2 + 0.06)), [x1, y1] = at(lx, -side * (p.d / 2 + 0.64));
+        c.strokeStyle = 'rgba(66,52,36,' + (0.3 + 0.55 * lift).toFixed(3) + ')';
+        c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
+      }
       const fx = p.x + Math.sin(p.a) * side * (p.d / 2 + 0.75), fy = p.y - Math.cos(p.a) * side * (p.d / 2 + 0.75);
       for (let i = 0; i < 4; i++) {
         const f = (time * 0.0005 + i / 4) % 1, [x, y] = toScreen(fx + Math.sin(i * 2.1) * 0.25, fy + 0.5 + f * 2.2);
