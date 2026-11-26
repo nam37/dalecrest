@@ -105,6 +105,7 @@ export function shapeActionMenu(actor, state, feasible, ownTrade) {
     if (lifeVerbs.has(action.verb)) protect(id, 'life');
     if (action.kind === 'meeting' || action.feast) protect(id, 'village_event');
     if (action.kind === 'teach') protect(id, 'lesson');
+    if (action.kind === 'compose') protect(id, 'songwriting_project');
     if (action.kind === 'food' && actor.needs.hunger >= PILOT.mealAt) protect(id, 'due_meal');
     if (action.job === 'fetchPreserved' || action.householdBreakfast) protect(id, 'household_breakfast');
     if (action.seasonalFood) protect(id, 'seasonal_food');

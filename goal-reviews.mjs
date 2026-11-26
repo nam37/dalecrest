@@ -7,6 +7,7 @@
 import { locationsOf } from './sim.mjs';
 import { recall, memoryKey, remember } from './engine/memory.mjs';
 import { activeGoals, applyReview, reviewInput, screenStatement } from './engine/goals.mjs';
+import { songwritingContext } from './engine/songwriting.mjs';
 import { r2 } from './engine/geom.mjs';
 
 export const goalModel = process.env.DALECREST_GOAL_MODEL?.trim() || 'claude-haiku-5-5';
@@ -84,6 +85,8 @@ export async function claimReview(db, village, { budget = goalBudget, model = go
     if (prior && prior.status !== 'applied' && Number(prior.observed_minute) >= actor.reviewDue.since && prior.recent) continue;
     const recalled = recalledForReview(actor, village.world.minute);
     const input = reviewInput(actor, village, names, recalled);
+    const songwriting = songwritingContext(actor, village.world);
+    if (songwriting) input.songwriting = songwriting;
     const offered = [...recalled.map(m => memoryKey(actor, m)), ...input.evidence.map(e => e.key)];
     const body = JSON.stringify({ model, max_tokens: 4096, system: reviewInstructions,
       messages: [{ role: 'user', content: JSON.stringify(input) }],

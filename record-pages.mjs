@@ -19,6 +19,7 @@ async function directory(db, mootId = '') {
     SELECT (w.state->>'minute')::float8 AS minute, w.state->'departed' AS departed,
       coalesce((SELECT max(id)::text FROM dalecrest.events), '0') AS cursor,
       w.state->'coldHearths' AS cold, w.state->'cottages' AS cottages, w.state->'moot' AS moot,
+      (SELECT state->'songwriting' FROM dalecrest.actors WHERE id='robin') AS songwriting,
       (SELECT sitting FROM jsonb_array_elements(CASE WHEN jsonb_typeof(w.state->'mootHistory')='array'
         THEN w.state->'mootHistory' ELSE '[]'::jsonb END) sitting WHERE sitting->>'id'=$1) AS "closedMoot",
       m.state->'places' AS places,
@@ -64,6 +65,45 @@ function residentRecord(village, ref, params) {
     latest: !ref.lifetime && params.get('latest') === '1' });
   if (!person) return missing('resident');
   return result({ person, minute: village.minute, household: house(village, person.home) }, residentLink(person));
+}
+
+async function robinJournal(db, village, person) {
+  if (person.id !== 'robin' || person.arrived !== 0) return null;
+  const song = person.left == null ? village.songwriting : village.departed?.find(resident =>
+    resident.id === person.id && resident.minute === person.left)?.songwriting;
+  if (!song) return null;
+  const day = Math.floor((person.left ?? village.minute) / dayMinutes);
+  const firstDay = Math.max(Math.floor(song.since / dayMinutes), day - 6);
+  const { rows: [journal] } = await db.query(`WITH entries AS (
+      SELECT id, minute, description, outcome#>>'{song,status}' AS status FROM dalecrest.events
+      WHERE kind='song' AND actor_ids @> ARRAY['robin'] AND outcome#>>'{song,lifetime}'='0' AND minute >= $1
+    ) SELECT
+      coalesce((SELECT jsonb_agg(jsonb_build_object('minute', minute, 'text', description) ORDER BY id DESC)
+        FROM (SELECT * FROM entries ORDER BY id DESC LIMIT 14) recent), '[]'::jsonb) AS entries,
+      (SELECT count(DISTINCT minute / ${dayMinutes})::int FROM entries
+        WHERE minute >= $2 AND status IN ('session', 'no_material', 'stale_session')) AS "composingDays",
+      coalesce((SELECT jsonb_agg(jsonb_build_object('minute', applied_minute, 'text', statement) ORDER BY applied_minute DESC)
+        FROM (SELECT applied_minute, statement FROM dalecrest.goal_reviews
+          WHERE actor_id='robin' AND applied_minute BETWEEN $1 AND $3 AND statement IS NOT NULL
+            AND result->'applied' @> '[{"goal":"songwriting"}]'::jsonb
+          ORDER BY applied_minute DESC LIMIT 4) intentions), '[]'::jsonb) AS intentions`,
+    [song.since, firstDay * dayMinutes, person.left ?? village.minute]);
+  const cited = [...new Set(song.verses.flatMap(verse => verse.sources.map(source => source.key)))];
+  const evidence = new Map();
+  if (cited.length) {
+    const { rows } = await db.query(`SELECT o.actor_id || ':' || o.seq AS key, e.id::text AS id,
+        CASE WHEN e.kind='fieldnote' THEN e.description END AS note, e.salience >= ${PUBLIC} AS public
+      FROM dalecrest.observations o JOIN dalecrest.events e ON e.id=o.event_id
+      WHERE o.actor_id='robin' AND o.seq=ANY($1::int[]) AND (e.salience >= ${PUBLIC} OR e.kind='fieldnote')`,
+    [cited.map(key => Number(key.split(':')[1]))]);
+    for (const item of rows) evidence.set(item.key, item);
+  }
+  const verses = song.verses.map(verse => ({ ...verse, sources: verse.sources.map(source => {
+    const item = evidence.get(source.key);
+    return { ...source, ...(item?.public && { href: dayLink(source.minute) + '#event-' + item.id }),
+      ...(item?.note && { note: item.note }) };
+  }) }));
+  return { title: song.title ?? null, status: song.status, verses, windowDays: day - firstDay + 1, ...journal };
 }
 
 function householdRecord(village, id) {
@@ -164,6 +204,10 @@ export async function recordPage(db, ref, params) {
   }
   const record = ref.kind === 'residents' ? residentRecord(village, ref, params) : householdRecord(village, ref.id);
   if (record.status !== 200) return record;
+  if (record.body.person) {
+    const journal = await robinJournal(db, village, record.body.person);
+    if (journal) record.body.journal = journal;
+  }
   record.body.cursor = village.cursor;
   if (after !== null) record.body.activity = await activitySince(db, record.body, { after, before });
   return record;

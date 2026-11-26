@@ -56,9 +56,19 @@ h1, h2, h3 { font-family: var(--display); font-weight: 400; }
 .wordmark { display: flex; align-items: center; gap: 11px; text-decoration: none; font-family: var(--display); font-size: 1.95rem; line-height: 1; letter-spacing: .01em; color: var(--ink); }
 .wordmark img { width: 28px; height: 32px; }
 nav { display: flex; align-self: stretch; gap: clamp(14px, 2vw, 30px); }
-nav a { display: grid; place-items: center; text-decoration: none; font-family: var(--caps); font-size: 1.02rem; letter-spacing: .09em; color: var(--ink-soft); border-bottom: 2px solid transparent; padding: 4px 2px 0; transition: color .2s, border-color .2s; }
-nav a:hover { color: var(--ink); }
-nav a[aria-current=page] { color: var(--rust); border-bottom-color: var(--rust); }
+nav a, .site-more summary { display: grid; place-items: center; text-decoration: none; font-family: var(--caps); font-size: 1.02rem; letter-spacing: .09em; color: var(--ink-soft); border-bottom: 2px solid transparent; padding: 4px 2px 0; transition: color .2s, border-color .2s; }
+nav a:hover, .site-more summary:hover { color: var(--ink); }
+nav a[aria-current=page], .site-nav a[aria-current=location] { color: var(--rust); border-bottom-color: var(--rust); }
+.site-nav { --nav-gap: clamp(12px, 1.55vw, 24px); position: relative; gap: var(--nav-gap); }
+.site-publications { display: flex; gap: var(--nav-gap); }
+.site-nav a, .site-more summary { white-space: nowrap; }
+.site-more summary { display: flex; align-items: center; gap: 6px; height: 100%; cursor: pointer; list-style: none; }
+.site-more summary::-webkit-details-marker { display: none; }
+.site-more summary::after { content: ''; width: .35em; height: .35em; margin-block-start: -.2em; border: solid currentColor; border-width: 0 1px 1px 0; transform: rotate(45deg); }
+.site-more[open] summary, .site-more:has(a[aria-current=page]) summary { color: var(--rust); }
+.site-more-links { position: absolute; z-index: 20; inset-block-start: 100%; inset-inline-end: 0; min-width: 9rem; padding: 4px; background: var(--leaf); border: 1px solid var(--rule); box-shadow: 0 6px 14px #2b271d22; }
+.site-nav .site-more-links a { display: block; padding: 7px 10px; border: 0; }
+.site-more-links a:is(:hover, :focus-visible) { background: var(--paper); }
 .connection { display: flex; align-items: center; gap: 8px; font-style: italic; font-size: .9rem; color: var(--muted); }
 .connection i { width: 8px; height: 8px; border-radius: 50%; background: var(--ochre); }
 .connection.online i { background: var(--moss); box-shadow: 0 0 0 3px #6f7d5226; animation: breathe 3.6s ease-in-out infinite; }
@@ -365,6 +375,25 @@ footer { display: flex; justify-content: space-between; gap: 14px; flex-wrap: wr
 .record-actions a, .village-record a { text-underline-offset: .16em; }
 .record-part + .record-part { margin-top: 18px; }
 .record-part ul { margin: .4em 0 0; padding-left: 1.3em; }
+#journal { margin-block-start: 1.6rem; padding-block-start: 1.25rem; border-block-start: 1px solid var(--rule); scroll-margin-block-start: 1rem; }
+.journal-name { color: var(--muted); font: 1rem var(--caps); letter-spacing: .08em; text-align: center; }
+.journal-song, .journal-thoughts, .journal-log { max-inline-size: 35rem; margin-inline: auto; }
+.journal-song-head { margin-block: .4rem 0; text-align: center; }
+.journal-song-head h3 { font-size: clamp(1.85rem, 5vw, 2.6rem); line-height: 1.12; }
+.journal-meta { margin-block-start: .35rem; color: var(--muted); font-size: .93rem; }
+.journal-lyrics { margin: 1.45rem 0 1.55rem; font-size: 1.15rem; line-height: 1.45; font-style: italic; text-align: center; overflow-wrap: anywhere; }
+.song-verse + .song-verse { margin-block-start: 1.15em; }
+.journal-disclosure { padding-block: .55rem; border-block-start: 1px solid var(--rule-soft); font-size: .96rem; }
+.journal-disclosure summary { width: fit-content; color: var(--ink-soft); cursor: pointer; }
+.journal-disclosure summary:hover { color: var(--ink); }
+.journal-verse-notes { margin: .55rem 0 .15rem; padding-inline-start: 1.35rem; }
+.journal-verse-notes > li + li, .journal-entries > li + li { margin-block-start: .65rem; }
+.journal-verse-notes > li > ul { margin-block-start: .15rem; }
+.journal-log { margin-block-start: .35rem; }
+.journal-entries > li > a { color: var(--muted); font-size: .93rem; }
+.journal-entries > li > span { display: block; }
+.journal-thoughts { padding-block: .75rem; border-block-start: 1px solid var(--rule-soft); }
+.journal-thoughts blockquote { margin: .3rem 0 .65rem; font-style: italic; }
 .record-part .request-entry > a + a { margin-left: .75em; }
 .record-part .request-entry[aria-current="location"] { background: #e9dfc4; outline: 3px solid #e9dfc4; }
 .record-part .kind { margin-left: .75em; }
@@ -422,8 +451,8 @@ footer { display: flex; justify-content: space-between; gap: 14px; flex-wrap: wr
 @media (max-width: 960px) {
   .mast-inner { flex-wrap: wrap; gap: 0; min-height: 0; padding-top: 10px; }
   .mast-inner .connection { margin-left: auto; order: 1; }
-  .mast-inner nav { order: 2; width: 100%; flex-wrap: wrap; gap: 0 15px; }
-  .mast-inner nav a { padding-block: 10px 6px; }
+  .mast-inner .site-nav { --nav-gap: 14px; order: 2; width: 100%; flex-wrap: wrap; gap: 0 var(--nav-gap); }
+  .mast-inner .site-nav a, .site-more summary { padding-block: 10px 6px; }
 }
 @media (max-width: 690px) {
   :root { font-size: 16px; --stage: clamp(340px, 58vh, 520px); }
@@ -431,7 +460,7 @@ footer { display: flex; justify-content: space-between; gap: 14px; flex-wrap: wr
   .wordmark { font-size: 1.6rem; }
   .connection { margin-left: auto; order: 1; }
   nav { order: 2; width: 100%; flex-wrap: wrap; gap: 0 15px; }
-  nav a { padding-block: 10px 6px; font-size: .95rem; letter-spacing: .07em; }
+  nav a, .site-more summary { padding-block: 10px 6px; font-size: .95rem; letter-spacing: .07em; }
   /* The clock drops below a long title sooner than run off the side of a narrow page. */
   .page-title { margin: 20px 0 14px; align-items: start; flex-wrap: wrap; gap: 8px 16px; }
   .growth .page-title { flex-wrap: wrap; gap: 8px 16px; }

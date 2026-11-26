@@ -46,6 +46,8 @@ To try a change without touching your village, run a preview against a separate 
 node --env-file=.env tools/preview-village.mjs
 ```
 
+Set `VILLAGE_SONGWRITING=1` and `PREVIEW_DATABASE=dalecrest_songwriting_preview` before running the preview, then open `/residents/robin` to follow his sessions in **Robin’s Journal**. This preview uses local choices and spends no model tokens. In a separate village configured with `CLAUDE_KEY`, completed sessions with source material can also yield verses. The drafting worker has its own allowance, set by `SONG_DRAFT_TOKENS_PER_HOUR` and defaulting to 6,000.
+
 `node tools/simulate.mjs 60` runs sixty village days without a database and prints what was decided and built.
 
 To watch the model-driven path without spending tokens, run a village whose decisions are answered by a script. It uses its own database and port 4175, and contacts no model.

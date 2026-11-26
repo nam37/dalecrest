@@ -6,7 +6,7 @@ export const PUBLIC = 3;
 // A conversation that changes a request is news. Deciding privately about one is not.
 const EXCHANGES = { ask: 6, accept: 6, decline: 6, kept: 7, broken: 7, unanswered: 5, unconfirmed: 4, release: 6, share: 3, retain: 2, defer: 1 };
 const BY_TYPE = { meal: 0, plan: 1, fieldnote: 1, observation: 1, work: 1, village: 2, social: 2, civic: 6, build: 7, arrival: 8,
-  life: 8, visit: 6, storm: 7, herd: 6, feast: 6, intention: 6, goal: 4 };
+  life: 8, visit: 6, storm: 7, herd: 6, feast: 6, intention: 6, goal: 4, song: 1 };
 
 // Kinds of entry that are news every time, however alike their wording.
 const ALWAYS = new Set(['build', 'arrival', 'life', 'storm', 'civic', 'intention', 'goal']);

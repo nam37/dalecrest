@@ -12,6 +12,7 @@ import { dawnLives, finishLifeConversation, lifeChoices, lifeVerbs, maybeCourt, 
 import * as standing from './engine/standing.mjs';
 import { atOven, inspectOven, observeGrain } from './engine/observations.mjs';
 import { appointReporter, reportingGoal, offerReporting, takeFieldNotes } from './engine/reporting.mjs';
+import { finishSongSession, offerSongwriting, prepareSongwriter } from './engine/songwriting.mjs';
 import { bedConversationChoices, canContact, conversationChoices, finishConversation, missedConversation, recordPrivateReview, requestReviewMenu, knownStores, noteWork, settleHelp, expireHelp } from './engine/exchanges.mjs';
 import { weatherAt, dayTemp, nextOutdoorStart, chill, fuelPerHearth } from './engine/seasons.mjs';
 import { bedJob, finishVillageWork, normalizeVillageWork, ownWorkChoices, repairBedSpec, tickBarley, villageJobs, villageWorkObstacle } from './engine/village-work.mjs';
@@ -124,6 +125,7 @@ function normalize({ world, actors, map }) {
     normalizeMemories(actor);
     normalizeLife(actor, world.minute);
     normalizeGoals(actor, world.minute);
+    prepareSongwriter(actor, world);
     if (!Array.isArray(actor.desires)) actor.desires = inferDesires(actor);
     const lastChoice = /^Selected by .+? after (.+)\.$/.exec(actor.action.reason);
     if (lastChoice) actor.action.reason = decisionAfter('Chose this', lastChoice[1]);
@@ -141,9 +143,10 @@ function normalize({ world, actors, map }) {
   prepareChildren({ world, actors, map });
 }
 
-export function createVillage(seed = DEFAULT_SEED) {
+export function createVillage(seed = DEFAULT_SEED, { songwriting = false } = {}) {
   const map = generateMap(seed);
   const world = { minute: 420, barn: true, seed: (62491 + Math.imul(seed - DEFAULT_SEED, 7919)) >>> 0, supplies: { grain: 12, flour: 7, bread: 12, wood: 11, cloth: 4, repair: 5, water: 12 } };
+  if (songwriting) world.songwritingPilot = true;
   const actors = households.map(([id, name, role, site, backstory, traits, goal, trade, friend], i) => {
     const home = 'cottage-' + (i + 1), workplace = site === 'cottages' ? home : site, at = place(map, workplace).at;
     return {
@@ -273,7 +276,7 @@ function choose(actor, state, menu, diagnostics) {
   if (!place(map, actor.home)) actor.home = 'hall';
   function offer(kind, label, target, duration, score, reason, extra = {}) {
     if (menu) {
-      const id = [kind, extra.job || extra.friendId || extra.meal || (extra.feast && 'feast') || (extra.company && 'company'), target].filter(Boolean).join(':');
+      const id = [kind, extra.job || extra.friendId || extra.meal || extra.songTask || (extra.feast && 'feast') || (extra.company && 'company'), target].filter(Boolean).join(':');
       menu.set(id, { kind, label, target, remaining: duration, ...extra });
       return;
     }
@@ -400,6 +403,7 @@ function choose(actor, state, menu, diagnostics) {
     'The village keeps ' + feast + ' with a feast on the green this afternoon.', { feast });
   offer('leisure', 'Walking on the green', 'green', 44, 30 + (actor.traits.includes('restless') ? 6 : 0) - (night ? 17 : 0), 'A walk on the green will ease my fatigue.');
   if (menu) offer('leisure', 'Spending time on the green', 'green', 44, 0, '', { company: true });
+  if (!ill) offerSongwriting(actor, state, offer, weary);
   if (menu) return;
   choices.sort((a, b) => b.score - a.score);
   const { score, ...chosen } = choices[0];
@@ -761,7 +765,7 @@ export function welcomeResidents(state, minimum) {
   return events;
 }
 
-function stepMinute(state, events, externalActions, records, pilot) {
+function stepMinute(state, events, externalActions, records, pilot, songDrafts) {
   const { world, actors, map } = state;
   const minute = ++world.minute, first = events.length;
   const emit = (type, text, actorIds = [], outcome, site) => events.push({ type, minute, text, actorIds, ...(outcome && { outcome }), ...spotOf(state, actorIds, site) });
@@ -829,6 +833,7 @@ function stepMinute(state, events, externalActions, records, pilot) {
   civic.tick(state, emit, () => random(world), actor => {
     endShiftEarly(actor, state, emit, 'interrupted', 'the village moot was about to begin');
     if (actor.action.kind === 'conversation') missedConversation(actor, minute, emit, 'the village moot was about to begin');
+    if (actor.action.kind === 'compose') finishSongSession(actor, minute, emit, true);
   }, { externalBallots: externalActions });
   for (const actor of actors) {
     const n = actor.needs;
@@ -876,10 +881,14 @@ function stepMinute(state, events, externalActions, records, pilot) {
       continue;
     }
     advanceForageShift(actor);
+    if (action.kind === 'compose') action.songStarted ??= minute;
     action.remaining--;
     if (action.kind === 'report') takeFieldNotes(actor, state, emit);
     if (action.remaining > 0) continue;
-    if (action.kind === 'civic') {
+    if (action.kind === 'compose') {
+      const draft = finishSongSession(actor, minute, emit);
+      if (draft) songDrafts?.push(draft);
+    } else if (action.kind === 'civic') {
       enactCivicChoice(actor, state, emit);
     } else if (action.kind === 'review') {
       recordPrivateReview(actor, minute, emit);
@@ -1005,12 +1014,12 @@ function stepMinute(state, events, externalActions, records, pilot) {
 
 // With externalActions the Decisions API chooses at each real choice and the engine never picks an
 // activity itself. records, when given, receives how each activity came about.
-export function stepVillage(state, { minutes = 5, externalActions = false, records = null, pilot = standing.PILOT, observe } = {}) {
+export function stepVillage(state, { minutes = 5, externalActions = false, records = null, pilot = standing.PILOT, observe, songDrafts } = {}) {
   if (!Number.isSafeInteger(minutes) || minutes < 0) throw new RangeError('minutes must be a nonnegative integer');
   normalize(state);
   const events = [];
   for (let i = 0; i < minutes; i++) {
-    stepMinute(state, events, externalActions, records, pilot);
+    stepMinute(state, events, externalActions, records, pilot, songDrafts);
     observe?.(state);
   }
   state.world.mapRevision = state.map.revision;

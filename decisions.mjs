@@ -11,6 +11,7 @@ import { activeGoals, goalContext } from './engine/goals.mjs';
 import { preferredOuting, processing } from './engine/foraging.mjs';
 import { restockingPreference } from './engine/action-menu.mjs';
 import { nextFreshExpiry } from './engine/fresh-food.mjs';
+import { songwritingContext } from './engine/songwriting.mjs';
 
 // The memories put before the action model: what bears on the people the resident's goals, marriage and
 // open requests concern and on where they are, weighed against recency and importance.
@@ -65,11 +66,13 @@ export function actionBody(actor, world, menu, names = {}, weather, menuContext 
   });
   const ballot = [...menu.values()].find(action => action.kind === 'ballot');
   const civic = civicContext(actor, world);
+  const songwriting = songwritingContext(actor, world);
   const observation = {
     name: actor.name, role: actor.role, traits: actor.traits, goals: actor.goalBook ? goalContext(actor, names) : actor.goals,
     desires: actor.desires.map(({ focus, weight, target }) => ({ focus, weight, target })),
     ...(outing && { preferredActivity: outing }),
     ...(restocking && { restockingOpportunity: restocking }),
+    ...(songwriting && { songwriting }),
     ...(processingOptions.length && { processingOptions }),
     ...menuContext,
     ...civic,

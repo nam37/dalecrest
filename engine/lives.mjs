@@ -147,7 +147,8 @@ export function removeResident(state, actor, how, emit, why) {
   world.weddings = (world.weddings || []).filter(w => w.a !== actor.id && w.b !== actor.id);
   world.departed ??= [];
   world.departed.push({ id: actor.id, name: actor.name, arrived: actor.arrived ?? 0, role: actor.role, home: actor.home,
-    appearance: appearanceOf(actor), how, minute, age, ...(children.length && { children: children.map(c => c.name) }) });
+    appearance: appearanceOf(actor), how, minute, age, ...(children.length && { children: children.map(c => c.name) }),
+    ...(actor.songwriting && { songwriting: actor.songwriting }) });
   emit('life', text + (children.length ? ' ' + (children.length === 1 ? children[0].name + ' went too.' : children.map(c => c.name).join(' and ') + ' went too.') : ''),
     [actor.id], { life: how === 'died' ? 'died' : 'left', how }, actor.home);
   return true;

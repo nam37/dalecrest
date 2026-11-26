@@ -34,7 +34,7 @@ async function readSources(db, day) {
   const start = (day - 1) * dayLength;
   const { rows } = await db.query(`SELECT id::text, minute::float8, kind, description AS text,
       ${eventRequestKey} AS "requestId", place->>'id' AS "placeId", outcome->>'site' AS "workSite" FROM dalecrest.events
-    WHERE minute >= $1 AND minute < $2 AND kind <> 'plan'
+    WHERE minute >= $1 AND minute < $2 AND kind NOT IN ('plan', 'song')
       AND coalesce(outcome->>'verb','') NOT IN ('retain','defer')
     ORDER BY minute, dalecrest.events.id`, [start, start + dayLength]);
   const prior = (await db.query('SELECT edition FROM dalecrest.daily_editions WHERE day=$1', [day - 1])).rows[0]?.edition;

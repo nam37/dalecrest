@@ -9,7 +9,8 @@ import { POPULATION_LIMIT } from './engine/people.mjs';
 import { DECISIONS_MODEL, DECISIONS_URL, interpretDecision } from './decisions.mjs';
 import { salienceOf, PUBLIC } from './engine/chronicle.mjs';
 import { knowledgeSchema, writeGoals, writeObservations } from './knowledge.mjs';
-import { claimReview, sendReview, settleReview } from './goal-reviews.mjs';
+import { claimReview, goalModel, sendReview, settleReview } from './goal-reviews.mjs';
+import { claimSongDraft, queueSongDrafts, settleSongDraft, songDraftSchema } from './song-drafts.mjs';
 import { initializeTraces, advanceWithTraces, writeSteps, writeActivities, residentState } from './decision-trace.mjs';
 import { historySchema, collectPresence, writePresence } from './village-history.mjs';
 import { eventMootKey, recordIndexes } from './record-pages.mjs';
@@ -133,6 +134,7 @@ export async function initialize() {
     await db.query(`UPDATE dalecrest.events SET salience = ${PUBLIC - 1} WHERE salience >= ${PUBLIC} AND kind = 'social'
       AND outcome->>'delivered' = 'false' AND NOT outcome ? 'requestId'`);
     await db.query(knowledgeSchema);
+    await db.query(songDraftSchema);
     await db.query(`
       CREATE OR REPLACE FUNCTION dalecrest.notify_observers() RETURNS trigger LANGUAGE plpgsql AS $$
       BEGIN
@@ -149,6 +151,7 @@ export async function initialize() {
       ADD COLUMN IF NOT EXISTS late_ms_max integer NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS clock_pace jsonb`);
     const seed = Number(process.env.VILLAGE_SEED) || DEFAULT_SEED;
+    const songwriting = process.env.VILLAGE_SONGWRITING === '1';
     const stored = await db.query('SELECT state FROM dalecrest.world WHERE id=1 FOR UPDATE');
     if (stored.rowCount) {
       const pace = clockPace(stored.rows[0].state.minute, process.env);
@@ -167,6 +170,11 @@ export async function initialize() {
       }
       // A village founded before the map existed keeps its residents and gains the ground under them.
       const world = stored.rows[0].state;
+      if (Boolean(world.songwritingPilot) !== songwriting) {
+        if (songwriting) world.songwritingPilot = true;
+        else delete world.songwritingPilot;
+        await db.query('UPDATE dalecrest.world SET state=$1 WHERE id=1', [world]);
+      }
       if ((await db.query('SELECT id FROM dalecrest.map WHERE id=1')).rowCount) {
         // Earlier versions kept a single map. Its current revision is the first available checkpoint.
         await db.query(`INSERT INTO dalecrest.map_revisions(revision, minute, state)
@@ -181,7 +189,7 @@ export async function initialize() {
       await recordEvents(db, [{ minute: world.minute, type: 'village', actorIds: [], text: 'The parish was surveyed, and every lane, field and cottage of Dalecrest set down on a new map.' }]);
       return;
     }
-    const village = createVillage(seed);
+    const village = createVillage(seed, { songwriting });
     const presence = collectPresence();
     const foundingRevision = village.map.revision;
     await saveMap(db, village.map, village.world.minute);
@@ -252,11 +260,12 @@ async function tick(db) {
   const { minutes } = clockPace(world.minute, process.env);
   const beforeMinute = world.minute;
   const records = [];
+  const songDrafts = [];
   const village = { world, actors, map };
   if (process.env.VILLAGE_FAMILY_ARRIVALS === '1') world.familyArrivals ??= [];
   const arrivals = welcomeResidents(village, minimumResidents);
   const presence = collectPresence();
-  const { events, steps } = advanceWithTraces(village, minutes, traces, direct, records, presence.observe);
+  const { events, steps } = advanceWithTraces(village, minutes, traces, direct, records, presence.observe, songDrafts);
   const chronicle = await recordEvents(db, [...arrivals, ...events]);
   await writeGoals(db, actors);
   await writeObservations(db, actors, chronicle);
@@ -266,6 +275,7 @@ async function tick(db) {
   await queueEditions(db, beforeMinute, world.minute);
   await writeSteps(db, steps, chronicle, traces, world.minute);
   await writeActivities(db, records);
+  await queueSongDrafts(db, songDrafts);
   const pace = clockPace(world.minute, process.env);
   // Anchor ordinary ticks to the previous deadline so sub-second intervals and incidental delays
   // do not accumulate. After a whole missed interval, schedule from now instead of racing to catch up.
@@ -411,6 +421,20 @@ export async function reviewGoalsOnce({ key = process.env.CLAUDE_KEY?.trim(), re
 
 export async function claimAction(hourlyBudget) {
   return transaction(async db => reserveAction(db, await lockedVillage(db), hourlyBudget));
+}
+
+export async function draftSongOnce({ key = process.env.CLAUDE_KEY?.trim(), request = fetch, model = goalModel,
+  budget = Number(process.env.SONG_DRAFT_TOKENS_PER_HOUR ?? 6000) } = {}) {
+  if (process.env.VILLAGE_SONGWRITING !== '1' || !key || !Number.isSafeInteger(budget) || budget <= 0) return;
+  const claim = await transaction(async db => claimSongDraft(db, await lockedVillage(db), { budget, model, recordEvents }));
+  if (!claim) return;
+  let reply;
+  try { reply = await sendReview(claim.body, key, request); }
+  catch (error) {
+    await transaction(async db => settleSongDraft(db, await lockedVillage(db), claim, null, recordEvents));
+    throw error;
+  }
+  return transaction(async db => settleSongDraft(db, await lockedVillage(db), claim, reply, recordEvents));
 }
 
 export async function publishCivicAccountOnce({ key = process.env.CLAUDE_KEY?.trim(), request = fetch, budget, model } = {}) {

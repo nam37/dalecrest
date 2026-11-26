@@ -25,7 +25,7 @@ const goalsKey = actor => JSON.stringify(actor.goals || []);
 // The routine a chosen action answers, or null for something that is always a choice. Staying on with
 // the same friend is another stretch of the same visit. Choosing whom to visit stays a choice.
 export function routineOf(action, minute) {
-  if (!action || action.commitmentId || Object.hasOwn(villageJobs, action.job) || ['review', 'conversation', 'inspect', 'meeting', 'ballot', 'civic', 'teach', 'arrive', 'waiting', 'idle'].includes(action.kind)) return null;
+  if (!action || action.commitmentId || Object.hasOwn(villageJobs, action.job) || ['review', 'conversation', 'inspect', 'meeting', 'ballot', 'civic', 'teach', 'compose', 'arrive', 'waiting', 'idle'].includes(action.kind)) return null;
   if (action.kind === 'rest' && isNight(minute)) return 'sleep';
   if (action.kind === 'food') return 'meal';
   return 'again:' + matchOf(action);

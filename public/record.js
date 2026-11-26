@@ -33,7 +33,75 @@ function section(heading, ...children) {
   return area;
 }
 
-function resident({ person, household, minute }) {
+function songJournal(journal) {
+  const area = section('Robin’s Journal');
+  area.id = 'journal';
+  area.tabIndex = -1;
+  const heading = area.firstElementChild;
+  heading.id = 'journal-title';
+  heading.className = 'journal-name';
+  area.setAttribute('aria-labelledby', heading.id);
+
+  const progress = { writing: 'In progress', finished: 'Finished', set_aside: 'Set aside' };
+  const count = journal.verses.length;
+  const song = el('article', null, 'journal-song');
+  const head = el('header', null, 'journal-song-head');
+  head.append(el('h3', journal.title || 'Robin’s song'), el('p', count
+    ? progress[journal.status] + ' · ' + count + (count === 1 ? ' verse' : ' verses')
+    : 'Waiting for a first verse', 'journal-meta'));
+  song.append(head);
+
+  const lyrics = el('blockquote', null, 'journal-lyrics');
+  const notes = el('ol', null, 'journal-verse-notes');
+  const sourceLabel = { fieldnote: 'Field note', observation: 'Observation', social: 'Conversation' };
+  for (const verse of journal.verses) {
+    const stanza = el('p', null, 'song-verse');
+    verse.lines.forEach((line, index) => {
+      if (index) stanza.append(el('br'));
+      stanza.append(line);
+    });
+    lyrics.append(stanza);
+
+    const note = el('li');
+    const sources = el('ul');
+    for (const source of verse.sources) {
+      const item = el('li');
+      const label = sourceLabel[source.kind] + ', ' + formatDate(source.minute);
+      item.append(source.href ? link(label, source.href) : label);
+      if (source.note) item.append(' · ', source.note);
+      sources.append(item);
+    }
+    note.append(dated(verse.minute), sources);
+    notes.append(note);
+  }
+  if (count) {
+    const disclosure = el('details', null, 'journal-disclosure');
+    disclosure.append(el('summary', 'Verse dates and sources'), notes);
+    song.append(lyrics, disclosure);
+  }
+  area.append(song);
+
+  if (journal.intentions.length) {
+    const thoughts = el('section', null, 'journal-thoughts');
+    thoughts.append(el('h3', 'In Robin’s own words'));
+    for (const entry of journal.intentions) thoughts.append(dated(entry.minute), el('blockquote', entry.text));
+    area.append(thoughts);
+  }
+  if (journal.entries.length) {
+    const log = el('details', null, 'journal-disclosure journal-log');
+    const list = el('ul', null, 'journal-entries');
+    for (const entry of journal.entries) {
+      const item = el('li');
+      item.append(dated(entry.minute), el('span', entry.text));
+      list.append(item);
+    }
+    log.append(el('summary', 'Writing log'),
+      el('p', 'Worked on the green on ' + journal.composingDays + ' of the last ' + journal.windowDays + ' village days.', 'journal-meta'), list);
+    area.append(log);
+  }
+}
+
+function resident({ person, household, minute, journal }) {
   const living = person.left == null;
   title('Resident', person.name, person.role || (living ? 'Lives in Dalecrest' : 'Former resident'));
   if (living) {
@@ -61,6 +129,7 @@ function resident({ person, household, minute }) {
   if (life.length) section('Life in Dalecrest', ...life);
   if (person.backstory) section('Background', el('p', person.backstory));
   if (living && person.action?.label) section('Current activity', el('p', person.action.label));
+  if (journal) songJournal(journal);
 }
 
 function household({ household, residents, children, stores, stage, cold, minute }) {
@@ -156,8 +225,19 @@ function day({ day, current, edition, events }) {
 }
 
 const render = { residents: resident, households: household, moots: moot, days: day };
-function highlightEvent() {
+function highlightLocation() {
   content.querySelector('[aria-current="location"]')?.removeAttribute('aria-current');
+  const journalLink = document.querySelector('.site-publications a[href$="#journal"]');
+  journalLink?.removeAttribute('aria-current');
+  if (location.hash === '#journal') {
+    const journal = document.getElementById('journal');
+    if (journal) {
+      journalLink?.setAttribute('aria-current', 'location');
+      journal.focus({ preventScroll: true });
+      journal.scrollIntoView({ block: 'start' });
+    }
+    return;
+  }
   if (!/^#event-\d+$/.test(location.hash)) return;
   const target = document.getElementById(location.hash.slice(1));
   if (target) {
@@ -255,9 +335,9 @@ async function load() {
   history.replaceState(null, '', data.path + location.hash);
   copyLink($('copy'), $('copied'), data.path);
   if (Object.hasOwn(recordKinds, address.kind)) setupFollow(address.kind, data, entry);
-  highlightEvent();
+  highlightLocation();
 }
-window.addEventListener('hashchange', highlightEvent);
+window.addEventListener('hashchange', highlightLocation);
 load().catch(error => {
   $('title').textContent = 'Record unavailable';
   $('summary').textContent = error instanceof SyntaxError ? 'Could not read the village record.' : error.message;

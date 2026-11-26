@@ -1,6 +1,6 @@
 import http from 'node:http';
 import { readFile, readdir } from 'node:fs/promises';
-import { initialize, advance, nextTickDelay, snapshot, currentMap, pool, recentEvents, reviewGoalsOnce, publishCivicAccountOnce, listenForVillageChanges } from './db.mjs';
+import { initialize, advance, nextTickDelay, snapshot, currentMap, pool, recentEvents, reviewGoalsOnce, draftSongOnce, publishCivicAccountOnce, listenForVillageChanges } from './db.mjs';
 import { planOnce, plannerStatus, plannerPollMs } from './planner.mjs';
 import { locationsOf } from './sim.mjs';
 import { affairs } from './engine/civic.mjs';
@@ -14,6 +14,7 @@ import { recordPath } from './public/record-links.js';
 
 const host = process.env.HOST || '127.0.0.1';
 const port = Number(process.env.PORT || 4173);
+const songwritingPilot = process.env.VILLAGE_SONGWRITING === '1';
 const types = {
   html: 'text/html; charset=utf-8', js: 'text/javascript; charset=utf-8', mjs: 'text/javascript; charset=utf-8',
   css: 'text/css; charset=utf-8', svg: 'image/svg+xml; charset=utf-8', webp: 'image/webp', woff2: 'font/woff2',
@@ -45,6 +46,19 @@ const stopListening = listenForVillageChanges(stream.changed);
 function json(res, status, body) {
   res.writeHead(status, { 'Content-Type': 'application/json' }).end(JSON.stringify(body));
 }
+
+function siteNavigation(path) {
+  const home = path === '/' || path === '/index.html' ? '' : '/';
+  const link = (href, label) => `<a href="${href}"${href === path ? ' aria-current="page"' : ''}>${label}</a>`;
+  return `<nav class="site-nav" aria-label="Observatory">
+    ${link(home + '#village', 'Village')}${link(home + '#residents', 'Residents')}${link(home + '#chronicle', 'Chronicle')}
+    <div class="site-publications">${link('/daily.html', 'Dalecrest Daily')}${songwritingPilot ? link('/residents/robin#journal', 'Robin’s Journal') : ''}</div>
+    <details class="site-more"><summary>More</summary><div class="site-more-links">
+      ${link('/following.html', 'Following')}${link('/growth.html', 'Growth')}${link('/atlas.html', 'Sandbox')}
+    </div></details>
+  </nav><script type="module" src="/site-navigation.js"></script>`;
+}
+
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://localhost');
@@ -96,9 +110,10 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(await currentMap()));
     } else if (page || files.has(path)) {
       const file = files.get(page ? page.kind === 'promises' ? '/requests.html' : '/record.html' : path);
-      const body = await readFile(file);
+      const extension = file.pathname.split('.').pop();
+      const body = extension === 'html' ? (await readFile(file, 'utf8')).replace('<!-- site-navigation -->', siteNavigation(path)) : await readFile(file);
       if (path.startsWith('/vendor/')) res.setHeader('Cache-Control', 'public, max-age=604800');
-      res.writeHead(200, { 'Content-Type': types[file.pathname.split('.').pop()] }).end(body);
+      res.writeHead(200, { 'Content-Type': types[extension] }).end(body);
     } else { res.writeHead(404).end(); }
   } catch { res.writeHead(503, { 'Content-Type': 'text/plain' }).end('Dalecrest is temporarily unavailable.'); }
 });
@@ -138,6 +153,14 @@ const reviews = setInterval(async () => {
   catch (error) { console.error('A goal review could not be completed.', error.message); }
   finally { reviewing = false; }
 }, 4000);
+let drafting = false;
+const songs = setInterval(async () => {
+  if (drafting) return;
+  drafting = true;
+  try { await draftSongOnce(); }
+  catch (error) { console.error('A songwriting session could not be drafted.', error.message); }
+  finally { drafting = false; }
+}, 7000);
 server.listen(port, host, () => {
   console.log('Dalecrest is listening at http://' + host + ':' + port);
   runClock();
@@ -146,7 +169,7 @@ server.listen(port, host, () => {
 });
 function shutdown() {
   stopping = true;
-  clearTimeout(clock); clearInterval(planner); clearInterval(press); clearInterval(reviews); clearInterval(accounts);
+  clearTimeout(clock); clearInterval(planner); clearInterval(press); clearInterval(reviews); clearInterval(accounts); clearInterval(songs);
   stopListening();
   stream.close();
   server.close(() => pool.end());
