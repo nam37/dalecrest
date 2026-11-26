@@ -75,3 +75,14 @@ test('the children’s ring on the green keeps clear of the well and the peddler
   }
   assert.ok(((48.5 - ring.x) / ring.rx) ** 2 + ((49.5 - ring.y) / ring.ry) ** 2 > 1, 'not running round the well either');
 });
+
+test('lambs keep at their mothers’ sides, and are drawn small', async () => {
+  const { visibleSheep } = await import('./public/parish.js');
+  const sheep = Array.from({ length: 8 }, (_, i) => ({ kind: 'sheep', x: i * 2, y: 0, phase: i, coat: i % 3 }));
+  const flock = { ewes: 3, rams: 1, spare: 0, lambs: 3 };
+  const shown = visibleSheep({ pasture: {}, sheep }, { smallholding: { flock } });
+  assert.equal(shown.length, 7);
+  const lambs = shown.filter(s => s.lamb);
+  assert.equal(lambs.length, 3);
+  for (const [i, lamb] of lambs.entries()) assert.ok(Math.hypot(lamb.x - sheep[i].x, lamb.y - sheep[i].y) < 0.6, 'beside a ewe');
+});

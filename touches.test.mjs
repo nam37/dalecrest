@@ -66,3 +66,47 @@ test('footprints follow a walker in turn, left and right, and fill in over a few
   tracks.step('b', { x: 0, y: 0 }, 400); tracks.step('b', { x: 30, y: 0 }, 400);
   assert.equal(tracks.prints(400).length, 0, 'no line of prints across a jump');
 });
+
+test('roofs show their wear, a torn strip when in poor repair, and new thatch for a few days', async () => {
+  const { roofWear } = await import('./public/touches.js');
+  assert.equal(roofWear(96, null, 0).wear, 0, 'a sound roof shows nothing');
+  assert.ok(roofWear(70, null, 0).wear > 0 && !roofWear(70, null, 0).bare);
+  assert.ok(roofWear(50, null, 0).bare, 'a strip torn away to the battens');
+  assert.equal(roofWear(90, 1000, 1000).fresh, 1, 'mended today');
+  assert.ok(roofWear(90, 1000, 1000 + 4 * DAY).fresh < 1);
+  assert.equal(roofWear(90, 1000, 1000 + 9 * DAY).fresh, 0, 'weathered in');
+});
+
+test('trodden lines follow the bend the path will take, plainer as the walks add up', async () => {
+  const { treadLines, PATH_WEAR } = await import('./public/touches.js');
+  const map = { places: [{ id: 'a', at: [0, 0] }, { id: 'b', at: [20, 0] }] };
+  const [line] = treadLines(map, { 'a|b': 3 });
+  assert.ok(Math.hypot(...line.pts[0]) < 1e-9 && Math.hypot(line.pts.at(-1)[0] - 20, line.pts.at(-1)[1]) < 1e-9, 'from door to door');
+  assert.ok(Math.abs(line.pts[Math.floor(line.pts.length / 2)][1]) > 0.5, 'a gentle bend');
+  assert.ok(line.worn < treadLines(map, { 'a|b': PATH_WEAR - 1 })[0].worn);
+  assert.deepEqual(treadLines(map, { 'a|gone': 4 }), [], 'nothing to a place no longer there');
+});
+
+test('the pea rows grow, flower, pod, thin out as they are picked, and are cleared', async () => {
+  const { peaRows } = await import('./public/touches.js');
+  const garden = { sownAt: 0, picked: 0, tended: true }, world = { smallholding: { garden } };
+  assert.ok(peaRows(world, 10 * DAY).grow < peaRows(world, 30 * DAY).grow);
+  assert.ok(peaRows(world, 46 * DAY).flowering);
+  assert.ok(peaRows(world, 60 * DAY).podded);
+  garden.picked = 4;
+  assert.ok(peaRows(world, 60 * DAY).left < 1, 'thinned by the picking');
+  assert.ok(peaRows(world, 90 * DAY).spent);
+  assert.equal(peaRows(world, 120 * DAY), null, 'cleared');
+  assert.equal(peaRows({ smallholding: { garden: { sownAt: null, picked: 0 } } }, 0), null);
+});
+
+test('ricks by the barn are as big as the hay and grain in store', async () => {
+  const { ricksOf } = await import('./public/touches.js');
+  const map = { places: [{ id: 'barn', kind: 'barn', stage: 2, x: 50, y: 50, w: 5, d: 2.8, a: 0, at: [50, 52] }] };
+  const world = s => ({ supplies: s, capacity: { hay: 180, grain: 160 } });
+  const ricks = ricksOf(map, world({ hay: 90, grain: 160 }));
+  assert.deepEqual(ricks.map(r => r.kind), ['hay', 'corn']);
+  assert.ok(ricks[0].size < ricks[1].size);
+  assert.ok(ricks.every(r => r.x < 50 - 2.5), 'at the far end of the barn');
+  assert.deepEqual(ricksOf(map, world({ hay: 0, grain: 10 })).map(r => r.kind), ['corn']);
+});

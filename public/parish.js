@@ -82,9 +82,18 @@ export function parishLayout(map) {
   return { gardens, piles, sheep, appleTrees, pasture, orchard, common: piles.find(p => p.common), block };
 }
 
+// The flock as drawn: the grown sheep in their places, and each lamb at its mother's side, small and
+// keeping step with her.
 export function visibleSheep(layout, world) {
   const flock = world?.smallholding?.flock;
-  return layout.sheep.slice(0, layout.pasture && flock ? sheepCount(flock) : 5);
+  if (!layout.pasture || !flock) return layout.sheep.slice(0, layout.pasture && flock ? sheepCount(flock) : 5);
+  const grown = Math.min(layout.sheep.length, flock.ewes + flock.rams + flock.spare), out = layout.sheep.slice(0, grown);
+  const mothers = Math.max(1, Math.min(flock.ewes, grown));
+  for (let i = 0; i < flock.lambs && out.length < layout.sheep.length && grown; i++) {
+    const mother = layout.sheep[i % mothers], side = Math.floor(i / mothers) % 2 ? -1 : 1;
+    out.push({ ...mother, x: mother.x - 0.42, y: mother.y + side * 0.32, lamb: true });
+  }
+  return out;
 }
 
 export function workHeading(position, activity, commonPile) {

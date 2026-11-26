@@ -4,7 +4,7 @@ import { place } from './roads.mjs';
 import { addPlace, pickLot } from './sites.mjs';
 
 const DAY = 1440;
-const PEAS_RIPE = 56 * DAY, PEAS_LAST = 25 * DAY;
+export const PEAS_RIPE = 56 * DAY, PEAS_LAST = 25 * DAY;
 export const FRUIT_RIPE = 150 * DAY;
 const SPRING_MONTHS = [30, 31, 30, 31, 31, 30, 31];
 const MAX_SHEEP = 8, HAY_BATCH = 24;

@@ -3,6 +3,7 @@
 // stored map and world, so the views stay in step with the village and with each other.
 import { hash2, smooth } from '../engine/geom.mjs';
 import { sunDay } from '../engine/seasons.mjs';
+import { PEAS_LAST, PEAS_RIPE } from '../engine/smallholding.mjs';
 
 const tag = id => { let h = 0; for (const ch of String(id)) h = (Math.imul(h, 31) + ch.charCodeAt(0)) >>> 0; return h; };
 const local = (p, lx, ly) => [p.x + lx * Math.cos(p.a) - ly * Math.sin(p.a), p.y + lx * Math.sin(p.a) + ly * Math.cos(p.a)];
@@ -175,4 +176,72 @@ export function createTracks() {
     },
     clear() { trails.clear(); },
   };
+}
+
+// How a kept building's thatch looks from its condition (0 to 100) and when it was last mended.
+// wear runs from 0 on a sound roof to 1 on one falling in; a roof below 65 has a strip torn away to
+// the battens; fresh is how new a mended patch still looks, from 1 the day it was laid to 0 after
+// eight days. key changes only when the look does.
+export function roofWear(condition, mendedAt, minute) {
+  const wear = Math.round(Math.min(1, Math.max(0, (92 - (condition ?? 100)) / 60)) * 10) / 10;
+  const days = mendedAt == null ? Infinity : (minute - mendedAt) / 1440;
+  const fresh = days >= 0 && days < 8 ? Math.round((1 - days / 8) * 4) / 4 : 0;
+  const bare = (condition ?? 100) < 65;
+  return { wear, bare, fresh, at: mendedAt ?? 0, key: [wear, bare, fresh, mendedAt ?? 0].join('/') };
+}
+
+// The grass worn thin where people keep walking straight between two places. Each line follows the
+// gentle bend the path will take once enough feet have crossed (engine/civic.mjs tread), and shows
+// more as the count nears the twelve walks that make a path. Returns [{ key, pts, worn }].
+export const PATH_WEAR = 12;
+export function treadLines(map, wear) {
+  const out = [];
+  for (const [key, count] of Object.entries(wear || {})) {
+    const [aid, bid] = key.split('|'), a = map.places.find(p => p.id === aid), b = map.places.find(p => p.id === bid);
+    if (!a?.at || !b?.at) continue;
+    const length = Math.hypot(b.at[0] - a.at[0], b.at[1] - a.at[1]);
+    if (length < 1) continue;
+    const bend = (key.length % 2 ? 1 : -1) * length * 0.05, pts = [];
+    for (let i = 0, steps = Math.max(2, Math.round(length / 1.4)); i <= steps; i++) {
+      const t = i / steps, k = Math.sin(t * Math.PI) * bend;
+      pts.push([a.at[0] + (b.at[0] - a.at[0]) * t - (b.at[1] - a.at[1]) / length * k, a.at[1] + (b.at[1] - a.at[1]) * t + (b.at[0] - a.at[0]) / length * k]);
+    }
+    out.push({ key, pts, worn: Math.min(1, count / PATH_WEAR) });
+  }
+  return out;
+}
+
+// The pea rows in the kitchen garden, from the garden's sowing and picking. grow runs from 0 at
+// sowing to 1 when the peas are ripe; they flower just before; podded while there are peas to pick;
+// left is the share of the plants still to be picked over; spent once the crop is done, until the
+// rows are cleared about three weeks later. Null for bare earth.
+export function peaRows(world, minute) {
+  const garden = world?.smallholding?.garden;
+  if (!garden || garden.sownAt == null) return null;
+  const age = minute - garden.sownAt;
+  if (age < 0 || age >= PEAS_RIPE + PEAS_LAST + 20 * 1440) return null;
+  const most = garden.tended ? 8 : 4, spent = age >= PEAS_RIPE + PEAS_LAST || garden.picked >= most;
+  return {
+    grow: Math.round(Math.min(1, age / PEAS_RIPE) * 20) / 20,
+    flowering: !spent && age > PEAS_RIPE * 0.72 && age < PEAS_RIPE * 1.05,
+    podded: !spent && age >= PEAS_RIPE * 0.9,
+    left: Math.round((1 - Math.min(1, (garden.picked || 0) / most) * 0.7) * 10) / 10,
+    spent, tended: Boolean(garden.tended),
+  };
+}
+
+// A haystack and a corn rick at the end of the barn away from the lane, each as big as the hay and
+// the grain in store against what the barn can hold. Returns [{ kind: 'hay' | 'corn', x, y, a, size }].
+export function ricksOf(map, world) {
+  const barn = map.places.find(p => p.kind === 'barn' && p.stage === 2);
+  if (!barn || !world?.supplies) return [];
+  const out = [], end = -(barn.w / 2 + 1.35);
+  for (const [kind, v] of [['hay', -0.85], ['corn', 0.9]]) {
+    const have = world.supplies[kind === 'hay' ? 'hay' : 'grain'] || 0, room = world.capacity?.[kind === 'hay' ? 'hay' : 'grain'] || 160;
+    if (have <= 0) continue;
+    const size = Math.round(Math.sqrt(Math.min(1, have / room)) * 20) / 20;
+    const [x, y] = local(barn, end, v);
+    out.push({ kind, x, y, a: barn.a, size: Math.max(0.15, size) });
+  }
+  return out;
 }

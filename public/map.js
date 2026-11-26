@@ -9,10 +9,10 @@ import { cloudField, cloudsOver, cloudShade, cloudDrift, SHADE_EDGE } from './cl
 import { puddleFill, puddles, rainRings, wetness } from './wet.js';
 
 import { drawMapFigure } from './map-figure.js';
-import { drawAnimal, drawBeast, drawCart, drawDuck, drawGarden, drawOx, drawPet, drawPitch, drawWoodpile } from './map-parish.js';
+import { drawAnimal, drawBeast, drawCart, drawDuck, drawGarden, drawOx, drawPet, drawPitch, drawRicks, drawWoodpile } from './map-parish.js';
 import { cartsOf } from './carts.js';
 import { liveMinute, visitorsOf } from './travellers.js';
-import { createDucks, createTracks, millWork, stooksOf, washingOf } from './touches.js';
+import { createDucks, createTracks, millWork, peaRows, ricksOf, roofWear, stooksOf, treadLines, washingOf } from './touches.js';
 import { createPets } from './pets.js';
 import { drawGame, drawFish } from './map-wildlife.js';
 import { wildlife } from './wildlife.js';
@@ -99,7 +99,7 @@ function windowAt(p) {
   return [p.x - Math.sin(p.a) * side * p.d * 0.5, p.y + Math.cos(p.a) * side * p.d * 0.5];
 }
 
-function building(c, p, line, lodgers, snowed = color => color, toward = PLAIN_LIGHT.toward, raised = 0) {
+function building(c, p, line, lodgers, snowed = color => color, toward = PLAIN_LIGHT.toward, raised = 0, worn = null) {
   const [w, d] = [p.w, p.d], hw = w / 2, hd = d / 2;
   c.save();
   c.translate(p.x, p.y); c.rotate(p.a);
@@ -135,6 +135,27 @@ function building(c, p, line, lodgers, snowed = color => color, toward = PLAIN_L
   c.fillStyle = snowed(roof); c.fillRect(-hw, -hd, w, d);
   c.fillStyle = '#fff5d02e'; c.fillRect(-hw, sunny < 0 ? -hd : 0, w, hd);
   c.fillStyle = '#3a2f2026'; c.fillRect(-hw, sunny < 0 ? 0 : -hd, w, hd);
+  // Thatch that has gone without mending: dark weathered patches and moss, more as it wears, and below
+  // a certain state a strip torn away down to the battens. A newly mended patch shows pale gold for a
+  // few days before it weathers in.
+  if (worn) {
+    for (let i = 0, n = Math.round(worn.wear * 8); i < n; i++) {
+      const u = (hash2(h, i, 3) - 0.5) * (w - 0.7), v = (hash2(h, i, 5) - 0.5) * (d - 0.45), moss = i % 3 === 2;
+      c.fillStyle = moss ? 'rgba(86,104,56,' + (0.22 + 0.3 * worn.wear).toFixed(3) + ')' : 'rgba(54,43,29,' + (0.16 + 0.24 * worn.wear).toFixed(3) + ')';
+      c.beginPath(); c.ellipse(u, v, 0.22 + hash2(h, i, 7) * 0.34, 0.13 + hash2(h, i, 9) * 0.14, 0, 0, TAU); c.fill();
+    }
+    if (worn.bare) {
+      const span = Math.min(w * 0.4, 1.1), u = (hash2(h, 1, 11) - 0.5) * (w - span - 0.4), top = hash2(h, 1, 13) < 0.5 ? -hd + 0.1 : 0.1;
+      c.fillStyle = '#5e4d38'; c.fillRect(u - span / 2, top, span, hd - 0.2);
+      c.strokeStyle = '#8a7350'; c.lineWidth = line * 0.9; c.beginPath();
+      for (let y = top + 0.12; y < top + hd - 0.2; y += 0.22) { c.moveTo(u - span / 2, y); c.lineTo(u + span / 2, y); }
+      c.stroke();
+    }
+    if (worn.fresh > 0) {
+      const u = (hash2(h, worn.at, 17) - 0.5) * (w - 1.2), top = hash2(h, worn.at, 19) < 0.5 ? -hd + 0.12 : 0.12;
+      c.fillStyle = 'rgba(234,207,138,' + (0.7 * worn.fresh).toFixed(3) + ')'; c.fillRect(u - 0.45, top, 0.9, hd - 0.24);
+    }
+  }
   c.strokeStyle = '#695b4866'; c.lineWidth = line * 0.7;
   c.beginPath();
   for (let x = -hw + 0.3 + (h % 3) * 0.08; x < hw; x += 0.42) { c.moveTo(x, -hd + 0.12); c.lineTo(x, -0.1); c.moveTo(x + 0.2, 0.1); c.lineTo(x + 0.2, hd - 0.12); }
@@ -319,7 +340,14 @@ function paintPaper(c, map, look, scale) {
     c.fillStyle = snowed('#a9b584'); c.fill();
     c.strokeStyle = '#7d865b88'; c.lineWidth = line; c.stroke();
   }
-  for (const garden of look.parish.gardens) drawGarden(c, garden, year, snow, line);
+  for (const garden of look.parish.gardens) drawGarden(c, garden, year, snow, line, garden.id === 'kitchen-garden' ? look.peas : null);
+  // Grass worn thin where people keep walking straight across between two places. Very faint at first,
+  // a little plainer as the walks near the number that wears a real path.
+  if (snow < 0.4) {
+    for (const t of look.treads || []) {
+      curve(c, t.pts); c.strokeStyle = 'rgba(128,112,78,' + (0.035 + 0.075 * t.worn).toFixed(3) + ')'; c.lineWidth = 0.32; c.stroke();
+    }
+  }
   // Ways. Every edge line is laid first and every surface after it, so where a lane meets the road the
   // two run together with no line across the mouth. Surfaces go down narrowest first.
   const made = look.chains.map((way, n) => ({ ...way, n })).filter(way => way.kind === 'lane' || way.kind === 'road');
@@ -413,7 +441,7 @@ function paintPaper(c, map, look, scale) {
       building(c, house, line, false, snowed, sun.toward); roofed.push(rectPoly(house));
       const ox = p.x + Math.cos(p.a) * p.w * 0.27, oy = p.y + Math.sin(p.a) * p.w * 0.27;
       disc(c, ox + castX * 0.16, oy + castY * 0.16, 0.62, small); disc(c, ox, oy, 0.6, '#c2946e', ink, line * 1.2); disc(c, ox - 0.15, oy - 0.15, 0.2, '#d8b08a'); disc(c, ox, oy, 0.14, '#5f5142');
-    } else if (p.w && p.kind !== 'field' && !isFarmSite(p.kind)) { building(c, p, line, look.lodgers, snowed, sun.toward, look.raised?.get(p.id)); if (p.stage === 2) roofed.push(rectPoly(p)); }
+    } else if (p.w && p.kind !== 'field' && !isFarmSite(p.kind)) { building(c, p, line, look.lodgers, snowed, sun.toward, look.raised?.get(p.id), look.worn?.get(p.id)); if (p.stage === 2) roofed.push(rectPoly(p)); }
   }
   // Chips about the chopping block where the woodward splits logs.
   const block = look.parish?.block;
@@ -670,6 +698,15 @@ export function createMap(canvas, onSelect, cards) {
     // The orchard is redrawn as its apples swell, colour and are picked.
     const fruit = orchardFruit(world, clock), fruitKey = fruit ? [fruit.each, Math.round(fruit.red * 6), Math.round(fruit.size * 10)].join(':') : '';
     if (fruitKey !== look.fruitKey) { look.fruitKey = fruitKey; look.fruit = fruit; stale = true; }
+    // Roofs weather and are mended; the grass wears where people walk; the pea rows grow and are picked.
+    const worn = new Map(), wornKey = Object.entries(world?.condition || {}).map(([id, condition]) => {
+      const roof = roofWear(condition, world.mended?.[id], clock); worn.set(id, roof); return id + roof.key;
+    }).join();
+    if (wornKey !== look.wornKey) { look.wornKey = wornKey; look.worn = worn; stale = true; }
+    const treadKey = JSON.stringify(world?.wear || {});
+    if (treadKey !== look.treadKey) { look.treadKey = treadKey; look.treads = treadLines(map, world?.wear); stale = true; }
+    const peas = peaRows(world, clock), peaKey = JSON.stringify(peas);
+    if (peaKey !== look.peaKey) { look.peaKey = peaKey; look.peas = peas; stale = true; }
     // Stooks stand in the fields from the reaping until they are carted in.
     const stooks = stooksOf(map, clock);
     if (stooks.length !== (look.stooks?.length ?? 0)) { look.stooks = stooks; stale = true; }
@@ -1115,6 +1152,7 @@ export function createMap(canvas, onSelect, cards) {
     c.setTransform(dpr, 0, 0, dpr, 0, 0);
     c.drawImage(paper, 0, 0, w, h);
     for (const pile of look.parish.piles) drawWoodpile(c, pile, world, look.snow, toScreen, view.scale);
+    drawRicks(c, ricksOf(map, world), toScreen, view.scale, look.sun, look.snow);
     for (const animal of visibleSheep(look.parish, world)) drawAnimal(c, animal, still, toScreen, view.scale, look.sun);
     for (const animal of cattle) drawAnimal(c, animal, still, toScreen, view.scale, look.sun);
     // Loaves out on a board by the oven while a bake is on.

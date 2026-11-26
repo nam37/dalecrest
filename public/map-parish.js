@@ -3,7 +3,10 @@ import { blend, PLAIN_LIGHT } from './ambient.js';
 
 const tau = Math.PI * 2;
 
-export function drawGarden(c, garden, year, snow, line) {
+// peas, for the kitchen garden, is how its pea rows stand (peaRows in touches.js): plants along each
+// row growing from seedlings to full leaf, white flowers and then pods, thinned out as they are
+// picked, and yellowing once the crop is done.
+export function drawGarden(c, garden, year, snow, line, peas = null) {
   const { x, y, w, d, a } = garden;
   c.save();
   c.translate(x, y); c.rotate(a);
@@ -13,7 +16,22 @@ export function drawGarden(c, garden, year, snow, line) {
   for (let u = -w / 2 + 0.26; u < w / 2 - 0.08; u += 0.37) {
     c.moveTo(u, -d * 0.37); c.lineTo(u, d * 0.37);
   }
-  c.stroke(); c.restore();
+  c.stroke();
+  if (peas && snow < 0.5) {
+    const r = 0.035 + 0.1 * peas.grow, leaf = peas.spent ? '#a8975a' : blend('#7fa35a', '#557f3e', peas.grow);
+    let row = 0;
+    for (let u = -w / 2 + 0.26; u < w / 2 - 0.08; u += 0.37, row++) {
+      let n = 0;
+      for (let v = -d * 0.34; v <= d * 0.34; v += 0.2, n++) {
+        const pick = ((row * 7919 + n * 104729) % 97) / 97;
+        if (pick > peas.left) continue;
+        c.beginPath(); c.arc(u, v, r, 0, tau); c.fillStyle = leaf; c.fill();
+        if (peas.flowering && n % 2) { c.beginPath(); c.arc(u + r * 0.4, v - r * 0.3, r * 0.35, 0, tau); c.fillStyle = '#f4f1e4'; c.fill(); }
+        if (peas.podded && n % 2 === 0) { c.beginPath(); c.ellipse(u - r * 0.35, v + r * 0.2, r * 0.45, r * 0.2, 0.6, 0, tau); c.fillStyle = '#b8d07a'; c.fill(); }
+      }
+    }
+  }
+  c.restore();
 
   for (const [[ax, ay], [bx, by]] of fenceSpans(garden)) {
     c.beginPath(); c.moveTo(ax, ay); c.lineTo(bx, by);
@@ -58,8 +76,9 @@ export function animalShade(c, sun, heading, size, rx, ry) {
 export function drawAnimal(c, animal, time, toScreen, scale, sun = PLAIN_LIGHT) {
   const { x, y, heading, graze } = animalPose(animal, time);
   const cattle = animal.kind === 'cattle';
-  const [sx, sy] = toScreen(x, y), size = Math.max(cattle ? 5.5 : 3.8, scale * (cattle ? 0.44 : 0.25));
-  const wool = animalCoats[animal.kind][animal.coat], face = cattle ? '#71523d' : '#665746';
+  // A lamb is about half its mother's size, with a paler fleece.
+  const [sx, sy] = toScreen(x, y), size = Math.max(cattle ? 5.5 : 3.8, scale * (cattle ? 0.44 : 0.25)) * (animal.lamb ? 0.55 : 1);
+  const wool = animal.lamb ? blend(animalCoats[animal.kind][animal.coat], '#fffbea', 0.45) : animalCoats[animal.kind][animal.coat], face = cattle ? '#71523d' : '#665746';
   c.save(); c.translate(sx, sy);
   animalShade(c, sun, heading, size, 1, 0.55);
   c.rotate(heading); c.scale(size, size);
@@ -228,4 +247,39 @@ export function drawPitch(c, pitch, toScreen, scale, sun = PLAIN_LIGHT) {
   c.beginPath(); c.ellipse(0.72, 0.36, 0.2, 0.15, 0.4, 0, tau); c.fillStyle = '#8a6a44'; c.fill(); c.strokeStyle = '#4f3a25'; c.lineWidth = 0.035; c.stroke();
   c.beginPath(); c.moveTo(0.58, 0.3); c.lineTo(0.86, 0.43); c.strokeStyle = '#c9b48a'; c.lineWidth = 0.03; c.stroke();
   c.restore();
+}
+
+// The haystack and the corn rick by the barn (ricksOf in touches.js), from above: a round stack of hay
+// with its thatch drawn in to a top knot, and an oblong rick of sheaves with a ridge, each with its
+// shadow and as big as what is in store.
+export function drawRicks(c, ricks, toScreen, scale, sun = PLAIN_LIGHT, snow = 0) {
+  const k = Math.max(3, scale);
+  for (const rick of ricks) {
+    const [sx, sy] = toScreen(rick.x, rick.y), s = rick.size;
+    c.save(); c.translate(sx, sy);
+    const reach = (0.4 + 0.5 * s) * k * 0.6 * (sun.reach ?? 1);
+    c.fillStyle = 'rgba(60,52,36,' + (0.22 * Math.max(0.25, sun.depth ?? 1)).toFixed(3) + ')';
+    if (rick.kind === 'hay') {
+      const r = (0.32 + 0.62 * s) * k;
+      c.beginPath(); c.ellipse(-sun.toward[0] * reach, -sun.toward[1] * reach, r, r * 0.9, 0, 0, tau); c.fill();
+      c.beginPath(); c.arc(0, 0, r, 0, tau); c.fillStyle = blend('#c9b268', '#f5f4ec', snow * 0.8); c.fill();
+      c.strokeStyle = '#7d6a3e'; c.lineWidth = Math.max(0.8, k * 0.035); c.stroke();
+      c.strokeStyle = '#8f7a4488'; c.lineWidth = Math.max(0.6, k * 0.025); c.beginPath();
+      for (let i = 0; i < 10; i++) { const a = i * tau / 10; c.moveTo(Math.cos(a) * r * 0.25, Math.sin(a) * r * 0.25); c.lineTo(Math.cos(a + 0.35) * r * 0.92, Math.sin(a + 0.35) * r * 0.92); }
+      c.stroke();
+      c.beginPath(); c.arc(0, 0, r * 0.18, 0, tau); c.fillStyle = '#8a7547'; c.fill();
+    } else {
+      const len = (0.6 + 1.1 * s) * k, wid = (0.42 + 0.5 * s) * k;
+      c.rotate(rick.a);
+      c.beginPath(); c.ellipse(-sun.toward[0] * reach * 0.6, -sun.toward[1] * reach * 0.6, len / 2, wid / 2, 0, 0, tau); c.fill();
+      c.beginPath(); if (c.roundRect) c.roundRect(-len / 2, -wid / 2, len, wid, wid * 0.4); else c.rect(-len / 2, -wid / 2, len, wid);
+      c.fillStyle = blend('#c8a457', '#f5f4ec', snow * 0.8); c.fill(); c.strokeStyle = '#7a6236'; c.lineWidth = Math.max(0.8, k * 0.035); c.stroke();
+      c.fillStyle = '#fff1c433'; c.fillRect(-len / 2 + wid * 0.2, -wid / 2 + 1, len - wid * 0.4, wid / 2 - 1);
+      c.strokeStyle = '#7a6236'; c.beginPath(); c.moveTo(-len / 2 + wid * 0.3, 0); c.lineTo(len / 2 - wid * 0.3, 0); c.stroke();
+      c.strokeStyle = '#8a703f77'; c.lineWidth = Math.max(0.6, k * 0.022); c.beginPath();
+      for (let u = -len / 2 + wid * 0.35; u < len / 2 - wid * 0.3; u += k * 0.2) { c.moveTo(u, -wid * 0.42); c.lineTo(u + k * 0.06, -wid * 0.05); c.moveTo(u, wid * 0.42); c.lineTo(u + k * 0.06, wid * 0.05); }
+      c.stroke();
+    }
+    c.restore();
+  }
 }

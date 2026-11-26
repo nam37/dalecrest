@@ -14,6 +14,7 @@ import { kinds } from '/card.js';
 import { createPets } from './pets.js';
 import { cartsOf } from './carts.js';
 import { liveMinute, visitorsOf } from './travellers.js';
+import { ricksOf } from './touches.js';
 import { animalCoats, animalPose, appleSpots, createAnglers, createPlay, fenceSpans, logsIn, orchardFruit, ovenLoaves, parishLayout, raisedOf, strayCattle, visibleSheep, workHeading } from './parish.js';
 import { isFarmSite } from '../engine/smallholding.mjs';
 import { residentActivity, residentScale } from './resident-pose.js';
@@ -546,6 +547,35 @@ export function createWalk(container, onSelect, onNote) {
       }
     }
   }
+  // The haystack and the corn rick by the barn, rebuilt when what is in store changes their size.
+  let rickModels = null, rickKey = '';
+  function moveRicks() {
+    const ricks = ricksOf(map, world), key = ricks.map(r => [r.kind, r.size, r.x, r.y].join(':')).join();
+    if (key === rickKey) return;
+    rickKey = key;
+    if (rickModels) people.remove(rickModels);
+    rickModels = new THREE.Group();
+    for (const rick of ricks) {
+      const g = new THREE.Group(), s = rick.size, y = ground(rick.x, rick.y);
+      if (rick.kind === 'hay') {
+        const r = 0.32 + 0.62 * s, tall = 0.35 + 0.75 * s;
+        const body = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.92, r, tall, 12), mat('#c9b268'));
+        body.position.y = tall / 2; body.castShadow = body.receiveShadow = true; g.add(body);
+        const top = new THREE.Mesh(new THREE.ConeGeometry(r * 1.02, tall * 0.7, 12), mat('#b59d58'));
+        top.position.y = tall + tall * 0.35; top.castShadow = true; g.add(top);
+      } else {
+        const len = 0.6 + 1.1 * s, wid = 0.42 + 0.5 * s, tall = 0.3 + 0.55 * s;
+        g.add(box(len, tall, wid, '#c8a457', 0, tall / 2, 0));
+        // A three-sided prism laid along the rick with one edge up for the ridge.
+        const roof = new THREE.Mesh(new THREE.CylinderGeometry(wid * 0.62, wid * 0.62, len * 1.02, 3, 1, false, Math.PI / 2), mat('#b08c48'));
+        roof.rotation.z = Math.PI / 2; roof.position.y = tall + wid * 0.31; roof.castShadow = true; g.add(roof);
+        g.rotation.y = -rick.a;
+      }
+      g.position.set(rick.x, y, rick.y);
+      rickModels.add(g);
+    }
+    people.add(rickModels);
+  }
   // Dogs and cats, placed from where their owners are drawn, and the models that show them.
   const petsAt = createPets(), drawnAt = new Map(), petModels = new Map();
   function movePets(now, dt) {
@@ -807,6 +837,8 @@ export function createWalk(container, onSelect, onNote) {
       animal.visible = Boolean(spec);
       if (!spec) return;
       const pose = animalPose(spec, time);
+      // A lamb is about half its mother's size.
+      if (spec.kind === 'sheep') animal.scale.setScalar(spec.lamb ? 0.55 : 1);
       animal.position.set(pose.x, ground(pose.x, pose.y), pose.y);
       animal.rotation.y = -pose.heading;
       head.position.y = 0.233 - pose.graze * 0.073;
@@ -1330,6 +1362,7 @@ export function createWalk(container, onSelect, onNote) {
     movePets(now, dt);
     moveCarts(now, dt);
     moveVisitors(now, dt);
+    moveRicks();
     for (const wheel of wheels) wheel.rotation.z += dt * 0.7 * wheel.userData.spin;
     sky(now, dt);
     renderer.render(scene, camera);

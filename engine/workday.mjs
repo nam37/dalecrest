@@ -92,6 +92,9 @@ export function repairLoss(world, site) {
 export function wear(state, emit) {
   const { world, map } = state;
   normalizeBuildings(state);
+  // When each roof was last mended, so the views can show the new thatch for a few days.
+  world.mended ??= {};
+  for (const [id, at] of Object.entries(world.mended)) if (world.minute - at > 10 * 1440) delete world.mended[id];
   for (const id of Object.keys(world.condition)) {
     const p = place(map, id);
     if (!p) { delete world.condition[id]; continue; }
@@ -102,6 +105,7 @@ export function wear(state, emit) {
     const worst = Object.entries(world.condition).filter(([, c]) => c < 96).sort((a, b) => a[1] - b[1])[0];
     if (!worst) break;
     world.condition[worst[0]] = Math.min(100, worst[1] + 4);
+    world.mended[worst[0]] = world.minute;
     world.supplies.repair--;
     budget--;
   }
