@@ -5,7 +5,9 @@
 // set out on the green.
 import { route } from '../engine/roads.mjs';
 import { createAppearance } from '../engine/appearance.mjs';
-import { animalPose } from './parish.js';
+import { animalPose, pitchOf } from './parish.js';
+
+export { pitchOf };
 
 const tag = id => { let h = 0; for (const ch of String(id)) h = (Math.imul(h, 31) + ch.charCodeAt(0)) >>> 0; return h; };
 
@@ -74,22 +76,6 @@ function walking(path, d, gaps) {
   return { lead: { ...lead, moving, gone: d }, behind: gaps.map(gap => ({ ...along(path, Math.max(0, d - gap)), moving: moving && d - gap > 0, gone: Math.max(0, d - gap) })) };
 }
 
-// The peddler's pitch on the green: the cloth is spread between the spot where villagers gather and the
-// way in, and the peddler stands behind it on the road side, facing the customers.
-export function pitchOf(map) {
-  const green = map.places.find(p => p.kind === 'green');
-  if (!green) return null;
-  // The way in is the path that leaves the green's gathering spot and runs furthest from the middle of
-  // the green, rather than the short spur to the well.
-  const [ax, ay] = green.at, out = (map.edges || []).filter(([a, b]) => a === green.node || b === green.node)
-    .map(([a, b]) => map.nodes[a === green.node ? b : a]).sort((m, n) => Math.hypot(n[0] - green.x, n[1] - green.y) - Math.hypot(m[0] - green.x, m[1] - green.y));
-  const [nx, ny] = out[0] ?? [green.x, green.y + 1];
-  let dx = nx - ax, dy = ny - ay, d = Math.hypot(dx, dy);
-  if (d < 0.5) { dx = ax - green.x; dy = ay - green.y; d = Math.hypot(dx, dy) || 1; }
-  const ux = dx / d, uy = dy / d, step = Math.min(1.3, Math.max(0.9, d * 0.4));
-  return { x: ax + ux * step, y: ay + uy * step, a: Math.atan2(uy, ux), stand: [ax + ux * (step + 0.75), ay + uy * (step + 0.75)],
-    graze: [ax + ux * (step + 0.6) - uy * 2, ay + uy * (step + 0.6) + ux * 2], face: Math.atan2(-uy, -ux) };
-}
 
 // The reeve's look: a good dark gown and a hood, the same at every visit.
 const REEVE = { version: 1, seed: 'reeve', cloth: ['#55607a', '#363e52', '#7a86a0'], skin: ['#dca481', '#a46751', '#f3c19e'], hair: ['#6d6456', '#a89a82'], headwear: 'hood' };

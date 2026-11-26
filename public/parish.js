@@ -249,6 +249,60 @@ export function ovenLoaves(map, actors) {
   return { count: made, x: oven.x + lx * Math.cos(oven.a) - ly * Math.sin(oven.a), y: oven.y + lx * Math.sin(oven.a) + ly * Math.cos(oven.a), a: oven.a };
 }
 
+// The peddler's pitch on the green: the cloth is spread between the spot where villagers gather and the
+// way in, and the peddler stands behind it on the road side, facing the customers.
+export function pitchOf(map) {
+  const green = map.places.find(p => p.kind === 'green');
+  if (!green) return null;
+  // The way in is the path that leaves the green's gathering spot and runs furthest from the middle of
+  // the green, rather than the short spur to the well.
+  const [ax, ay] = green.at, out = (map.edges || []).filter(([a, b]) => a === green.node || b === green.node)
+    .map(([a, b]) => map.nodes[a === green.node ? b : a]).sort((m, n) => Math.hypot(n[0] - green.x, n[1] - green.y) - Math.hypot(m[0] - green.x, m[1] - green.y));
+  const [nx, ny] = out[0] ?? [green.x, green.y + 1];
+  let dx = nx - ax, dy = ny - ay, d = Math.hypot(dx, dy);
+  if (d < 0.5) { dx = ax - green.x; dy = ay - green.y; d = Math.hypot(dx, dy) || 1; }
+  const ux = dx / d, uy = dy / d, step = Math.min(1.3, Math.max(0.9, d * 0.4));
+  return { x: ax + ux * step, y: ay + uy * step, a: Math.atan2(uy, ux), stand: [ax + ux * (step + 0.75), ay + uy * (step + 0.75)],
+    graze: [ax + ux * (step + 0.6) - uy * 2, ay + uy * (step + 0.6) + ux * 2], face: Math.atan2(-uy, -ux) };
+}
+// Where children run round in their game on the green: a ring in the open grass, kept clear of the
+// well and of the spot by the way in where people gather and a peddler sets out the pack. The ring is
+// as large as fits, as near the middle as it can be. Worked out once for each map.
+const rings = new WeakMap();
+export function playRing(map) {
+  if (rings.has(map)) return rings.get(map);
+  const green = map.places.find(p => p.kind === 'green');
+  let found = null;
+  if (green) {
+    const grx = green.rx ?? 4, gry = green.ry ?? 3, pitch = pitchOf(map);
+    const inGreen = ([x, y], k) => ((x - green.x) / (grx * k)) ** 2 + ((y - green.y) / (gry * k)) ** 2 <= 1;
+    // What the children keep clear of, and by how much.
+    const keep = map.places.filter(p => p.kind === 'well' && inGreen([p.x, p.y], 1.2)).map(p => [p.x, p.y, 1.3]);
+    if (pitch) keep.push([green.at[0], green.at[1], 0.9], [pitch.x, pitch.y, 1.1], [...pitch.stand, 0.9]);
+    const clear = r => {
+      // Not running round the well or the pack either: everything kept clear lies outside the ring.
+      if (keep.some(([x, y]) => ((x - r.x) / r.rx) ** 2 + ((y - r.y) / r.ry) ** 2 < 1.3)) return false;
+      for (let i = 0; i < 28; i++) {
+        const a = i * TAU / 28, pt = [r.x + Math.cos(a) * r.rx, r.y + Math.sin(a) * r.ry];
+        if (!inGreen(pt, 0.9) || keep.some(([x, y, d]) => Math.hypot(pt[0] - x, pt[1] - y) < d)) return false;
+      }
+      return true;
+    };
+    for (const scale of [1, 0.85, 0.72, 0.6, 0.5]) {
+      const rx = Math.max(1.2, grx * 0.5 * scale), ry = Math.max(1, gry * 0.5 * scale);
+      let best = null;
+      for (let u = -grx; u <= grx; u += 0.25) for (let v = -gry; v <= gry; v += 0.25) {
+        const r = { x: green.x + u, y: green.y + v, rx, ry };
+        if (clear(r) && (!best || Math.hypot(u, v) < best.d)) best = { ...r, d: Math.hypot(u, v) };
+      }
+      if (best) { found = { x: best.x, y: best.y, rx, ry }; break; }
+    }
+    found ??= { x: green.x, y: green.y, rx: Math.max(1.2, grx * 0.5), ry: Math.max(1, gry * 0.5) };
+  }
+  rings.set(map, found);
+  return found;
+}
+
 // Children at play on the green. The engine leaves them standing where they arrived; a view sets them
 // running round a ring on the grass, spaced out as in a chasing game, now and then all turning to run
 // the other way. Each eases onto the ring when play begins and back to where the engine has them when
@@ -262,7 +316,7 @@ export function createPlay() {
       const green = map.places.find(p => p.kind === 'green');
       players = green ? actors.filter(a => a.child && a.action?.kind === 'play' && a.action.phase === 'working' && a.action.target === green.id && at(a.id) && !at(a.id).moving)
         .map(a => a.id).sort() : [];
-      ring = green && { x: green.x, y: green.y, rx: Math.max(1.2, (green.rx ?? 4) * 0.5), ry: Math.max(1, (green.ry ?? 3) * 0.5) };
+      ring = green && playRing(map);
       // The game turns about every twenty seconds, so the ring runs one way and then the other.
       const dt = Math.min(0.25, Math.max(0, (now - last) / 1000)); last = now; time = now;
       run += dt * (Math.floor(now / 20000) % 2 ? -0.55 : 0.55);

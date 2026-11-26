@@ -59,3 +59,19 @@ test('a family’s ox-cart travels with them and then stands at the end of their
   assert.ok(Math.abs(home.x - (50 + 2.5 + 0.85)) < 1e-9, 'it stands at the gable end');
   assert.deepEqual(cartsOf(map, { familyArrivals: [{ home: 'barn', parents: [] }] }, [], () => null, 0), [], 'no cart, nothing drawn');
 });
+
+test('the children’s ring on the green keeps clear of the well and the peddler’s pitch', async () => {
+  const { playRing, pitchOf } = await import('./public/parish.js');
+  const map = { nodes: [[50, 52], [50, 60]], edges: [[0, 1, 'track', -1]], places: [
+    { id: 'green', kind: 'green', x: 50, y: 50, rx: 5, ry: 4, a: 0, at: [50, 52], node: 0 },
+    { id: 'well', kind: 'well', x: 48.5, y: 49.5, at: [48.5, 50.5] },
+  ] };
+  const ring = playRing(map), pitch = pitchOf(map);
+  for (let i = 0; i < 36; i++) {
+    const a = i * Math.PI / 18, x = ring.x + Math.cos(a) * ring.rx, y = ring.y + Math.sin(a) * ring.ry;
+    assert.ok(Math.hypot(x - 48.5, y - 49.5) >= 1.3, 'never over the well');
+    assert.ok(Math.hypot(x - pitch.x, y - pitch.y) >= 1.1, 'never over the pack');
+    assert.ok(((x - 50) / 5) ** 2 + ((y - 50) / 4) ** 2 <= 1, 'on the green');
+  }
+  assert.ok(((48.5 - ring.x) / ring.rx) ** 2 + ((49.5 - ring.y) / ring.ry) ** 2 > 1, 'not running round the well either');
+});
