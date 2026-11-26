@@ -56,6 +56,19 @@ export function yearLook(minute) {
   };
 }
 
+// Hoar frost on the ground, from 0 to 1. It forms on a cold, clear night, whitens the ground through
+// the small hours and is gone within the first two or three hours of the morning. How hard it lies
+// follows the cold and the cloud of the coming dawn, so it does not jump as the weather turns over in
+// the night. Rain, snow falling or snow lying leave none to see.
+export function frostOver(minute, seed) {
+  const day = Math.floor(minute / 1440) * 1440, m = minute - day, { sunrise, sunset } = daylight(minute);
+  const evening = m >= sunrise + 200, dawn = evening ? day + 1440 + daylight(day + 1440).sunrise : day + sunrise;
+  const at = weatherAt(dawn, seed), now = weatherAt(minute, seed);
+  if (now.rain || now.snow || now.lying > 0.3 || at.lying > 0.3) return 0;
+  const hours = !evening ? 1 - smooth(sunrise + 30, sunrise + 170, m) : smooth(sunset + 60, sunset + 240, m);
+  return hours * smooth(3, -1.5, at.temp) * (1 - smooth(0.45, 0.85, Math.max(at.cloud, now.cloud)));
+}
+
 // The sky over a village: its weather, with the season's name, for whoever draws or labels it.
 export function skyOver(minute, seed) {
   const w = weatherAt(minute, seed), season = seasonOf(minute);

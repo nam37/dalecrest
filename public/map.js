@@ -3,7 +3,7 @@
 import { heightAt, TREE_LINE } from '/engine/terrain.mjs';
 import { rectPoly, rng, hash2, smooth, TAU } from '/engine/geom.mjs';
 import { createMotion } from '/motion.js';
-import { light, hearths, indoors, yearLook, skyOver, sunOver, blend, PLAIN_LIGHT } from '/ambient.js';
+import { light, hearths, indoors, yearLook, skyOver, sunOver, blend, frostOver, PLAIN_LIGHT } from '/ambient.js';
 import { sunDay, windAt } from '/engine/seasons.mjs';
 import { cloudField, cloudsOver, cloudShade, cloudDrift, SHADE_EDGE } from './clouds.js';
 import { puddleFill, puddles, rainRings, wetness } from './wet.js';
@@ -599,6 +599,8 @@ export function createMap(canvas, onSelect, cards) {
   let wind = null, cover = null, coverAt = 0;
   // The ways as they look wet, drawn whole on a sheet of their own so that crossings darken no more than the rest.
   const sodden = document.createElement('canvas');
+  // The grain of hoar frost, a scatter of white crystals laid over the sheet as a pattern.
+  let rime = null;
   // Anglers step down from the landing to the water's edge.
   const anglers = createAnglers();
   let stepAt = 0;
@@ -754,6 +756,7 @@ export function createMap(canvas, onSelect, cards) {
       c.closePath();
     }
     c.clip(); c.drawImage(paper, 0, 0, w, h); c.restore();
+    hoarFrost();
     cornWind(time, sky);
     wetWays(sky);
     cloudShadows(time, sky);
@@ -792,6 +795,29 @@ export function createMap(canvas, onSelect, cards) {
         c.beginPath(); c.arc(x, y, (0.22 + f * 0.75) * k, 0, TAU); c.fill();
       }
     }
+  }
+
+  // Hoar frost whitens everything but the river, with a glitter of crystals over it.
+  function hoarFrost() {
+    const f = frostOver(clock, map.seed);
+    if (f < 0.02) return;
+    if (!rime) {
+      const tile = document.createElement('canvas'); tile.width = tile.height = 96;
+      const t = tile.getContext('2d');
+      for (let i = 0; i < 260; i++) {
+        const x = hash2(5, i, 1) * 96, y = hash2(5, i, 2) * 96, r = 0.4 + hash2(5, i, 3) * 0.9;
+        t.fillStyle = 'rgba(255,255,255,' + (0.35 + hash2(5, i, 4) * 0.55).toFixed(2) + ')';
+        t.beginPath(); t.arc(x, y, r, 0, TAU); t.fill();
+      }
+      rime = c.createPattern(tile, 'repeat');
+    }
+    const half = map.terrain.riverWidth / 2, left = beside(map.terrain.river, -half), right = beside(map.terrain.river, half).reverse();
+    c.save(); c.beginPath(); c.rect(0, 0, w, h);
+    [...left, ...right].forEach(([x, y], i) => { const [sx, sy] = toScreen(x, y); if (i) c.lineTo(sx, sy); else c.moveTo(sx, sy); });
+    c.closePath(); c.clip('evenodd');
+    c.fillStyle = 'rgba(228,237,244,' + (0.42 * f).toFixed(3) + ')'; c.fillRect(0, 0, w, h);
+    c.globalAlpha = 0.8 * f; c.fillStyle = rime; c.fillRect(0, 0, w, h);
+    c.restore();
   }
 
   // Wind running over standing barley. The ears bow before each gust and show their paler side, so
