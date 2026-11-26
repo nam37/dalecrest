@@ -42,7 +42,7 @@ const recall = key => { try { return localStorage.getItem(key); } catch { return
 const keep = (key, value) => { try { localStorage.setItem(key, value); } catch { /* private window */ } };
 let watching = !location.hash.includes('/') && recall('dalecrest.watch') !== 'off', scene = null;
 const map = createMap($('map'), choose, {
-  resident: (actor, others) => residentCard(actor, { names: state.locations, minute: state.world.minute, others }),
+  resident: (actor, others) => residentCard(actor, { names: state.locations, minute: state.world.minute, others, pets: state.world.pets ?? [] }),
   event: (events, spot) => eventCard(events, { names: state.locations, minute: state.world.minute, place: spot.id }),
   steered: () => watch(false),
 });

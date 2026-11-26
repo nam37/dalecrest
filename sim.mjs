@@ -29,6 +29,7 @@ import { familiar, fade, warm } from './engine/bonds.mjs';
 import { addStock, cottageBatches, foodMix, nextFreshExpiry, produceFoods, spoilCottageProduce, spoilFreshFood, takeFoodBatches, takeStock } from './engine/fresh-food.mjs';
 import { HUNGER, HUNGRY_AT_DAWN, foodReserve, hungerPerMinute, mealRecord, relieveHunger } from './engine/nutrition.mjs';
 import { dawnSmallholding, farmJobs, farmOutput, normalizeSmallholding } from './engine/smallholding.mjs';
+import { dawnPets, normalizePets } from './engine/pets.mjs';
 import { walkingFatigue } from './engine/footwear.mjs';
 
 export const FOCUSES = ['work', 'social', 'rest', 'food'];
@@ -119,6 +120,7 @@ function normalize({ world, actors, map }) {
   world.arrivals ??= 0;
   world.coldHearths ??= [];
   world.fuelCarry ??= 0;
+  normalizePets(world);
   for (const actor of actors) {
     appointReporter(actor);
     actor.needs.cold ??= 0;
@@ -783,6 +785,7 @@ function stepMinute(state, events, externalActions, records, pilot, songDrafts) 
     wear(state, emit);
     dawnVisitors(state, emit, () => random(world), sky);
     dawnSmallholding(state, emit);
+    dawnPets(state, emit);
     const burned = fuelHearths(state);
     issueAllowance(state);
     emit('village', 'Dawn breaks ' + sky.phrase + '. The households collect water and take what they need from the village stores'

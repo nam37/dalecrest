@@ -109,7 +109,7 @@ export function residentCaption(actor, names = {}) {
 }
 
 // others are the residents under the same roof, when this one is indoors.
-export function residentCard(actor, { names = {}, minute = 0, others = [] } = {}) {
+export function residentCard(actor, { names = {}, minute = 0, others = [], pets = [] } = {}) {
   const card = document.createDocumentFragment(), a = actor.action || {};
   const head = el('div', 'map-card-head'), title = el('div');
   title.append(el('h3', '', actor.name), el('p', 'role', actor.child ? 'Age ' + actor.age : actor.role));
@@ -149,6 +149,8 @@ export function residentCard(actor, { names = {}, minute = 0, others = [] } = {}
 
   if (why.children.length > 1 || context.children.length > 1) card.append(why);
   if (others.length) card.append(el('p', 'map-card-others', 'Also indoors here: ' + others.map(o => o.name.split(' ')[0]).join(', ') + '.'));
+  const kept = pets.filter(p => p.owner === actor.id);
+  if (kept.length) card.append(el('p', 'map-card-others', kept.map(p => (p.kind === 'dog' ? 'Dog: ' : 'Cat: ') + p.name).join(' · ')));
   return card;
 }
 

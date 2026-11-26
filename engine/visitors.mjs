@@ -7,6 +7,7 @@ import { dateOf } from './calendar.mjs';
 import { place, placesOf } from './roads.mjs';
 import { buildingName } from './workday.mjs';
 import { remember } from './memory.mjs';
+import { dogOf } from './pets.mjs';
 
 const DAY = 1440;
 const PEDDLERS = ['Hamon of Ashby', 'Wymark the chapman', 'Old Ysolt of Pendle', 'Geoffrey Pack', 'Lettice of Stowe Ferry'];
@@ -109,8 +110,11 @@ export const herdLoose = world => world.herd && world.minute >= world.herd.from 
 export function visitorChoices(actor, { world, map }, offer, weary) {
   if (herdLoose(world) && actor.memories.some(m => m.herd === world.herd.field && m.minute >= world.herd.from)) {
     const field = place(map, world.herd.field);
-    offer('driveHerd', world.herd.field, (actor.trade === 'harvest' ? 72 : 48) - weary, 'Stray cattle are eating the barley in ' + field.name + '.',
-      { label: 'Driving the stray cattle out of ' + field.name });
+    // A dog at their heels gets the cattle moving sooner.
+    const dog = dogOf(world, actor.id);
+    offer('driveHerd', world.herd.field, (actor.trade === 'harvest' ? 72 : 48) - weary + (dog ? 6 : 0),
+      'Stray cattle are eating the barley in ' + field.name + '.' + (dog ? ' ' + dog.name + ' can help turn them.' : ''),
+      { label: 'Driving the stray cattle out of ' + field.name, ...(dog && { duration: 18 }) });
   }
   if (peddlerHere(world)) offer('trade', 'green', 38 - weary, 'A peddler on the green will give salt fish for linen.');
 }

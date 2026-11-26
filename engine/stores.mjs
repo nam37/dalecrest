@@ -67,9 +67,11 @@ export function mouths({ actors, world }) {
   return actors.length + children / 2;
 }
 
-// Barley in store is lost to mice and damp, about one measure in three hundred a day.
+// Barley in store is lost to mice and damp, about one measure in three hundred a day. Each cat in the
+// village takes a share of the mice, up to two cats' worth.
 export function keepStores(world) {
-  world.grainLoss = (world.grainLoss || 0) + world.supplies.grain * 0.0033;
+  const cats = (world.pets ?? []).filter(p => p.kind === 'cat').length;
+  world.grainLoss = (world.grainLoss || 0) + world.supplies.grain * 0.0033 * (1 - 0.15 * Math.min(2, cats));
   const lost = Math.min(world.supplies.grain, Math.floor(world.grainLoss));
   world.supplies.grain -= lost;
   world.grainLoss -= lost;
