@@ -151,3 +151,21 @@ export function drawCart(c, cart, toScreen, scale, sun = PLAIN_LIGHT) {
   oval(0.15, 0.15, 0.15, 0.06, '#b6a37c');
   c.restore();
 }
+
+// A duck on the water: a small boat-shaped body, the drake with a dark green head and the duck brown,
+// with a little wake spreading behind while it paddles or drifts.
+export function drawDuck(c, duck, toScreen, k, time) {
+  const [x, y] = toScreen(duck.x, duck.y), s = Math.max(3.2, k * 0.2);
+  c.save(); c.translate(x, y); c.rotate(duck.heading);
+  c.strokeStyle = 'rgba(244,250,247,' + (duck.paddling ? 0.55 : 0.35).toFixed(2) + ')'; c.lineWidth = Math.max(0.6, s * 0.12);
+  const spread = duck.paddling ? 1.3 : 0.9, run = time ? (time * 0.002) % 1 : 0.5;
+  c.beginPath(); c.moveTo(-s * 0.7, -s * 0.25); c.lineTo(-s * (1.6 + run), -s * spread * (0.55 + run * 0.4));
+  c.moveTo(-s * 0.7, s * 0.25); c.lineTo(-s * (1.6 + run), s * spread * (0.55 + run * 0.4)); c.stroke();
+  c.fillStyle = duck.drake ? '#b8b4a6' : '#8f7556'; c.strokeStyle = '#3f3a2e'; c.lineWidth = Math.max(0.5, s * 0.1);
+  c.beginPath(); c.ellipse(0, 0, s * 0.75, s * 0.42, 0, 0, Math.PI * 2); c.fill(); c.stroke();
+  c.fillStyle = duck.drake ? '#2f5a3c' : '#7a6046';
+  c.beginPath(); c.arc(s * 0.62, 0, s * 0.3, 0, Math.PI * 2); c.fill(); c.stroke();
+  c.fillStyle = '#d9a63e'; c.beginPath(); c.moveTo(s * 0.86, -s * 0.09); c.lineTo(s * 1.12, 0); c.lineTo(s * 0.86, s * 0.09); c.fill();
+  c.restore();
+}
+

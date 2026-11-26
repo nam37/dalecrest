@@ -9,8 +9,9 @@ import { cloudField, cloudsOver, cloudShade, cloudDrift, SHADE_EDGE } from './cl
 import { puddleFill, puddles, rainRings, wetness } from './wet.js';
 
 import { drawMapFigure } from './map-figure.js';
-import { drawAnimal, drawCart, drawGarden, drawOx, drawPet, drawWoodpile } from './map-parish.js';
+import { drawAnimal, drawCart, drawDuck, drawGarden, drawOx, drawPet, drawWoodpile } from './map-parish.js';
 import { cartsOf } from './carts.js';
+import { createDucks, createTracks, millWork, stooksOf, washingOf } from './touches.js';
 import { createPets } from './pets.js';
 import { drawGame, drawFish } from './map-wildlife.js';
 import { wildlife } from './wildlife.js';
@@ -220,11 +221,12 @@ function paintPaper(c, map, look, scale) {
     }
   }
   c.stroke();
-  // Dotted contours mark each rise in the ground.
-  c.strokeStyle = snow > 0.4 ? '#7f8a8288' : '#4f6a4688'; c.lineWidth = line * 1.7; c.setLineDash([0.01, 0.62]);
+  // Fine brown contours mark each rise in the ground. They are drawn as unbroken hairlines, since a
+  // dotted line on the sheet reads as a footpath.
+  c.strokeStyle = snow > 0.4 ? '#7f8a8255' : '#7a6a4a40'; c.lineWidth = line * 0.75;
   c.beginPath();
   for (const [a, b] of look.contours) { c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); }
-  c.stroke(); c.setLineDash([]);
+  c.stroke();
   if (scale > 5) {
     c.strokeStyle = '#6f8a5566'; c.lineWidth = line * 0.8; c.fillStyle = '#5f7a4a40';
     for (const [x, y, tuft] of look.specks) {
@@ -300,6 +302,17 @@ function paintPaper(c, map, look, scale) {
     }
     c.restore();
   });
+  // Stooks of sheaves on the reaped ground: a little tent of straw, gold on the side to the light, with
+  // its shadow beside it.
+  for (const [x, y, a] of look.stooks || []) {
+    c.save(); c.translate(x, y); c.rotate(a);
+    c.fillStyle = '#6b5a3a33'; c.beginPath(); c.ellipse(castX * 0.35, castY * 0.35, 0.34, 0.22, 0, 0, TAU); c.fill();
+    c.fillStyle = snowed('#c9a95a'); c.strokeStyle = '#7a6236'; c.lineWidth = line * 0.8;
+    c.beginPath(); c.ellipse(0, 0, 0.3, 0.2, 0, 0, TAU); c.fill(); c.stroke();
+    c.beginPath(); c.moveTo(-0.3, 0); c.lineTo(0.3, 0); c.moveTo(0, -0.2); c.lineTo(0, 0.2); c.stroke();
+    c.fillStyle = '#f0dc9a99'; c.beginPath(); c.ellipse(lx * -0.08, ly * -0.08, 0.12, 0.08, 0, 0, TAU); c.fill();
+    c.restore();
+  }
   for (const grass of [look.parish.orchard, look.parish.pasture].filter(Boolean)) {
     trace(c, rectPoly(grass), true);
     c.fillStyle = snowed('#a9b584'); c.fill();
@@ -312,7 +325,8 @@ function paintPaper(c, map, look, scale) {
   for (const way of look.chains) {
     if (way.kind === 'track') continue;
     curve(c, way.pts);
-    if (way.kind === 'path') { c.setLineDash([0.25, 0.4]); c.strokeStyle = '#a8977299'; c.lineWidth = WAYS.path[0] + line * 1.6; c.stroke(); c.setLineDash([]); }
+    // A footpath is trodden earth with a soft worn edge into the grass, not a kerbed line.
+    if (way.kind === 'path') { c.strokeStyle = '#a8977255'; c.lineWidth = WAYS.path[0] + line * 2.4; c.stroke(); }
     else { c.strokeStyle = '#b3a281'; c.lineWidth = WAYS[way.kind][0] + line * 2.2; c.stroke(); }
   }
   for (const kind of ['track', 'path', 'lane', 'road']) {
@@ -632,6 +646,11 @@ export function createMap(canvas, onSelect, cards) {
   // Dogs and cats, placed from where their owners are drawn.
   const petsAt = createPets(), drawnAt = new Map();
   let stepAt = 0;
+  // Ducks on the river, and footprints left in lying snow.
+  const ducksAt = createDucks(), tracks = createTracks();
+  let lastDuckAt = 0;
+  // How far round the mill wheel has turned, and how fast it is going: fast with the sluice open.
+  const millSpin = { angle: 0, rate: 0.0007, at: 0 };
   // How far the wind has carried the rain or snow sideways, kept as a running sum so a shift of wind bends its path without a jump.
   let blown = 0, blownAt = 0;
   const veil = document.createElement('canvas');
@@ -648,6 +667,9 @@ export function createMap(canvas, onSelect, cards) {
     // The orchard is redrawn as its apples swell, colour and are picked.
     const fruit = orchardFruit(world, clock), fruitKey = fruit ? [fruit.each, Math.round(fruit.red * 6), Math.round(fruit.size * 10)].join(':') : '';
     if (fruitKey !== look.fruitKey) { look.fruitKey = fruitKey; look.fruit = fruit; stale = true; }
+    // Stooks stand in the fields from the reaping until they are carted in.
+    const stooks = stooksOf(map, clock);
+    if (stooks.length !== (look.stooks?.length ?? 0)) { look.stooks = stooks; stale = true; }
     // Shadows move with the sun, a few minutes at a time, and soften as cloud comes over.
     const sunKey = Math.floor(clock / 5) + ':' + Math.round(wx.cloud * 6);
     if (sunKey !== look.sunKey) { look.sunKey = sunKey; look.sun = sunOver(clock, wx.cloud); stale = true; }
@@ -807,9 +829,14 @@ export function createMap(canvas, onSelect, cards) {
     for (const p of map.places) {
       if (p.kind !== 'mill' || p.stage !== 2) continue;
       const side = (p.at[0] - p.x) * -Math.sin(p.a) + (p.at[1] - p.y) * Math.cos(p.a) > 0 ? 1 : -1;
-      // The wheel turns once in about eight seconds. Seen from above, each paddle comes up over the
-      // top, runs across the wheel and goes down the far side, so they bunch together at its ends.
-      const ca = Math.cos(p.a), sa = Math.sin(p.a), turn = time * 0.0008;
+      // The wheel idles round once in about nine seconds, and runs three times as fast while someone is
+      // grinding. Seen from above, each paddle comes up over the top, runs across the wheel and goes
+      // down the far side, so they bunch together at its ends.
+      const work = millWork(map, actors), milling = Boolean(work?.milling);
+      const spun = Math.min(250, Math.max(0, time - (millSpin.at || time)));
+      millSpin.rate += ((milling ? 0.0021 : 0.0007) - millSpin.rate) * Math.min(1, spun / 1500);
+      millSpin.angle = (millSpin.angle + spun * millSpin.rate) % TAU; millSpin.at = time;
+      const ca = Math.cos(p.a), sa = Math.sin(p.a), turn = time ? millSpin.angle : 0, foam = Math.min(1, (millSpin.rate - 0.0007) / 0.0014);
       const at = (lx, ly) => toScreen(p.x + lx * ca - ly * sa, p.y + lx * sa + ly * ca);
       c.lineWidth = Math.max(1, k * 0.07);
       for (let i = 0; i < 10; i++) {
@@ -820,9 +847,11 @@ export function createMap(canvas, onSelect, cards) {
         c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
       }
       const fx = p.x + Math.sin(p.a) * side * (p.d / 2 + 0.75), fy = p.y - Math.cos(p.a) * side * (p.d / 2 + 0.75);
-      for (let i = 0; i < 4; i++) {
-        const f = (time * 0.0005 + i / 4) % 1, [x, y] = toScreen(fx + Math.sin(i * 2.1) * 0.25, fy + 0.5 + f * 2.2);
-        c.strokeStyle = 'rgba(250,253,248,' + ((1 - f) * 0.75 * calm).toFixed(3) + ')'; c.lineWidth = Math.max(1, k * 0.09);
+      // More white water, and quicker, with the sluice open.
+      const spill = 4 + Math.round(foam * 3);
+      for (let i = 0; i < spill; i++) {
+        const f = (time * (0.0005 + foam * 0.0004) + i / spill) % 1, [x, y] = toScreen(fx + Math.sin(i * 2.1) * (0.25 + foam * 0.2), fy + 0.5 + f * (2.2 + foam * 1.2));
+        c.strokeStyle = 'rgba(250,253,248,' + ((1 - f) * (0.75 + foam * 0.2) * calm).toFixed(3) + ')'; c.lineWidth = Math.max(1, k * 0.09);
         c.beginPath(); c.arc(x, y, k * (0.22 + f * 0.4), Math.PI * 0.15, Math.PI * 0.85); c.stroke();
       }
     }
@@ -1098,6 +1127,56 @@ export function createMap(canvas, onSelect, cards) {
       }
       c.restore();
     }
+    // Footprints in lying snow, fading as they fill in.
+    if (look.snow >= 0.25) {
+      const k = view.scale, pw = Math.max(0.8, k * 0.06), pl = Math.max(1.3, k * 0.11);
+      for (const q of tracks.prints(clock)) {
+        const [x, y] = toScreen(q.x, q.y);
+        if (x < -4 || y < -4 || x > w + 4 || y > h + 4) continue;
+        c.fillStyle = 'rgba(112,124,140,' + (0.42 * q.fresh * look.snow).toFixed(3) + ')';
+        c.beginPath(); c.ellipse(x, y, pl, pw, q.a, 0, TAU); c.fill();
+      }
+    }
+    // Washing out on the line, blowing out downwind and flapping as the wind gusts.
+    for (const line of washingOf(map, world, clock, map.seed, wx)) {
+      const k = view.scale, [ax, ay] = toScreen(...line.a), [bx, by] = toScreen(...line.b);
+      const blow = wind ? 0.12 + 0.55 * Math.min(1, wind.strength * 1.6) : 0.12, [tx, ty] = wind ? wind.toward : [0, 1];
+      c.strokeStyle = '#5f4e39'; c.lineWidth = Math.max(0.8, k * 0.035);
+      c.beginPath(); c.moveTo(ax, ay); c.lineTo(bx, by); c.stroke();
+      disc(c, ax, ay, Math.max(1.4, k * 0.07), '#7a6446', ink, 0.6); disc(c, bx, by, Math.max(1.4, k * 0.07), '#7a6446', ink, 0.6);
+      for (const [i, cloth] of line.cloths.entries()) {
+        const mx = ax + (bx - ax) * cloth.t, my = ay + (by - ay) * cloth.t, len = Math.hypot(bx - ax, by - ay) || 1;
+        const ux = (bx - ax) / len, uy = (by - ay) / len, half = cloth.wide * k / 2;
+        const flap = still ? 1 : 1 + 0.22 * Math.sin(still * 0.011 * (0.7 + (wind?.strength || 0)) + i * 1.9) * Math.min(1, blow * 2);
+        // A cloth swings out across its line to the downwind side, and a wind along the line leans it
+        // that way too. Its face always shows, even when the wind runs straight down the line.
+        const nx = -uy, ny = ux, across = tx * nx + ty * ny, lean = (tx * ux + ty * uy) * blow * 0.3 * k;
+        const out = (0.18 + blow * 0.5 * Math.max(0.4, Math.abs(across))) * flap * k * (across >= 0 ? 1 : -1);
+        const wob = still ? 0 : Math.sin(still * 0.017 + i * 2.7) * 0.05 * k * blow;
+        const dx = nx * out + ux * (lean + wob), dy = ny * out + uy * (lean + wob);
+        c.fillStyle = cloth.color; c.strokeStyle = '#6b604c'; c.lineWidth = Math.max(0.6, k * 0.025);
+        c.beginPath(); c.moveTo(mx - ux * half, my - uy * half); c.lineTo(mx + ux * half, my + uy * half);
+        c.lineTo(mx + ux * half * 0.92 + dx, my + uy * half * 0.92 + dy); c.lineTo(mx - ux * half * 0.92 + dx, my - uy * half * 0.92 + dy);
+        c.closePath(); c.fill(); c.stroke();
+      }
+    }
+    // Sacks of meal by the mill door while the stones are grinding, and a little flour dust in the air.
+    const mill = millWork(map, actors);
+    if (mill?.sacks) {
+      const k = view.scale, [mx, my] = toScreen(...mill.at), [dx, dy] = toScreen(...mill.door);
+      for (let i = 0; i < mill.sacks; i++) {
+        const along = (i % 3) * 0.4 - 0.4, up = i >= 3 ? -0.16 : 0;
+        const sx = mx + (Math.cos(mill.a) * along) * k, sy = my + (Math.sin(mill.a) * along + up) * k;
+        c.beginPath(); c.ellipse(sx, sy, 0.19 * k, 0.15 * k, mill.a, 0, TAU); c.fillStyle = '#e4d8b8'; c.fill();
+        c.strokeStyle = '#6f6248'; c.lineWidth = Math.max(0.6, k * 0.03); c.stroke();
+        c.beginPath(); c.arc(sx, sy - 0.1 * k, 0.04 * k, 0, TAU); c.fillStyle = '#a58b5f'; c.fill();
+      }
+      if (still) for (let i = 0; i < 4; i++) {
+        const f = (still * 0.0004 + i / 4) % 1;
+        c.fillStyle = 'rgba(250,246,232,' + ((1 - f) * 0.45).toFixed(3) + ')';
+        c.beginPath(); c.arc(dx + Math.sin(i * 2.3 + f * 3) * 0.3 * k, dy - f * 0.7 * k, (0.08 + f * 0.18) * k, 0, TAU); c.fill();
+      }
+    }
     const walkers = actors.filter(a => !indoors(a)).map(a => motion.at(a.id, time)).filter(Boolean);
     // Families' ox-carts, on the road in or standing by the house, with the oxen.
     for (const cart of cartsOf(map, world, actors, id => drawnAt.get(id) ?? motion.at(id, time), still)) {
@@ -1108,6 +1187,13 @@ export function createMap(canvas, onSelect, cards) {
     lastPetAt = time;
     for (const animal of look.wild.game) drawGame(c, animal, still, toScreen, view.scale, look, walkers);
     drawFish(c, look.wild.fish, still, toScreen, view.scale, sky, wx);
+    // Ducks on the river by day. At night they roost on the bank, out of sight.
+    if (sky.dark < 0.55) {
+      const fishing = actors.filter(a => a.action?.job === 'fish' && a.action.phase === 'working').map(a => drawnAt.get(a.id)).filter(Boolean);
+      const ducks = ducksAt(map, still, fishing, reduced.matches ? 0 : Math.min(0.25, Math.max(0, (time - (lastDuckAt || time)) / 1000)));
+      lastDuckAt = time;
+      for (const duck of ducks) drawDuck(c, duck, toScreen, view.scale, still);
+    }
     ambient(still, sky, lit);
     c.textAlign = 'center'; c.textBaseline = 'middle';
     if (view.scale > 6.5) {
@@ -1154,6 +1240,7 @@ export function createMap(canvas, onSelect, cards) {
       if (!at) continue;
       const p = play.place(actor.id, anglers.place(actor.id, at, stepped), stepped);
       drawnAt.set(actor.id, p);
+      if (look.snow >= 0.25 && !indoors(actor)) tracks.step(actor.id, p, clock);
       const home = indoors(actor) && insideAt(actor.action.target);
       if (home) {
         const [hx, hy] = toScreen(home[0], home[1]);
