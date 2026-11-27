@@ -7,12 +7,26 @@ export function portrait(actor) {
   canvas.height = 156;
   canvas.setAttribute('aria-hidden', 'true');
   const context = canvas.getContext('2d');
-  if (context) drawPortrait(context, appearanceOf(actor), actor.sex === 'm' && !actor.child);
+  if (context) drawPortrait(context, appearanceOf(actor), { man: actor.sex === 'm' && !actor.child, child: Boolean(actor.child) });
   return canvas;
 }
 
+// Hand-drawn face shapes in drawing units, facing right. A resident gets one and a small variation of it,
+// so every face is one of a few that were checked, never an unlucky mix of extremes.
+// tip: the nose tip; lip: the front of the upper lip; chin: the bottom of the chin and how far forward it comes;
+// jaw: where the jaw turns back (lower is broader); brow: the height of the brow.
+const FACES = [
+  { name: 'round', brow: 34, tip: 54.6, noseY: 40.6, lip: 52, mouthGap: 6.2, chin: 55, chinX: 49, jaw: 33 },
+  { name: 'long', brow: 33.5, tip: 55.4, noseY: 41.2, lip: 52.4, mouthGap: 6.4, chin: 57.4, chinX: 49.4, jaw: 35 },
+  { name: 'broad', brow: 34.5, tip: 54.4, noseY: 40.6, lip: 52.6, mouthGap: 6, chin: 55.6, chinX: 50, jaw: 31.5 },
+  { name: 'fine', brow: 33.5, tip: 55, noseY: 40.4, lip: 51.6, mouthGap: 6, chin: 54.8, chinX: 48.6, jaw: 35.5 },
+  { name: 'strong', brow: 34, tip: 55.8, noseY: 41, lip: 52.6, mouthGap: 6.4, chin: 56.6, chinX: 50.6, jaw: 32.5 },
+  { name: 'soft', brow: 34.5, tip: 54, noseY: 40.4, lip: 51.8, mouthGap: 5.8, chin: 54.4, chinX: 48.4, jaw: 34.5 },
+];
+const YOUNG = ['round', 'fine', 'soft'];
+
 // A small printed bust with two canvas pixels per drawing unit.
-function drawPortrait(c, appearance, suspenders) {
+function drawPortrait(c, appearance, { man, child }) {
   const variation = feature => appearanceVariation(appearance, feature);
   const n = (feature, min, max) => min + (max - min) * variation(feature);
   const [cloth, clothShade, clothLight] = appearance.cloth;
@@ -20,9 +34,13 @@ function drawPortrait(c, appearance, suspenders) {
   const [hair, hairLight] = appearance.hair;
   const { headwear } = appearance;
   const ink = '#3d2c23', linen = '#e6d9b8', linenShade = '#a99a76';
-  const temple = n('temple', 25, 29), jaw = n('jaw', 31, 38), chin = n('chin', 53, 60);
-  const brow = n('brow', 31, 35), nose = n('nose', 53, 58), cheek = n('cheek', 48, 55);
-  const mouth = n('mouth', 46, 49), mouthEnd = n('expression', -1.4, 1.4);
+  const faces = child ? FACES.filter(face => YOUNG.includes(face.name)) : FACES;
+  const shape = faces[Math.floor(variation('face') * faces.length)];
+  const temple = n('temple', 25.5, 28.5), jaw = shape.jaw + n('jaw', -.8, .8);
+  const brow = shape.brow + n('brow', -.5, .5), tip = shape.tip + n('nose', -.5, .5), noseY = shape.noseY;
+  const lip = shape.lip, mouth = noseY + shape.mouthGap, chin = shape.chin + n('chin', -.5, .5), chinX = shape.chinX;
+  // The corner of the mouth sits level or a little raised.
+  const corner = n('expression', -1, .3);
 
   c.scale(2, 2);
   c.lineJoin = c.lineCap = 'round';
@@ -59,7 +77,7 @@ function drawPortrait(c, appearance, suspenders) {
   line('M13 74 L11 79 M17 73 L15 79 M21 72 L19 78 M53 72 L56 78', ink, .75);
   path('M29 48 Q38 50 46 51 L45 60 L49 62 Q45 69 37 69 Q29 68 25 62 L29 58 Z', skinShade);
   path('M34 53 L45 54 L44 61 Q42 65 37 66 L33 63 Z', skin, null);
-  if (suspenders) {
+  if (man) {
     path('M18 64 L23 61 L25 80 L19 80 Z', linen, ink, 1);
     path('M50 61 L55 64 L54 80 L48 80 Z', linen, ink, 1);
   } else {
@@ -68,17 +86,35 @@ function drawPortrait(c, appearance, suspenders) {
     line('M37 74 L39 80', ink, 1.5);
   }
 
-  const face = `M${temple} 27 Q33 18 46 24 Q52 26 52 ${brow} L${nose} 40 Q58 43 ${cheek} 44 Q54 48 51 51 Q48 ${chin} 42 ${chin} Q${jaw} ${chin} 28 50 Q23 49 22 43 Q19 38 23 36 Z`;
-  path(face, skin);
-  path(`M${temple} 28 Q33 25 37 26 Q30 35 31 44 Q33 52 42 ${chin} Q${jaw} ${chin} 28 50 Q23 49 22 43 Q19 38 23 36 Z`, skinShade, null);
-  path(`M37 29 Q43 25 47 29 L49 ${brow} L${nose - 1.5} 40 L47 42 L46 38 Q39 38 36 36 Z`, skinLight, null);
+  // Forehead, a rounded nose, the lips, the chin and the jaw, then the back of the head.
+  const front = `M${temple} 27 Q33 18 46 24 Q52 26 52 ${brow} Q${52 + (tip - 52) * .45} ${brow + 3} ${tip} ${noseY}`
+    + ` Q${tip + .7} ${noseY + 2.1} ${tip - 2} ${noseY + 2.5} Q${lip + .6} ${noseY + 2.8} ${lip} ${noseY + 4.4}`
+    + ` Q${lip + .7} ${mouth} ${lip - .6} ${mouth + 1.6} Q${chinX + 1.4} ${chin - 3.2} ${chinX} ${chin - 1}`
+    + ` Q${chinX - 1.6} ${chin} ${chinX - 6.5} ${chin} Q${jaw} ${chin} 28 50`;
+  path(front + ' Q23 49 22 43 Q19 38 23 36 Z', skin);
+  // The shaded side, light enough to keep the features on darker skin.
+  c.globalAlpha = .7;
+  path(`M${temple} 28 Q33 25 37 26 Q30 35 30.5 43 Q32 50 ${chinX - 7} ${chin} Q${jaw} ${chin} 28 50 Q23 49 22 43 Q19 38 23 36 Z`, skinShade, null);
+  c.globalAlpha = 1;
+  path(`M37 29 Q43 25 47 29 L49 ${brow} Q${tip - 2.5} ${noseY - 2} ${tip - 1.5} ${noseY} L47 ${noseY + 1.5} L46 38 Q39 38 36 36 Z`, skinLight, null);
   line('M24 40 Q28 37 29 42 L27 44', ink, .8);
-  line(`M34 ${brow - 1} Q38 ${brow - 3} 42 ${brow - 1} M47 ${brow - 1} L50 ${brow - 1}`, ink, 1.7);
-  line(`M35 ${brow + 3} Q38 ${brow + 1} 41 ${brow + 3} M47 ${brow + 2} L50 ${brow + 2}`, ink, 1.05);
-  dot(39, brow + 3.15, 1.05, 1.25, ink);
-  line(`M${nose - 4} 42 L${nose - 2} 42.7 M42 ${mouth} Q46 ${mouth + 1} 50 ${mouth + mouthEnd}`, ink, 1.2);
-  line(`M41 ${mouth + 4.2} Q45 ${mouth + 5} 48 ${mouth + 3.5}`, skinShade, 1);
-  line('M31 45 L34 49 M33 45 L36 49 M35 45 L37 48', skinShade, .8);
+  // Brows, the near eye with one lid line, and a smaller far eye beside the bridge of the nose.
+  line(`M34 ${brow - .8} Q38 ${brow - 2.6} 42 ${brow - 1}`, ink, 1.35);
+  line(`M47 ${brow - 1} Q48.6 ${brow - 1.8} 50.2 ${brow - 1}`, ink, 1.1);
+  line(`M35.6 ${brow + 2.4} Q38.6 ${brow + 1} 41.4 ${brow + 2.6}`, ink, .95);
+  dot(38.8, brow + 3.3, .95, 1.1, ink);
+  line(`M47.4 ${brow + 2.3} Q48.7 ${brow + 1.5} 50 ${brow + 2.3}`, ink, .8);
+  dot(48.8, brow + 3.2, .6, .8, ink);
+  line(`M${tip - 3.6} ${noseY + 1.4} Q${tip - 2.8} ${noseY + 2.6} ${tip - 1.6} ${noseY + 2.3}`, ink, 1);
+  line(`M${lip - 9} ${mouth + .4 + corner} Q${lip - 5} ${mouth + 1.1} ${lip - .9} ${mouth + .3}`, ink, 1.15);
+  line(`M${lip - 7.5} ${mouth + 3.6} Q${lip - 4.5} ${mouth + 4.4} ${lip - 2.2} ${mouth + 3.4}`, skinShade, .9);
+  line(front, ink, 1.4);
+  // Some men are unshaven. Freckled faces are left clear so the two never crowd each other.
+  if (man && variation('stubble') > .55 && variation('freckles') <= .57) {
+    c.globalAlpha = .6;
+    for (let i = 0; i < 7; i++) dot(33 + i * 2.3, chin - 5.5 + n(`stubble-${i}`, -1, 1.2) + (i > 3 ? i - 3 : 0), .45, .45, skinShade);
+    c.globalAlpha = 1;
+  }
   if (headwear === 'bare' || headwear === 'cap') {
     path('M20 38 Q14 30 21 21 Q24 15 34 16 Q43 11 50 18 Q57 22 52 29 Q46 24 43 26 Q38 22 32 28 Q29 32 25 31 L25 37 Z', hair);
     line('M20 31 Q21 23 29 21 M24 28 Q31 21 37 21 M34 23 Q42 16 49 22', hairLight, 1.3);
