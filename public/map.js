@@ -1249,31 +1249,67 @@ export function createMap(canvas, onSelect, cards) {
     }
     ambient(still, sky, lit);
     c.textAlign = 'center'; c.textBaseline = 'middle';
-    if (view.scale > 6.5) {
-      for (const way of look.chains) {
-        if (!way.name || way.pts.length < 5) continue;
-        const i = way.pts.length >> 1, a = way.pts[i - 1], b = way.pts[i + 1];
-        let angle = Math.atan2(b[1] - a[1], b[0] - a[0]);
-        if (angle > Math.PI / 2 || angle < -Math.PI / 2) angle += Math.PI;
-        const [x, y] = toScreen(way.pts[i][0], way.pts[i][1]);
-        c.globalAlpha = 0.72; label(way.name, x, y - 9, 11.5, true, angle); c.globalAlpha = 1;
-      }
-    }
     // Buildings that stand close together, such as the oven and the storehouse, would write their names
-    // over each other. A later name steps down a line until it is clear of those already written.
+    // over each other. A later name steps down a line until it is clear of those already written, and is
+    // left off if it cannot find room, rather than written across another. Buildings are placed before
+    // the fields, pastures and woods around them, whose names cover more ground. Several buildings of
+    // one name that would be named close together, such as the granaries, are named once among them.
+    const size = Math.max(13, Math.min(20, view.scale * 1.9));
+    c.font = 'italic ' + size + 'px ' + face;
     const written = [];
+    // The selected resident's name is drawn over the map afterwards. Its place is kept clear first.
+    const picked = actors.find(a => a.id === selectedId), pickedAt = picked && motion.at(picked.id, time);
+    if (pickedAt) {
+      const home = indoors(picked) && insideAt(picked.action.target), figure = Math.max(11, Math.min(22, view.scale * 1.55));
+      const [px, py] = home ? toScreen(home[0], home[1]) : toScreen(pickedAt.x, pickedAt.y);
+      const name = picked.name.split(' ')[0] + (indoors(picked) ? ' · indoors' : '');
+      written.push({ x: px, y: py - (home ? Math.max(6, view.scale * 0.34) + 9 : indoors(picked) ? 14 : figure + 9), half: name.length * 14 * 0.27, size: 14 });
+    }
+    // So are the chronicle notes pinned over the map afterwards, each standing up and to the left of its spot.
+    for (const m of pinnedMark && !marks.some(k => k.key === pinnedMark.key) ? [...marks, pinnedMark] : marks) {
+      const [mx, my] = toScreen(m.x, m.y);
+      written.push({ x: mx - 15, y: my - 20, half: 8, size: 17 });
+    }
+    const AREAS = new Set(['field', 'pasture', 'orchard', 'garden', 'wood', 'green', 'fishing']);
+    const names = [];
     for (const p of map.places) {
       if (p.kind === 'cottage' || !p.name || (p.kind === 'well' && view.scale < 11)) continue;
       const [x, y] = toScreen(p.x, p.y);
       const drop = p.kind === 'field' ? 0 : p.kind === 'well' ? -1.3 * view.scale - 4 : p.kind === 'green' ? (p.ry + 1) * view.scale + 3 : ((p.d || 2.4) / 2 + 0.9) * view.scale + 4;
       const text = p.id === 'hall' && world?.school?.lesson ? 'Lessons at the hall'
         : p.stage < 2 && p.kind !== 'field' ? p.name + ' (building)' : p.name;
-      const size = Math.max(13, Math.min(20, view.scale * 1.9));
-      const half = text.length * size * 0.26;
-      let at = y + drop;
-      for (let i = 0; i < 4 && written.some(b => Math.abs(b.x - x) < b.half + half && Math.abs(b.y - at) < size); i++) at += size * 1.05;
-      written.push({ x, y: at, half });
-      label(text, x, at, size);
+      // Close on screen, so zooming in gives each its own name again.
+      const near = names.find(n => n.text === text && Math.hypot(n.x - x, n.y - y - drop) < 110);
+      if (near) { near.xs.push(x); near.ys.push(y + drop); continue; }
+      names.push({ text, x, y: y + drop, xs: [x], ys: [y + drop], area: AREAS.has(p.kind) });
+    }
+    names.sort((a, b) => a.area - b.area);
+    for (const name of names) {
+      const x = name.xs.reduce((s, v) => s + v, 0) / name.xs.length, y = name.ys.reduce((s, v) => s + v, 0) / name.ys.length;
+      const half = c.measureText(name.text).width / 2 + 2;
+      const clash = at => written.some(b => Math.abs(b.x - x) < b.half + half && Math.abs(b.y - at) < (b.size + size) / 2);
+      let at = y, steps = 0;
+      while (clash(at) && steps < 3) { at += size * 1.05; steps++; }
+      if (clash(at)) continue;
+      written.push({ x, y: at, half, size });
+      label(name.text, x, at, size);
+    }
+    // Road names come last and give way: one that would touch a name already written is left off. Each is
+    // measured as it lies along its road.
+    if (view.scale > 6.5) {
+      c.font = 'italic 11.5px ' + face;
+      for (const way of look.chains) {
+        if (!way.name || way.pts.length < 5) continue;
+        const i = way.pts.length >> 1, a = way.pts[i - 1], b = way.pts[i + 1];
+        let angle = Math.atan2(b[1] - a[1], b[0] - a[0]);
+        if (angle > Math.PI / 2 || angle < -Math.PI / 2) angle += Math.PI;
+        const [x, sy] = toScreen(way.pts[i][0], way.pts[i][1]), y = sy - 9;
+        const long = c.measureText(way.name).width + 4, cos = Math.abs(Math.cos(angle)), sin = Math.abs(Math.sin(angle));
+        const half = (long * cos + 11.5 * sin) / 2, tall = long * sin + 11.5 * cos;
+        if (written.some(o => Math.abs(o.x - x) < o.half + half && Math.abs(o.y - y) < (o.size + tall) / 2)) continue;
+        written.push({ x, y, half, size: tall });
+        c.globalAlpha = 0.72; label(way.name, x, y, 11.5, true, angle); c.globalAlpha = 1;
+      }
     }
     if (w > 560) rose();
     title();

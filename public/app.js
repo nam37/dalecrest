@@ -528,10 +528,13 @@ function render() {
   const speed = state.tickMs > 0 && state.tickMinutes > 0
     ? (30000 * state.tickMinutes / state.tickMs).toLocaleString('en', { maximumSignificantDigits: 3 }) + '×'
     : '';
-  const pace = speed && [speed, clockPeriods[state.clockPeriod]].filter(Boolean).join(' · ');
+  const period = speed && clockPeriods[state.clockPeriod];
+  const pace = [speed, period].filter(Boolean).join(' · ');
   const paceLabel = $('clock-pace');
   if (paceLabel.textContent !== pace) {
-    paceLabel.textContent = pace;
+    // The period is its own span, so a narrow plate can show the speed alone beside the hour.
+    const span = period && Object.assign(document.createElement('span'), { className: 'pace-period', textContent: ' · ' + period });
+    paceLabel.replaceChildren(...(speed ? [speed] : []), ...(span ? [span] : []));
     paceLabel.title = speed ? 'Speed relative to 30 real seconds per village minute' : '';
   }
   $('clock').title='Day '+dateOf(world.minute).villageDay+' since Dalecrest was founded';
