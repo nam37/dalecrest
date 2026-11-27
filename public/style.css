@@ -280,8 +280,22 @@ html:has(.map-area.map-expanded) { overflow: hidden; }
   .plate-tools #sound { grid-area: sound; justify-self: end; }
   .map-zoom { top: 102px; }
 }
-.map-key { left: 18px; bottom: 16px; display: flex; align-items: center; flex-wrap: wrap; gap: 5px 16px; max-width: calc(100% - 150px); padding: 6px 12px; background: #f9f2dcd9; border: 1px solid #a99a7299; font-size: .84rem; font-style: italic; color: var(--ink-soft); backdrop-filter: blur(2px); }
+.map-key { left: 18px; bottom: 16px; display: flex; align-items: center; gap: 10px; max-width: calc(100% - 150px); padding: 4px 6px 4px 12px; background: #f9f2dcd9; border: 1px solid #a99a7299; font-size: .84rem; font-style: italic; color: var(--ink-soft); backdrop-filter: blur(2px); }
 .map-key span { display: flex; align-items: center; gap: 6px; }
+.map-help { display: inline-grid; place-items: center; width: 22px; height: 22px; padding: 0; border: 1px solid #8f8264; border-radius: 50%; background: #fffdf2; font: 700 .8rem/1 Georgia, serif; font-style: normal; color: var(--ink-soft); cursor: pointer; }
+.map-help:hover, .map-help:focus-visible { color: var(--rust); border-color: var(--rust); }
+/* The key and the controls are kept in a dialog, so the plate shows only the village's numbers. */
+.map-help-dialog { width: min(32rem, calc(100% - 2rem)); max-height: calc(100% - 2rem); overflow-y: auto; }
+.map-help-dialog h3 { margin: 14px 0 6px; font-family: var(--caps); font-size: .86rem; font-weight: normal; letter-spacing: .1em; color: var(--ink-soft); }
+.map-help-dialog ul { margin: 0; padding: 0; list-style: none; }
+.map-help-dialog li { margin: 4px 0; line-height: 1.4; }
+.help-key li { display: grid; grid-template-columns: 20px 1fr; align-items: baseline; gap: 8px; }
+.help-key i { justify-self: center; }
+.help-list li { padding-left: 1em; text-indent: -1em; }
+.help-list li::before { content: '·'; display: inline-block; width: 1em; text-indent: 0; text-align: center; }
+.help-views { display: grid; grid-template-columns: max-content 1fr; gap: 5px 14px; margin: 0; line-height: 1.4; }
+.help-views dt { font-family: var(--caps); letter-spacing: .06em; }
+.help-views dd { margin: 0; }
 #map-count { font-style: normal; font-family: var(--caps); letter-spacing: .08em; }
 .key-resident, .key-follow { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #957457; }
 .key-follow { background: #f7ecd0; outline: 1px solid var(--rust); outline-offset: 2px; }
@@ -570,7 +584,6 @@ footer { display: flex; justify-content: space-between; gap: 14px; flex-wrap: wr
   .map-key { left: 10px; bottom: 10px; max-width: calc(100% - 64px); }
   .scene-caption { left: 10px; bottom: 10px; max-width: calc(100% - 64px); padding: 6px 10px 7px; }
   .scene-caption #caption-line { font-size: .94rem; }
-  #map-hint { display: none; }
 }
 @media (max-width: 690px) and (max-height: 480px), (max-width: 960px) and (max-height: 480px) and (pointer: coarse) {
   .map-area:is(:fullscreen, .map-expanded) #map:not([hidden]) ~ .scene-caption { max-height: 28%; overflow-y: auto; }

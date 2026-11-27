@@ -67,7 +67,6 @@ async function show(mode) {
   for (const b of document.querySelectorAll('[data-view]')) b.setAttribute('aria-pressed', String(b.dataset.view === mode));
   $('map').hidden = mode !== 'plan'; $('walk').hidden = mode !== 'walk';
   for (const item of document.querySelectorAll('.plan-only')) item.hidden = mode !== 'plan';
-  $('map-hint').textContent = mode === 'plan' ? 'Drag to pan · click, then scroll to zoom' : 'Drag to look around · click, then scroll to move closer · click a resident to follow';
   if (mode === 'walk' && !walk && !loadingWalk) {
     loadingWalk = true;
     caption({ line: 'Opening the village at eye level…' });
@@ -569,7 +568,7 @@ function render() {
     } else if(!loadingWalk) caption(watching&&scene?narration():null);
     renderProfile(actor);renderAffairs();
     const kids = villagePeople.length - actors.length;
-    $('map-count').textContent=actors.length+' residents'+(kids ? ' · '+kids+(kids === 1 ? ' child' : ' children') : '');
+    $('map-count').textContent='Pop. '+actors.length+' residents'+(kids ? ' · '+kids+(kids === 1 ? ' child' : ' children') : '');
     const notable=shown(events,'highlights');
     journal($('recent-events'),(notable.length?notable:events).slice(0,5));
     const stocked = [...Object.entries(stores), ...Object.entries(hallStores).filter(([key]) => world.supplies[key] > 0)];
@@ -698,6 +697,7 @@ for(const btn of document.querySelectorAll('[data-tab]'))btn.addEventListener('c
   }
 });
 for(const btn of document.querySelectorAll('[data-view]'))btn.addEventListener('click',()=>show(btn.dataset.view));
+$('map-help').addEventListener('click',()=>$('map-help-dialog').showModal());
 $('zoom-in').addEventListener('click',()=>map.zoom(1.4));
 $('zoom-out').addEventListener('click',()=>map.zoom(1/1.4));
 $('zoom-home').addEventListener('click',()=>map.home());

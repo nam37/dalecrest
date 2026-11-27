@@ -49,7 +49,33 @@
               </button>
             </div>
             <div id="caption" class="scene-caption" hidden aria-live="polite"><div class="eyebrow" id="caption-kicker"></div><p id="caption-line"></p><p id="caption-why" class="reason"></p><button type="button" id="caption-back" class="where" hidden></button></div>
-          <div class="map-key plan-only"><span class="plan-only"><i class="key-resident"></i> Resident</span><span class="plan-only"><i class="key-follow"></i> Selected</span><span class="plan-only"><i class="key-deciding">?</i> Deciding</span><span id="map-hint">Drag to pan · click, then scroll to zoom</span><span id="map-count"></span></div>
+          <div class="map-key"><span id="map-count"></span><button type="button" id="map-help" class="map-help" aria-haspopup="dialog" aria-label="Map key and controls" title="Map key and controls">?</button></div>
+            <dialog id="map-help-dialog" class="daily-search-dialog map-help-dialog" aria-labelledby="map-help-heading">
+              <header class="daily-search-dialog-header">
+                <h2 id="map-help-heading">Reading the map</h2>
+                <form method="dialog"><button class="daily-search-close" type="submit" aria-label="Close">×</button></form>
+              </header>
+              <h3>Key</h3>
+              <ul class="help-key">
+                <li><i class="key-resident"></i><span>A resident out of doors.</span></li>
+                <li><i class="key-follow"></i><span>The resident you have selected. When they are indoors, a ring marks their window.</span></li>
+                <li><i class="key-deciding">?</i><span>A resident deciding what to do next.</span></li>
+              </ul>
+              <h3>Moving about</h3>
+              <ul class="help-list">
+                <li>Drag to pan. Click the map, then scroll to zoom, or use + and −.</li>
+                <li>⌂ shows the whole village again, and the corner button below it fills the screen.</li>
+                <li>Click a resident to open their record.</li>
+              </ul>
+              <h3>Views</h3>
+              <dl class="help-views">
+                <dt>Map</dt><dd>The village from above, as a surveyor’s plate.</dd>
+                <dt>Walk</dt><dd>The village at eye level, following the selected resident. Drag to look around, click then scroll to move closer, and click a resident to follow them.</dd>
+                <dt>Watch</dt><dd>The view goes by itself to whoever is in the middle of something.</dd>
+                <dt>Pause</dt><dd>Holds this view still. The village carries on.</dd>
+                <dt>Sound</dt><dd>Plays the village’s ambient sound.</dd>
+              </dl>
+            </dialog>
           </div>
         </article>
         <aside class="resident-panel"><div class="panel-head"><h2>Resident</h2><select id="pick-resident" aria-label="Inspect resident"></select></div>
