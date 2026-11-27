@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { remember, memoryKey } from './engine/memory.mjs';
+import { readResident } from './resident-store.mjs';
 
 const adminUrl = process.env.DALECREST_TEST_ADMIN_URL;
 
@@ -31,7 +32,7 @@ test('PostgreSQL follows an observation through a goal review and a choice to it
     assert.deepEqual(founding.rows.map(r => [r.goal_id, r.version, r.kind, r.source]), [['g1', 1, 'evidence', 'founding'], ['g2', 1, 'evidence', 'founding']]);
 
     // Oswin sees something that matters to him, and a review is due.
-    const { rows: [{ state: oswin }] } = await pool.query("SELECT state FROM dalecrest.actors WHERE id='oswin'");
+    const oswin = await readResident(pool, 'oswin');
     const { rows: [{ state: world }] } = await pool.query('SELECT state FROM dalecrest.world WHERE id=1');
     remember(oswin, world.minute, 'Oswin Holt found the oven’s woodpile empty with the cold coming on.', ['oswin'], 'observation', { importance: 8, shortage: 'wood' });
     const key = memoryKey(oswin, oswin.memories.at(-1));
@@ -79,7 +80,7 @@ test('PostgreSQL follows an observation through a goal review and a choice to it
     const [trace] = (await pool.query('SELECT goal_keys, observation_keys FROM dalecrest.decision_traces WHERE id=$1', [ticket.id])).rows;
     assert.ok(trace.goal_keys.includes('oswin:g3:1'));
     // Finish the shift at the coppice.
-    const { rows: [{ state: cutting }] } = await pool.query("SELECT state FROM dalecrest.actors WHERE id='oswin'");
+    const cutting = await readResident(pool, 'oswin');
     const { rows: [{ state: map }] } = await pool.query('SELECT state FROM dalecrest.map');
     const coppice = map.places.find(p => p.id === 'wood');
     Object.assign(cutting.action, { phase: 'working', remaining: 1 });

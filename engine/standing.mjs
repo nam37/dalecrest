@@ -81,7 +81,7 @@ function news(actor, pilot) {
 // Decides one activity boundary. Returns { follow } when a valid instruction covers the moment, or
 // { fresh } naming why a new decision is needed. Either may carry instructions that have just ended.
 export function consider(actor, state, menu, finished, pilot = PILOT) {
-  const { world, map } = state, minute = world.minute, book = actor.instructions || {}, ended = [];
+  const { world } = state, minute = world.minute, book = actor.instructions || {}, ended = [];
   const candidates = [];
   if (isNight(minute)) candidates.push('sleep');
   if (actor.needs.hunger >= pilot.mealAt) candidates.push('meal');
@@ -122,11 +122,12 @@ export function consider(actor, state, menu, finished, pilot = PILOT) {
   }
   if (news(actor, pilot)) return result('learned something new');
   if (Object.values(actor.needs).filter(n => n >= pilot.urgent).length >= 2) return result('two urgent needs');
-  const action = menu.get(id), there = map.places.find(p => p.id === action.target);
-  const walk = there ? Math.hypot(there.at[0] - actor.position.x, there.at[1] - actor.position.y) / 2.15 : 0;
-  const busyUntil = minute + walk + action.remaining;
+  const action = menu.get(id);
+  // The moot is a choice once it is on offer, from shortly before it meets. Until then routine carries
+  // on: whoever is still busy is stopped 35 minutes before and chooses with the moot on offer. Having
+  // chosen once with this moot on offer, a resident is not asked about it again.
   const moot = world.moot;
-  if (moot && minute <= moot.at + 25 && busyUntil >= moot.at - 40 - pilot.lookahead) return result('would run into the moot');
+  if (moot && actor.mootWeighed !== moot.at && [...menu.values()].some(a => a.kind === 'meeting')) return result('would run into the moot');
   const promise = promiseAtRisk(actor, state, menu, action, pilot.lookahead);
   if (promise) return result(promise);
   return { follow: { routine, id, action, instruction: ins }, ended };

@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { createHash } from 'node:crypto';
 import { readFile, readdir } from 'node:fs/promises';
 import { initialize, advance, nextTickDelay, snapshot, currentMap, pool, recentEvents, reviewGoalsOnce, draftSongOnce, publishCivicAccountOnce, listenForVillageChanges } from './db.mjs';
 import { planOnce, plannerStatus, plannerPollMs } from './planner.mjs';
@@ -11,6 +12,8 @@ import { createVillageStream } from './village-stream.mjs';
 import { mapRevisions, mapRevision, residentHeat } from './village-history.mjs';
 import { recordPage } from './record-pages.mjs';
 import { recordPath } from './public/record-links.js';
+import { FEED_PARTS, publicVillage } from './village-feed.mjs';
+import { readResident } from './resident-store.mjs';
 
 const host = process.env.HOST || '127.0.0.1';
 const port = Number(process.env.PORT || 4173);
@@ -38,11 +41,15 @@ for (const [family, cuts] of Object.entries(faces)) {
 
 await initialize();
 async function villageState() {
-  const state = await snapshot({ withMap: true });
-  return { ...state, locations: locationsOf(state.map, state.actors), affairs: affairs(state), planner: { ...plannerStatus } };
+  const state = await snapshot({ withMap: true, parts: FEED_PARTS });
+  return publicVillage({ ...state, locations: locationsOf(state.map, state.actors), affairs: affairs(state), planner: { ...plannerStatus } });
 }
 const stream = createVillageStream(villageState);
 const stopListening = listenForVillageChanges(stream.changed);
+// The page's own files are checked rather than downloaded again: a browser that already holds the
+// same bytes gets 304. The proxy may mark a compressed copy's tag, so only the hash itself is compared.
+const tagOf = body => '"' + createHash('sha1').update(body).digest('base64url') + '"';
+const heldTags = header => (header || '').split(',').map(tag => tag.trim().replace(/^W\//, '').replace(/-(?:gzip|zstd|br)"$/, '"'));
 function json(res, status, body) {
   res.writeHead(status, { 'Content-Type': 'application/json' }).end(JSON.stringify(body));
 }
@@ -73,6 +80,7 @@ const server = http.createServer(async (req, res) => {
     const path = url.pathname;
     const page = recordPath(path);
     const heat = path.match(/^\/api\/residents\/([a-z0-9-]+)\/heat-map$/);
+    const whole = path.match(/^\/api\/residents\/([a-z0-9-]+)\/record$/);
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Cache-Control', 'no-store');
     if (!['GET', 'HEAD'].includes(req.method)) { res.writeHead(405, { Allow: 'GET, HEAD' }).end(); return; }
@@ -109,6 +117,10 @@ const server = http.createServer(async (req, res) => {
       if (!/^\d+$/.test(raw) || !Number.isSafeInteger(revision)) { json(res, 400, { error: 'Invalid map revision.' }); return; }
       const frame = await mapRevision(pool, revision);
       json(res, frame ? 200 : 404, frame ?? { error: 'Map revision not found.' });
+    } else if (whole) {
+      // A resident's whole record, as the village feed once carried it, for the page's Data tab.
+      const resident = await readResident(pool, whole[1]);
+      json(res, resident ? 200 : 404, resident ?? { error: 'Resident not found.' });
     } else if (heat) {
       const raw = url.searchParams.get('days') ?? '7';
       if (!['7', '30', 'all'].includes(raw)) { json(res, 400, { error: 'Invalid lookback.' }); return; }
@@ -121,6 +133,10 @@ const server = http.createServer(async (req, res) => {
       const extension = file.pathname.split('.').pop();
       const body = extension === 'html' ? (await readFile(file, 'utf8')).replace('<!-- site-navigation -->', siteNavigation(path)) : await readFile(file);
       if (path.startsWith('/vendor/')) res.setHeader('Cache-Control', 'public, max-age=604800');
+      else res.setHeader('Cache-Control', 'no-cache');
+      const tag = tagOf(body);
+      res.setHeader('ETag', tag);
+      if (heldTags(req.headers['if-none-match']).includes(tag)) { res.writeHead(304).end(); return; }
       res.writeHead(200, { 'Content-Type': types[extension] }).end(body);
     } else { res.writeHead(404).end(); }
   } catch { res.writeHead(503, { 'Content-Type': 'text/plain' }).end('Dalecrest is temporarily unavailable.'); }

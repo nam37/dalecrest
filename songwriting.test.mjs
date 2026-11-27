@@ -6,6 +6,7 @@ import { availableActions, createVillage, startChosen, stepVillage } from './sim
 import { memoryKey, remember } from './engine/memory.mjs';
 import { place } from './engine/roads.mjs';
 import { readSongDraft } from './song-drafts.mjs';
+import { readResident } from './resident-store.mjs';
 import { recordPage } from './record-pages.mjs';
 import { journalEntries } from './robin-journal.mjs';
 import { acceptEveningPlan, eveningPlanAudit, offerEveningPlan } from './engine/songwriting.mjs';
@@ -191,7 +192,7 @@ test('PostgreSQL applies Robin’s choice and publishes a sourced verse while th
     const { pool } = db;
     const tickNow = async () => { await pool.query('UPDATE dalecrest.world SET next_tick=now()'); await db.advance(); };
     const { rows: [{ state: world }] } = await pool.query('SELECT state FROM dalecrest.world WHERE id=1');
-    const { rows: [{ state: robin }] } = await pool.query("SELECT state FROM dalecrest.actors WHERE id='robin'");
+    const robin = await readResident(pool, 'robin');
     prepareEvening(robin, await db.currentMap());
     const key = addFieldNote(robin);
     world.minute = villageMinute;

@@ -1,4 +1,5 @@
 import { screenStatement } from './engine/goals.mjs';
+import { writeResident } from './resident-store.mjs';
 
 export const songDraftSchema = `
   CREATE TABLE IF NOT EXISTS dalecrest.song_drafts (
@@ -103,7 +104,7 @@ export async function settleSongDraft(db, village, claim, reply, recordEvents) {
     song.version++;
     status = revising ? 'revised' : 'verse';
     text = actor.name + (revising ? ' revised the last verse.' : ' added a verse to his song.');
-    await db.query('UPDATE dalecrest.actors SET state=$1 WHERE id=$2', [actor, actor.id]);
+    await writeResident(db, actor);
   }
   await db.query(`UPDATE dalecrest.song_drafts SET status=$2, reply_body=$3, token_charge=$4 WHERE session_id=$1`,
     [claim.id, result.status, reply?.body ?? null, result.tokens || claim.charge]);

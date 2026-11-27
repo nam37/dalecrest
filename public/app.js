@@ -184,6 +184,20 @@ function choose(id) {
   if (route==='village') { history.replaceState(null,'',address); navigate(); }
   else location.hash=address;
 }
+// The village feed carries only what the other tabs show. The Data tab fetches the resident's whole
+// record while it is open, again once it is a few village minutes old.
+let fullRecord = null, fetchingRecord = false;
+async function loadFullRecord(id) {
+  if (fetchingRecord) return;
+  fetchingRecord = true;
+  try {
+    const res = await fetch('/api/residents/' + encodeURIComponent(id) + '/record', { signal: AbortSignal.timeout(9000) });
+    if (!res.ok) return;
+    fullRecord = { id, minute: state.world.minute, body: await res.json() };
+    if (tab === 'data' && selected === id) render();
+  } catch { /* The feed's copy stays on show. */ }
+  finally { fetchingRecord = false; }
+}
 function renderProfile(actor) {
   const picker = $('pick-resident'), residents = villagePeople;
   const optionName = person => person.child ? person.name : person.name.split(' ')[0];
@@ -224,8 +238,9 @@ function renderProfile(actor) {
   if(tab==='data'){
     let pre=detail.querySelector('pre');
     if(!pre){pre=el('pre','raw'); pre.tabIndex=0; pre.setAttribute('aria-label','Resident record for '+actor.name); detail.replaceChildren(pre);}
-    const top=pre.scrollTop;
-    pre.textContent=JSON.stringify(actor,(key,value)=>key==='model'?undefined:value,2); pre.scrollTop=top; return;
+    const top=pre.scrollTop, held=fullRecord?.id===actor.id;
+    if(!held||state.world.minute-fullRecord.minute>=5) loadFullRecord(actor.id);
+    pre.textContent=JSON.stringify(held?fullRecord.body:actor,(key,value)=>key==='model'?undefined:value,2); pre.scrollTop=top; return;
   }
   detail.replaceChildren();
   const archive = el('a', '', 'Request history');

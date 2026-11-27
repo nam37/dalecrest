@@ -526,9 +526,11 @@ function atBoundary(actor, state, records, pilot) {
 // the standing instruction for the routine it answers. Returns null when it can no longer start.
 export function startChosen(actor, state, id, trace, pilot = standing.PILOT) {
   if (actor.action.kind !== 'waiting') return null;
-  const action = availableActions(actor, state).get(id);
+  const menu = availableActions(actor, state), action = menu.get(id);
   if (!action) return null;
   const minute = state.world.minute, { since, why, previous, blockedVisit } = actor.action;
+  // A choice made with the moot on offer has weighed it, whatever was chosen.
+  if (state.world.moot && [...menu.values()].some(a => a.kind === 'meeting')) actor.mootWeighed = state.world.moot.at;
   // The reply and ballot are committed together, even if this is the last minute of voting.
   const ballot = action.kind === 'ballot' && civic.recordBallot(actor, state, action, { source: 'decisions', traceId: trace.id });
   if (action.kind === 'ballot' && !ballot) return null;

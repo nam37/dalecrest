@@ -79,6 +79,7 @@ export function actionBody(actor, world, menu, names = {}, weather, menuContext 
     ...((ballot || civic.civicNews || [...menu.values()].some(action => action.kind === 'civic')) &&
       { home: names[actor.home]?.name || actor.home }),
     ...(ballot && { ballot: { moot: ballot.mootId, motion: ballot.title, proposalKey: ballot.proposalKey } }),
+    ...(world.moot && !ballot && { mootMeets: villageTime(world.moot.at) }),
     needs: Object.fromEntries(Object.entries(actor.needs).map(([need, value]) => [need, Math.round(value)])),
     lastActivity: last && { kind: last.kind, label: last.label, place: names[last.target]?.name || last.target },
     whyThisIsAChoice: actor.action.why,

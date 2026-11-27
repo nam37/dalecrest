@@ -157,9 +157,19 @@ test('a routine that would cost the resident something becomes a choice', () => 
   const walk = menu().get('leisure:green');
   keep(actor, village, walk, '7');
   assert.equal(consider(actor, village, menu(), walk).follow.routine, 'again:leisure:green');
-  // A moot falls due within the walk.
+  // A moot an hour off cannot be chosen yet. Routine carries on until the call shortly before it.
   village.world.moot = { at: village.world.minute + 60, tries: 0 };
+  assert.ok(![...menu().values()].some(a => a.kind === 'meeting'));
+  assert.equal(consider(actor, village, menu(), walk).follow.routine, 'again:leisure:green');
+  // Once the moot is on offer, routine becomes a choice, but only until the resident has weighed it.
+  village.world.moot = { at: village.world.minute + 30, tries: 0 };
+  assert.ok([...menu().values()].some(a => a.kind === 'meeting'));
   assert.equal(consider(actor, village, menu(), walk).fresh, 'would run into the moot');
+  actor.action = { kind: 'waiting', phase: 'waiting', label: 'Choosing the next activity', target: actor.action.target, remaining: 0, since: village.world.minute };
+  assert.ok(startChosen(actor, village, 'leisure:green', { id: '9', model: 'script' }));
+  assert.equal(actor.mootWeighed, village.world.moot.at);
+  keep(actor, village, walk, '7');
+  assert.equal(consider(actor, village, menu(), walk).follow.routine, 'again:leisure:green');
   village.world.moot = null;
   // Two urgent needs at once.
   Object.assign(actor.needs, { hunger: 80, fatigue: 75 });

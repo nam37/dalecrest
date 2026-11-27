@@ -8,6 +8,7 @@ import { residentState, writeActivities } from './decision-trace.mjs';
 import { weatherAt } from './engine/seasons.mjs';
 import { shapeActionMenu } from './engine/action-menu.mjs';
 import { eveningPlanAudit } from './engine/songwriting.mjs';
+import { writeResident } from './resident-store.mjs';
 
 const villageHourlyCeiling = 480000;
 export const hourlyActionBudget = Math.min(villageHourlyCeiling, Number(process.env.OPENAI_ACTION_TOKENS_PER_HOUR || villageHourlyCeiling));
@@ -75,20 +76,25 @@ export async function reserveAction(db, village, hourlyBudget) {
   if (limited) return { budgetLimited: true };
 }
 
+// The menu can move on while a reply is on its way. The same activity offered for a different stretch
+// of time is still what was chosen, so it starts instead of going back to the model.
+const withoutMinutes = text => text?.replace(/ \(\d+ village minutes(?: after arrival)?\)\.$/, '');
+export const sameOffer = (now, then) => now === then || withoutMinutes(now) === withoutMinutes(then);
+
 export async function startChosenAction(db, trace, choice, village, recordEvents) {
   const actor = village.actors.find(a => a.id === trace.actor_id);
   if (!actor) return { status: 'actor_missing' };
   if (actor.action.kind !== 'waiting' || actor.action.since !== Number(trace.decision_since)) return { status: 'superseded' };
   const action = availableActions(actor, village).get(choice);
   const offered = JSON.parse(trace.request_body).questions[0].choices.find(option => option.value === choice);
-  if (!offered || !action || actionDescription(action, locationsOf(village.map, village.actors)) !== offered.description) return { status: 'unavailable' };
+  if (!offered || !action || !sameOffer(actionDescription(action, locationsOf(village.map, village.actors)), offered.description)) return { status: 'unavailable' };
   const minute = village.world.minute;
   const state = residentState(actor);
   const started = startChosen(actor, village, choice, { id: trace.id, model: trace.model });
   if (!started) return { status: 'unavailable' };
   await db.query(`UPDATE dalecrest.decision_traces SET ended_minute=$2,end_reason='replaced'
     WHERE actor_id=$1 AND status='applied' AND ended_minute IS NULL`, [actor.id, minute]);
-  await db.query('UPDATE dalecrest.actors SET state=$1 WHERE id=$2', [actor, actor.id]);
+  await writeResident(db, actor);
   if (started.ballot) await db.query('UPDATE dalecrest.world SET state=$1 WHERE id=1', [village.world]);
   await writeActivities(db, [{ actorId: actor.id, minute, basis: 'fresh', routine: started.routine, reason: started.why,
     traceId: trace.id, waited: started.waited, action: { kind: action.kind, label: action.label, target: action.target } }]);

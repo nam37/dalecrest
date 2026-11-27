@@ -15,6 +15,7 @@ import { initializeTraces, advanceWithTraces, writeSteps, writeActivities, resid
 import { historySchema, collectPresence, writePresence } from './village-history.mjs';
 import { eventMootKey, recordIndexes } from './record-pages.mjs';
 import { clockPace } from './engine/clock.mjs';
+import { residentPartsSchema, readResidents, readResident, writeResident, writeResidentParts, hotState, residentJson } from './resident-store.mjs';
 
 if (!process.env.DATABASE_URL) throw new Error('Set DATABASE_URL in .env to a PostgreSQL database before starting Dalecrest.');
 const minimumResidents = Number(process.env.VILLAGE_MIN_RESIDENTS ?? 8);
@@ -56,14 +57,17 @@ async function saveMap(db, map, minute) {
 }
 async function saveActors(db, actors) {
   // A resident who has left or died is no longer in the village. A new one takes the next place in the order.
-  await db.query('DELETE FROM dalecrest.actors WHERE NOT (id = ANY($1::text[]))', [actors.map(a => a.id)]);
+  const ids = actors.map(a => a.id);
+  await db.query('DELETE FROM dalecrest.actors WHERE NOT (id = ANY($1::text[]))', [ids]);
+  await db.query('DELETE FROM dalecrest.resident_parts WHERE NOT (actor_id = ANY($1::text[]))', [ids]);
   await db.query(`WITH payload AS (SELECT actor, n FROM jsonb_array_elements($1::jsonb) WITH ORDINALITY AS p(actor, n)),
       fresh AS (SELECT n, row_number() OVER (ORDER BY n) AS k FROM payload
         WHERE NOT EXISTS (SELECT 1 FROM dalecrest.actors a WHERE a.id = payload.actor->>'id'))
     INSERT INTO dalecrest.actors(id, ordinal, state)
     SELECT payload.actor->>'id', (SELECT coalesce(max(ordinal), -1) FROM dalecrest.actors) + coalesce(fresh.k, 0), payload.actor
     FROM payload LEFT JOIN fresh USING (n) ORDER BY payload.n
-    ON CONFLICT (id) DO UPDATE SET state = excluded.state`, [JSON.stringify(actors)]);
+    ON CONFLICT (id) DO UPDATE SET state = excluded.state`, [JSON.stringify(actors.map(hotState))]);
+  await writeResidentParts(db, actors);
 }
 export async function currentMap() {
   return (await pool.query('SELECT state FROM dalecrest.map WHERE id=1')).rows[0].state;
@@ -105,6 +109,7 @@ export async function initialize() {
       CREATE TABLE IF NOT EXISTS dalecrest.map (
         id integer PRIMARY KEY CHECK (id = 1), revision bigint NOT NULL, state jsonb NOT NULL
       );
+      ${residentPartsSchema}
       ${historySchema}
       CREATE TABLE IF NOT EXISTS dalecrest.planner_limits (
         provider text PRIMARY KEY, next_request_at timestamptz NOT NULL
@@ -163,10 +168,10 @@ export async function initialize() {
           WHEN clock_pace <> $1 THEN statement_timestamp()+make_interval(secs=>$2)
           ELSE next_tick END WHERE id=1`, [pace, pace.seconds]);
       await queueEditions(db, null, stored.rows[0].state.minute);
-      const robin = (await db.query("SELECT state FROM dalecrest.actors WHERE id='robin' AND state->>'trade'='harvest'")).rows[0]?.state;
+      const robin = await readResident(db, 'robin', { where: "AND a.state->>'trade'='harvest'" });
       if (robin) {
         appointReporter(robin);
-        await db.query("UPDATE dalecrest.actors SET state=$1 WHERE id='robin'", [robin]);
+        await writeResident(db, robin);
       }
       // A village founded before the map existed keeps its residents and gains the ground under them.
       const world = stored.rows[0].state;
@@ -181,7 +186,7 @@ export async function initialize() {
           SELECT revision, $1, state FROM dalecrest.map WHERE id=1 ON CONFLICT (revision) DO NOTHING`, [world.minute]);
         return;
       }
-      const actors = (await db.query('SELECT state FROM dalecrest.actors ORDER BY ordinal')).rows.map(r => r.state);
+      const actors = await readResidents(db);
       const map = adoptVillage({ world, actors }, seed);
       await db.query('UPDATE dalecrest.world SET state=$1 WHERE id=1', [world]);
       await saveActors(db, actors);
@@ -251,7 +256,7 @@ async function tick(db) {
   const result = await db.query('SELECT state FROM dalecrest.world WHERE id=1 AND next_tick <= now() FOR UPDATE SKIP LOCKED');
   if (!result.rowCount) return;
   const world = result.rows[0].state;
-  const actors = (await db.query('SELECT state FROM dalecrest.actors ORDER BY ordinal')).rows.map(r => r.state);
+  const actors = await readResidents(db);
   const map = await loadMap(db, world.mapRevision);
   const before = map.revision;
   const traces = (await db.query(`SELECT id,actor_id,until_minute,decision_since FROM dalecrest.decision_traces
@@ -287,21 +292,24 @@ async function tick(db) {
 }
 
 // Observers only see committed maps. Capture one map and its residents in the same database snapshot.
+// `parts` names the long resident lists to include. Every one is included unless it says otherwise.
 let observerMap = null;
-export async function snapshot({ withMap = false } = {}) {
+export async function snapshot({ withMap = false, parts = null } = {}) {
   const cached = observerMap;
+  const params = withMap ? [cached?.revision ?? null] : [];
+  if (parts) params.push(parts);
   const result = await pool.query(`
     SELECT w.state AS world,
       ${withMap ? `${untilNextTick} AS "nextTickInMs", w.clock_pace AS "clockPace",
         jsonb_build_array((SELECT max(id) FROM dalecrest.events),
           (SELECT count(*) FROM dalecrest.civic_accounts WHERE account IS NOT NULL)) AS "eventVersion",
         (SELECT m.state FROM dalecrest.map m WHERE m.id=w.id AND m.revision IS DISTINCT FROM $1::bigint) AS map,` : ''}
-      COALESCE((SELECT jsonb_agg(state ORDER BY ordinal) FROM dalecrest.actors), '[]'::jsonb) AS actors,
+      COALESCE((SELECT jsonb_agg(${residentJson('a', parts && '$' + params.length)} ORDER BY a.ordinal) FROM dalecrest.actors a), '[]'::jsonb) AS actors,
       COALESCE((SELECT jsonb_agg(to_jsonb(recent) ORDER BY recent.id DESC) FROM
         (SELECT id, minute, kind AS type, actor_ids AS "actorIds", description AS text, place, salience,
           ${eventRequestKey} AS "requestId", ${eventMootKey} AS "mootId", ${eventAccount} AS account
          FROM dalecrest.events WHERE salience >= ${PUBLIC} ORDER BY id DESC LIMIT 100) recent),'[]'::jsonb) AS events
-    FROM dalecrest.world w WHERE w.id=1`, withMap ? [cached?.revision ?? null] : []);
+    FROM dalecrest.world w WHERE w.id=1`, params);
   const state = result.rows[0];
   if (withMap) {
     const pace = state.clockPace ?? clockPace(state.world.minute, process.env);
@@ -360,14 +368,14 @@ export async function recentEvents(kind) {
 
 async function persistPlan(db, minute, actorId, basedOn, focus, reason, model, method) {
   if (minute - basedOn > 120) return { status: 'stale' };
-  const actor = (await db.query('SELECT state FROM dalecrest.actors WHERE id=$1', [actorId])).rows[0]?.state;
+  const actor = await readResident(db, actorId);
   if (!actor) return { status: 'actor_missing' };
   if (actor.plan?.model === model && actor.plan.until > minute) return { status: 'superseded' };
   await db.query(`UPDATE dalecrest.decision_traces SET ended_minute=$2,end_reason='replaced'
     WHERE actor_id=$1 AND status='applied' AND ended_minute IS NULL`, [actorId, minute]);
   actor.plan = { focus, reason, until: minute + 360, model, method, madeAt: minute };
   actor.lastModelPlanAt = minute;
-  await db.query('UPDATE dalecrest.actors SET state=$1 WHERE id=$2', [actor, actor.id]);
+  await writeResident(db, actor);
   const text = method === 'choice' ? actor.name + ' prioritized ' + focus + '. ' + reason : actor.name + ' made a plan. “' + reason + '”';
   await recordEvents(db, [{ minute, type: 'plan', actorIds: [actor.id], text }]);
   return { status: 'applied', until: actor.plan.until, state: residentState(actor) };
@@ -389,7 +397,7 @@ export async function savePlan(actorId, basedOn, focus, reason, model, method = 
 async function lockedVillage(db) {
   const { rows: [row] } = await db.query('SELECT state FROM dalecrest.world WHERE id=1 FOR UPDATE');
   const world = row.state;
-  const actors = (await db.query('SELECT state FROM dalecrest.actors ORDER BY ordinal')).rows.map(r => r.state);
+  const actors = await readResidents(db);
   const map = await loadMap(db, world.mapRevision);
   return { world, actors, map };
 }
@@ -413,7 +421,7 @@ export async function reviewGoalsOnce({ key = process.env.CLAUDE_KEY?.trim(), re
     if (settled.status === 'applied' && actor) {
       await writeGoals(db, [actor]);
       await writeObservations(db, [actor]);
-      await db.query('UPDATE dalecrest.actors SET state=$1 WHERE id=$2', [actor, actor.id]);
+      await writeResident(db, actor);
     }
     return settled;
   });
