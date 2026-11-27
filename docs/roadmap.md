@@ -449,6 +449,8 @@ The PostgreSQL integration test exercises the production queue with scripted pro
 
 Done when: a ballot can be traced to the goals and observations its voter was given; a piece of news can be followed from the person who saw it to the person who acted on it; and a moot runs to a valid outcome on the production path with every ballot recorded.
 
+Future work on how residents weigh the same motion is listed under [Future considerations](#future-considerations).
+
 ### Stage 4a. Lead characters (M, Robin’s pilot live)
 
 Give selected residents more developed motivations and access to the memories that matter to them. Start with Robin Marsh as the first lead and songwriting as his first solo project. His reporting takes him through the parish. Writing songs gives him something of his own to make time for, return to, revise or put aside.
@@ -813,3 +815,8 @@ Questions the stages above do not answer. This section was added on 21 November 
 7. **History beyond the parish.** Dalecrest was founded on 1 August 1312 and keeps the real Julian calendar. The Great Famine of 1315 to 1317 lies under three village years ahead, about a year and a half of real time at the present pace. Whether the outside world reaches the village at all is undecided, and a 48-day year would cut the calendar loose from history altogether. *With open decisions 8 and 10.*
 8. **Knowing when the village is in trouble.** The caps bound what can be spent and the activity log records every wait. What tells an operator that the provider has been down for an hour, or that half the village has stood waiting since noon? The pilot's deliberate outage is the natural rehearsal, and open decision 2 depends on how long such waits really last. *Before the pilot week.*
 9. **The tests that need a database.** Eight of the 59 tests require PostgreSQL. They include the ones that prove a restart yields each outcome exactly once, which is acceptance test 2. It is worth confirming that the deploy run includes them, so the promise is checked on every release and not only on a machine that happens to have a database. *Before acceptance test 2 is signed off.*
+10. **Resident priorities in moot votes.** On 27 November 2026, replaying 32 live ballots in three option orders changed one granary vote from support to abstain. Mean support probability ranged from 78% to 92%, and all four motion outcomes held. The next question is whether voters have enough individual reasons to weigh a motion differently.
+
+    Give each voter the goals, household obligations, commitments, and firsthand or relayed evidence relevant to this motion. Show what it will cost in labour and materials, who stands to benefit, what other work it would delay, and which claims are uncertain. A miller worried about grain spoilage and a lodger waiting for a cottage can weigh the same use of the building crew differently.
+
+    Compare the existing and richer ballot requests offline with option order held fixed, then rotate the options as a separate check. Include shared benefits, competing projects, and cases where residents know different things. Judge votes by whether they follow the resident’s recorded priorities and evidence. Agreement is a valid result when those priorities align. Preserve the roll call and the evidence each voter received so a change can be traced to the record.
