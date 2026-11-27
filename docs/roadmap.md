@@ -28,10 +28,10 @@
 | 6. Worth following | In hand | 1 | 1 | 2 |
 | 6a. Admin control panel | First release on the live site | 5 | 0 | 4 |
 | 7. A living village culture (A–C) | Clock built, live trial pending | 3 | 0 | 8 |
-| 8. The world comes to Dalecrest (A–C) | Proposed, not begun | 0 | 0 | 9 |
+| 8. The world comes to Dalecrest (A–C) | Proposed, not begun | 0 | 0 | 10 |
 | 9. Taking part | Groundwork only | 0 | 1 | 4 |
 | 10. A wider world | Not begun | 0 | 0 | 1 |
-| All stages | | 80 | 8 | 33 |
+| All stages | | 80 | 8 | 34 |
 
 **Reading the live village.** `readout.mjs` reads every "Done when" measure the database can answer, stage by stage, and marks it met, not met, no data or needing a viewer. On the server: `docker exec dalecrest-app node readout.mjs`, for the last 168 real hours by default. It does not replace `tools/pilot-report.mjs`, which breaks Stage 0 down further.
 
@@ -647,6 +647,7 @@ The first release is ready when an operator can sign in, set and verify a clock 
 
 #### 8B. Barter and river gold
 
+- [ ] **Proposed, 27 November 2026. A very rare find while fishing.** The first and smallest step toward river gold, before any panning. Now and then a resident fishing from the bank finds a few flakes of gold in the shallows: roughly one outing in several hundred, and never more than once a season. Draw the find from the map's seed, the day and the resident on its own salt, so it is reproducible and leaves the catch and the rest of a replay as they were. The flakes go to the storehouse by weight, the finder remembers it, and the chronicle records it once. Gold buys nothing until merchants come. It is something to talk about, and a reason a resident might later choose to pan.
 - [ ] **Proposed.** Keep internal food, tools and household provisions in communal stores, with no wages or personal accounts. A communal trading post can exchange actual surplus goods with visiting merchants.
 - [ ] **Proposed.** Pilot small-scale gold panning in the existing river, not a new mine. Model recoverable placer deposits as finite, seed-dependent and rare, with time spent panning competing against food and winter preparation; some river reaches may yield nothing.
 - [ ] **Proposed.** Track recovered gold by physical weight in the communal store and as carried merchant inventory, not abstract currency or minted coins. Allow direct barter first, with gold as an optional high-value external trade good.
