@@ -342,7 +342,11 @@ function choose(actor, state, menu, diagnostics) {
     offer('meeting', 'Attending the moot', 'hall', 75, 82 + (backs ? 10 : 0), 'The moot meets at the hall this evening to settle what the village should build.');
   }
   const oven = nearest(actor, map, 'oven');
-  if (oven) {
+  // Every count asks for a fresh choice. Once a recount within the hour has found the same stores, a
+  // third tells nothing new: a baker with nothing to bake once counted again and again and spent her
+  // hour's tokens. A single recount, such as a requester checking on promised work, is still offered.
+  const countedTwice = seen?.site === oven?.id && seen.recount && world.minute - seen.minute < 60;
+  if (oven && !countedTwice) {
     const needsCheck = !atOven(actor, oven) || seen?.site !== oven.id || world.minute - seen.minute >= 180;
     const score = actor.trade === 'bake' && needsCheck ? 60 - weary : 6;
     offer('inspect', 'Checking the oven for flour and firewood', oven.id, 3, score, 'I can go to the oven and count what is on hand.');

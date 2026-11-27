@@ -25,10 +25,15 @@ export function atOven(actor, site) {
 // One communal stock, observed by one resident at a particular place and minute.
 export function inspectOven(actor, site, world, emit, source = 'oven inspection') {
   if (!atOven(actor, site)) return;
+  const prior = actor.observations?.ovenStores;
   const observation = {
     source, site: site.id, place: site.name, minute: world.minute,
     flour: world.supplies.flour, wood: world.supplies.wood
   };
+  // A recount within the hour that found the stores as they were. The menu stops offering a third.
+  if (prior?.site === site.id && world.minute - prior.minute < 60 && prior.flour === observation.flour && prior.wood === observation.wood) {
+    observation.recount = true;
+  }
   const traceId = actor.action.basis?.trace ?? actor.action.decisionTraceId ?? null;
   noticeForRequests(actor, ovenFact(actor, observation), world.minute, null, traceId);
   actor.observations ??= {};

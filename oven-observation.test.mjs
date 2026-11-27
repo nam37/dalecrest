@@ -103,3 +103,30 @@ test('a stale reading still permits a baking attempt, and Mabel discovers missin
   assert.equal(mabel.action.why, 'checked the oven stores');
   assert.ok(!availableActions(mabel, village).has('work:bake:oven'));
 });
+
+test('a baker who recounts the same stores is not offered a third count within the hour', () => {
+  const village = createVillage(), mabel = resident(village, 'mabel');
+  goHome(mabel, village);
+  tick(village);
+  const offered = () => availableActions(mabel, village).has('inspect:oven');
+  // Each count runs to its end. The resident then waits to choose again, as in the live village.
+  const count = () => {
+    assert.ok(startChosen(mabel, village, 'inspect:oven', { id: String(village.world.minute), model: 'test' }));
+    for (let n = 0; n < 200 && mabel.action.kind !== 'waiting'; n++) tick(village);
+    assert.equal(mabel.action.kind, 'waiting');
+  };
+  Object.assign(village.world.supplies, { flour: 2, wood: 0 });
+  count();
+  assert.ok(offered(), 'one recount is still offered, as a requester checking on promised work would need');
+  count();
+  assert.equal(mabel.observations.ovenStores.recount, true);
+  assert.equal(offered(), false, 'a third count of the same stores within the hour is not offered');
+  // A count that finds the stores changed is news, and counting stays on offer.
+  village.world.supplies.wood = 3;
+  mabel.observations.ovenStores.recount = false;
+  assert.ok(offered());
+  // So is a count an hour later.
+  mabel.observations.ovenStores.recount = true;
+  mabel.observations.ovenStores.minute = village.world.minute - 60;
+  assert.ok(offered());
+});
