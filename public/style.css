@@ -259,6 +259,12 @@ html:has(.map-area.map-expanded) { overflow: hidden; }
 .map-zoom button + button { border-top: 1px solid #a99a7288; }
 #map-fullscreen { display: grid; place-items: center; }
 #map-fullscreen svg { width: 18px; height: 18px; }
+#map-watch-cards { display: none; }
+.map-area:is(:fullscreen, .map-expanded) .map-zoom:has(> #map-watch-cards) { z-index: 6; }
+.map-area:is(:fullscreen, .map-expanded) #map:not([hidden]) ~ .map-zoom > #map-watch-cards { display: grid; place-items: center; }
+#map-watch-cards[aria-pressed=true] { background: var(--pine); color: #f6efd9; }
+.watch-card-icon { display: grid; place-items: center; width: 14px; height: 17px; border: 1.5px solid currentColor; border-radius: 2px; }
+.watch-card-icon::before { content: ''; width: 6px; height: 1px; background: currentColor; box-shadow: 0 -3px currentColor, 0 3px currentColor; }
 .fullscreen-exit, .map-area:is(:fullscreen, .map-expanded) .fullscreen-enter { display: none; }
 .map-area:is(:fullscreen, .map-expanded) .fullscreen-exit { display: inline; }
 #map[hidden] ~ .map-zoom > button:not(#map-fullscreen),
@@ -277,6 +283,9 @@ html:has(.map-area.map-expanded) { overflow: hidden; }
 .scene-caption .eyebrow { color: var(--rust); }
 /* The card that opens over a resident on the map. */
 .map-card { position: absolute; left: 0; top: 0; z-index: 5; width: min(304px, calc(100% - 16px)); padding: 12px 13px; background: var(--leaf); border: 1px solid #a99a72; box-shadow: 0 0 0 3px #f9f2dcb3, 0 0 0 4px #a99a7266, 0 16px 28px -12px #2b271dbb; overflow-wrap: anywhere; animation: card-in .14s ease-out; }
+#map[hidden] ~ .map-card { display: none; }
+.map-card.compact-watch-card { display: grid; max-height: var(--watch-card-height); }
+.compact-watch-card .map-card-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .map-card::after { content: ""; position: absolute; left: var(--notch, 50%); bottom: -7px; width: 12px; height: 12px; margin-left: -6px; background: var(--leaf); border: solid #a99a72; border-width: 0 1px 1px 0; transform: rotate(45deg); pointer-events: none; }
 .map-card.below::after { bottom: auto; top: -7px; border-width: 1px 0 0 1px; }
 .map-card-head { display: flex; align-items: center; gap: 10px; min-height: 40px; padding-right: 36px; }
@@ -550,4 +559,7 @@ footer { display: flex; justify-content: space-between; gap: 14px; flex-wrap: wr
   .scene-caption { left: 10px; bottom: 10px; max-width: calc(100% - 64px); padding: 6px 10px 7px; }
   .scene-caption #caption-line { font-size: 1rem; }
   #map-hint { display: none; }
+}
+@media (max-width: 690px) and (max-height: 480px), (max-width: 960px) and (max-height: 480px) and (pointer: coarse) {
+  .map-area:is(:fullscreen, .map-expanded) #map:not([hidden]) ~ .scene-caption { max-height: 28%; overflow-y: auto; }
 }

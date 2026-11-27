@@ -1,12 +1,14 @@
-export function bindMapFullscreen(button) {
+export function bindMapFullscreen(button, onChange) {
   const area = button.closest('.map-area');
   const expanded = () => area.classList.contains('map-expanded');
   const fullscreen = () => document.fullscreenElement === area;
 
   function sync() {
-    const label = fullscreen() || expanded() ? 'Exit full screen' : 'Enter full screen';
+    const active = fullscreen() || expanded();
+    const label = active ? 'Exit full screen' : 'Enter full screen';
     button.setAttribute('aria-label', label);
     button.title = label;
+    onChange?.(active);
   }
 
   async function exit() {

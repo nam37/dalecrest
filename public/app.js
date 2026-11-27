@@ -41,6 +41,7 @@ const director = createDirector();
 const recall = key => { try { return localStorage.getItem(key); } catch { return null; } };
 const keep = (key, value) => { try { localStorage.setItem(key, value); } catch { /* private window */ } };
 let watching = !location.hash.includes('/') && recall('dalecrest.watch') !== 'off', scene = null;
+let fullscreenMap = false, watchCards = recall('dalecrest.watch-cards') !== 'off';
 const map = createMap($('map'), choose, {
   resident: (actor, others) => residentCard(actor, { names: state.locations, minute: state.world.minute, others, pets: state.world.pets ?? [] }),
   event: (events, spot) => eventCard(events, { names: state.locations, minute: state.world.minute, place: spot.id }),
@@ -548,6 +549,7 @@ function render() {
     const actor=villagePeople.find(a=>a.id===selected)||villagePeople[0]; selected=actor?.id;
     $('watch').setAttribute('aria-pressed',String(watching)); $('watch').textContent=watching?'Watching':'Watch';
     document.querySelector('.map-key').hidden=viewMode!=='plan'||watching;
+    extras.watchCards = fullscreenMap && viewMode === 'plan' && watching && watchCards && scene?.kind === 'resident';
     const motionMs = frozen ? 0 : Math.max(1, state.tickDueAt - performance.now());
     if (state.tickMs > 0 && state.tickMinutes > 0) {
       extras.liveTick = { map: ground, minute: world.minute, minutes: state.tickMinutes, ms: state.tickMs, endsAt: state.tickDueAt };
@@ -696,7 +698,18 @@ for(const btn of document.querySelectorAll('[data-view]'))btn.addEventListener('
 $('zoom-in').addEventListener('click',()=>map.zoom(1.4));
 $('zoom-out').addEventListener('click',()=>map.zoom(1/1.4));
 $('zoom-home').addEventListener('click',()=>map.home());
-const exitMapFullscreen = bindMapFullscreen($('map-fullscreen'));
+const exitMapFullscreen = bindMapFullscreen($('map-fullscreen'), active => {
+  fullscreenMap = active;
+  render();
+});
+const watchCardsToggle = $('map-watch-cards');
+watchCardsToggle.setAttribute('aria-pressed', String(watchCards));
+watchCardsToggle.addEventListener('click', () => {
+  watchCards = !watchCards;
+  watchCardsToggle.setAttribute('aria-pressed', String(watchCards));
+  keep('dalecrest.watch-cards', watchCards ? 'on' : 'off');
+  render();
+});
 $('pick-resident').addEventListener('change',e=>choose(e.target.value));
 $('caption-back').addEventListener('click',()=>{release();render();});
 $('watch').addEventListener('click',()=>watch(!watching,true));

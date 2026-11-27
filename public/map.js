@@ -643,16 +643,21 @@ export function createMap(canvas, onSelect, cards) {
   const paper = document.createElement('canvas');
   const motion = createMotion();
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const compactWatch = window.matchMedia('(max-width: 690px), (max-width: 960px) and (pointer: coarse)');
   let map = null, look = null, locations = {}, actors = [], selectedId = null, frame = 0, stale = true, moved = false, clock = 720;
   let w = 0, h = 0, dpr = 1, hits = [], hover = null;
-  // The card previews whoever the pointer rests on, then returns to the pinned card.
+  // A pointer preview can take over from a pinned card or the resident being watched.
   let pinned = null, pointed = null, shown = null, cardStale = true, cardSize = [0, 0], pointerExit = 0;
+  let watchCards = false;
   // Notes mark where something lately happened. One may be held open, as a resident's card may.
   let marks = [], noteHits = [], pointedMark = null, pinnedMark = null, awaiting = null;
   const card = cards ? document.createElement('div') : null, cardBody = document.createElement('div');
   const pin = cards ? document.createElement('button') : null;
+  const tools = canvas.parentElement.querySelector('.plate-tools');
+  const caption = canvas.parentElement.querySelector('.scene-caption');
   if (card) {
     card.className = 'map-card'; card.hidden = true; card.setAttribute('role', 'group');
+    cardBody.className = 'map-card-body';
     pin.type = 'button'; pin.className = 'map-card-pin'; pin.setAttribute('aria-label', 'Pin map card');
     pin.addEventListener('click', togglePin);
     card.addEventListener('pointerenter', cancelPointerExit);
@@ -1368,29 +1373,46 @@ export function createMap(canvas, onSelect, cards) {
   // The card rides above whoever it describes, and turns below them when there is no room overhead.
   function placeCard(markers, s) {
     if (!card) return;
-    // The pointer comes first: a resident, then a note. Otherwise whatever was last held open.
-    const id = pointed ?? (pointedMark ? null : pinned), m = id && markers.find(k => k.actor.id === id);
+    // Pointer previews and pins take precedence over the director's current resident.
+    const manual = pointed ?? (pointedMark ? null : pinned);
+    const watched = watchCards && !pointedMark && !pinnedMark ? watching?.id : null;
+    const id = manual ?? watched;
+    const m = id && markers.find(k => k.actor.id === id && (manual || (k.x >= 0 && k.x <= w && k.y >= 0 && k.y <= h)));
     const note = m ? null : pointedMark ?? pinnedMark;
     if (!m && !note) { card.hidden = true; shown = null; return; }
+    const automatic = Boolean(m && !manual), compact = automatic && compactWatch.matches;
+    const changedLayout = compact !== card.classList.contains('compact-watch-card');
+    if (changedLayout) card.classList.toggle('compact-watch-card', compact);
+    // On phones, leave clear space for the controls and the caption even when the card needs to scroll.
+    const toolsBottom = automatic && tools ? tools.offsetTop + tools.offsetHeight : 0;
+    const firstRow = compact ? toolsBottom + 8 : 8;
+    const lastRow = compact && caption && !caption.hidden ? caption.offsetTop - 12 : h - 8;
+    if (compact) card.style.setProperty('--watch-card-height', Math.max(0, lastRow - firstRow) + 'px');
     const key = m ? 'r:' + id : 'n:' + note.key, kept = m ? id === pinned : note.key === pinnedMark?.key;
-    if (shown?.key !== key || cardStale) {
+    const refresh = shown?.key !== key || cardStale;
+    if (refresh) {
+      const scrollTop = compact && shown?.key === key ? cardBody.scrollTop : 0;
       const roof = m && indoors(m.actor) ? m.actor.action.target : null;
       cardBody.replaceChildren(m ? cards.resident(m.actor, roof ? actors.filter(a => a !== m.actor && indoors(a) && a.action.target === roof) : [])
         : cards.event?.(note.events, note) ?? '');
+      cardBody.scrollTop = scrollTop;
       card.setAttribute('aria-label', m ? 'Resident on the map' : 'Chronicle note on the map');
       shown = { key, resident: m ? id : null, note }; cardStale = false; card.hidden = false;
-      cardSize = [card.offsetWidth, card.offsetHeight];
     }
+    if (refresh || changedLayout) cardSize = [card.offsetWidth, card.offsetHeight];
     if (pin.getAttribute('aria-pressed') !== String(kept)) {
       pin.setAttribute('aria-pressed', String(kept));
       pin.title = kept ? 'Unpin card' : 'Pin card';
     }
     const [ax, ay] = m ? [m.x, m.y] : toScreen(note.x, note.y), rise = m ? m.rise ?? s : 30;
-    const [cw, ch] = cardSize, gap = 14;
-    let top = ay - rise - gap - ch;
-    const below = top < 8;
-    if (below) top = Math.min(h - ch - 8, ay + gap);
+    const [cw, measuredHeight] = cardSize, ch = compact ? card.offsetHeight : measuredHeight, gap = 14;
     const left = Math.max(8, Math.min(w - cw - 8, ax - cw / 2));
+    const above = ay - rise - gap - ch, under = ay + gap;
+    const clearsTools = !compact && toolsBottom && left + cw > tools.offsetLeft && above < toolsBottom
+      && under >= toolsBottom && under + ch <= lastRow;
+    const below = above < firstRow || clearsTools;
+    const preferred = below ? Math.min(lastRow - ch, under) : above;
+    const top = compact ? Math.max(firstRow, Math.min(lastRow - ch, preferred)) : preferred;
     card.classList.toggle('below', below);
     card.style.transform = 'translate(' + Math.round(left + canvas.offsetLeft) + 'px,' + Math.round(top + canvas.offsetTop) + 'px)';
     card.style.setProperty('--notch', Math.max(18, Math.min(cw - 18, ax - left)) + 'px');
@@ -1442,6 +1464,7 @@ export function createMap(canvas, onSelect, cards) {
     canvas.height = paper.height = Math.max(1, Math.round(h * dpr));
     if (first || !moved) fit(); else clampView();
     if (awaiting && map) { const event = awaiting; awaiting = null; focus(event); }
+    cardStale = true;
     redraw();
   }
   function local(e) { const rect = canvas.getBoundingClientRect(); return [e.clientX - rect.left, e.clientY - rect.top]; }
@@ -1601,6 +1624,7 @@ export function createMap(canvas, onSelect, cards) {
       if (Number.isFinite(minute)) clock = minute;
       cold = extras?.coldHearths || [];
       world = extras?.world;
+      watchCards = extras?.watchCards ?? false;
       cattle = map ? strayCattle(map, world) : [];
       seasonal();
       actors = (rows || []).filter(a => Number.isFinite(a.position?.x));
@@ -1633,7 +1657,7 @@ export function createMap(canvas, onSelect, cards) {
     },
     // Keeps a resident ({ id }), a spot ({ x, y }) or the whole village ({ whole: true }) in view until
     // told otherwise with watch(null), or until the reader moves the sheet, which calls cards.steered.
-    // A card held open from before is put away when a watch begins: the caption speaks for the scene.
+    // A card held open from before is put away when a watch begins.
     watch(target) { watching = target ? { ...target } : null; if (target) pinned = pinnedMark = null; schedule(); },
     destroy() {
       observer.disconnect(); cancelAnimationFrame(frame); cancelPointerExit();
