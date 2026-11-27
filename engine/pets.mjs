@@ -25,6 +25,16 @@ export const petsOf = (world, actorId) => (world.pets ?? []).filter(p => p.owner
 
 const adultsAt = (actors, home) => actors.filter(a => a.home === home && !a.child);
 
+// A pet is some company. Loneliness still grows at home beside one, only more slowly, so people are still
+// what eases it. A cat keeps to the house. A dog goes about with its owner, so it is at home only when they are.
+export const PET_COMPANY = 0.7;
+const atHome = actor => actor.action?.target === actor.home && actor.action.phase !== 'travelling';
+export function petAtHome(world, actors, actor) {
+  if (!world.pets?.length || !atHome(actor)) return false;
+  return world.pets.some(pet => pet.home === actor.home
+    && (pet.kind !== 'dog' || pet.owner === actor.id || actors.some(a => a.id === pet.owner && atHome(a))));
+}
+
 // At dawn: each pet stays with someone at its house and a dog is fed, and now and then a new stray comes.
 export function dawnPets(state, emit) {
   const { world, actors, map } = state, minute = world.minute, day = Math.floor(minute / DAY);

@@ -1,6 +1,7 @@
 // The plan view. Everything here is drawn from the village's stored map, so a new lane,
 // field or cottage appears as soon as the residents have made it.
 import { heightAt, TREE_LINE } from '/engine/terrain.mjs';
+import { bridgeDecks } from '/engine/roads.mjs';
 import { rectPoly, rng, hash2, smooth, TAU } from '/engine/geom.mjs';
 import { createMotion } from '/motion.js';
 import { light, hearths, indoors, yearLook, skyOver, sunOver, blend, frostOver, PLAIN_LIGHT } from '/ambient.js';
@@ -391,16 +392,14 @@ function paintPaper(c, map, look, scale) {
       c.fill();
     }
   }
-  for (const [a, b, kind] of map.edges) {
-    if (kind !== 'bridge') continue;
-    const A = map.nodes[a], B = map.nodes[b], len = Math.hypot(B[0] - A[0], B[1] - A[1]);
+  for (const { A, B, from, to } of bridgeDecks(map)) {
     c.save(); c.translate(A[0], A[1]); c.rotate(Math.atan2(B[1] - A[1], B[0] - A[0]));
-    c.fillStyle = '#2f454433'; c.fillRect(0.1, -0.36, len - 0.2, 1.3);
-    c.fillStyle = '#b79a72'; c.fillRect(-0.05, -0.62, len + 0.1, 1.24);
+    c.fillStyle = '#2f454433'; c.fillRect(from + 0.1, -0.36, to - from - 0.2, 1.3);
+    c.fillStyle = '#b79a72'; c.fillRect(from - 0.05, -0.62, to - from + 0.1, 1.24);
     c.strokeStyle = '#7d6a4f'; c.lineWidth = line * 0.8; c.beginPath();
-    for (let x = 0.2; x < len; x += 0.42) { c.moveTo(x, -0.6); c.lineTo(x, 0.6); }
+    for (let x = from + 0.2; x < to; x += 0.42) { c.moveTo(x, -0.6); c.lineTo(x, 0.6); }
     c.stroke();
-    c.strokeStyle = '#675e48'; c.lineWidth = line * 2; c.beginPath(); c.moveTo(-0.05, -0.62); c.lineTo(len + 0.05, -0.62); c.moveTo(-0.05, 0.62); c.lineTo(len + 0.05, 0.62); c.stroke();
+    c.strokeStyle = '#675e48'; c.lineWidth = line * 2; c.beginPath(); c.moveTo(from - 0.05, -0.62); c.lineTo(to + 0.05, -0.62); c.moveTo(from - 0.05, 0.62); c.lineTo(to + 0.05, 0.62); c.stroke();
     c.restore();
   }
   // Shadows first, then buildings, then the trees that overhang them. Everything that falls on the
@@ -843,11 +842,9 @@ export function createMap(canvas, onSelect, cards) {
     // A bridge stands over the water. Its deck is laid back, from the sheet, on top of the current, the
     // glints and the fish that pass beneath it.
     c.save(); c.beginPath();
-    for (const [a, b, kind] of map.edges) {
-      if (kind !== 'bridge') continue;
-      const A = map.nodes[a], B = map.nodes[b], len = Math.hypot(B[0] - A[0], B[1] - A[1]) || 1;
-      const ux = (B[0] - A[0]) / len, uy = (B[1] - A[1]) / len, half = 0.64 + 1.4 / k;
-      for (const [along, side, first] of [[-0.06, -1, true], [len + 0.06, -1], [len + 0.06, 1], [-0.06, 1]]) {
+    for (const { A, ux, uy, from, to } of bridgeDecks(map)) {
+      const half = 0.64 + 1.4 / k;
+      for (const [along, side, first] of [[from - 0.06, -1, true], [to + 0.06, -1], [to + 0.06, 1], [from - 0.06, 1]]) {
         const [x, y] = toScreen(A[0] + ux * along - uy * half * side, A[1] + uy * along + ux * half * side);
         if (first) c.moveTo(x, y); else c.lineTo(x, y);
       }

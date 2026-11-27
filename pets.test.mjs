@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { register } from 'node:module';
-import { dawnPets, dogOf, normalizePets } from './engine/pets.mjs';
+import { PET_COMPANY, dawnPets, dogOf, normalizePets, petAtHome } from './engine/pets.mjs';
 import { keepStores } from './engine/stores.mjs';
 
 const DAY = 1440;
@@ -55,6 +55,26 @@ test('a pet stays with whoever is left at the house, and wanders off from an emp
   const events = dawns(state, 1);
   assert.equal(state.world.pets.some(p => p.id === 'pet-1'), false);
   assert.ok(events.some(e => /Smoke/.test(e.text) && e.outcome?.left));
+});
+
+test('a pet at the house is company, and a dog only when its owner is home', () => {
+  const state = village();
+  state.actors.push(person('robin', 'Robin Marsh', 'cottage-1'));
+  const [agnes, , , robin] = state.actors;
+  const { world, actors } = state;
+  assert.equal(petAtHome(world, actors, agnes), false, 'no pet, no company');
+  world.pets = [{ id: 'pet-1', kind: 'cat', name: 'Smoke', home: 'cottage-1', owner: 'agnes', came: 0, coat: 0 }];
+  assert.ok(petAtHome(world, actors, robin), 'a cat keeps the whole household company');
+  robin.action = { kind: 'work', phase: 'working', target: 'mill' };
+  assert.equal(petAtHome(world, actors, robin), false, 'nobody is kept company away from home');
+  robin.action = { kind: 'rest', phase: 'travelling', target: 'cottage-1' };
+  assert.equal(petAtHome(world, actors, robin), false, 'or on the way there');
+  robin.action = { kind: 'rest', phase: 'working', target: 'cottage-1' };
+  world.pets = [{ id: 'pet-2', kind: 'dog', name: 'Bran', home: 'cottage-1', owner: 'agnes', came: 0, coat: 0 }];
+  assert.ok(petAtHome(world, actors, robin), 'the dog is home while Agnes is');
+  agnes.action = { kind: 'work', phase: 'working', target: 'mill' };
+  assert.equal(petAtHome(world, actors, robin), false, 'the dog has gone with Agnes');
+  assert.ok(PET_COMPANY > 0 && PET_COMPANY < 1, 'company slows loneliness without ending it');
 });
 
 test('cats keep the mice from the barley', () => {

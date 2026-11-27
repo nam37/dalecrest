@@ -15,6 +15,20 @@ function cache(map) {
 }
 export function touch(map) { map.revision++; }
 
+// The road over the river runs between points just inside the water, so a deck drawn only along it stops
+// short of the banks. Each view draws the deck on past the ends of the whole span, far enough that both
+// corners reach the land where the river crosses at a slant. Where two stretches of bridge meet, neither reaches out. Drawing only: the road is unchanged.
+export const BRIDGE_LANDING = 1.1;
+export function bridgeDecks(map) {
+  const spans = map.edges.filter(edge => edge[2] === 'bridge'), ends = new Map();
+  for (const [a, b] of spans) for (const node of [a, b]) ends.set(node, (ends.get(node) ?? 0) + 1);
+  return spans.map(([a, b]) => {
+    const A = map.nodes[a], B = map.nodes[b], len = Math.hypot(B[0] - A[0], B[1] - A[1]) || 1;
+    return { a, b, A, B, len, ux: (B[0] - A[0]) / len, uy: (B[1] - A[1]) / len,
+      from: ends.get(a) > 1 ? 0 : -BRIDGE_LANDING, to: ends.get(b) > 1 ? len : len + BRIDGE_LANDING };
+  });
+}
+
 export function place(map, id) {
   const c = cache(map);
   c.byId ??= new Map(map.places.map(p => [p.id, p]));

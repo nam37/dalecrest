@@ -2,6 +2,7 @@
 // seen from just behind whichever resident is selected.
 import * as THREE from '/vendor/three.module.min.js';
 import { heightAt, isWater, TREE_LINE, WATER_LEVEL } from '/engine/terrain.mjs';
+import { bridgeDecks } from '/engine/roads.mjs';
 import { hash2, rng, fbm, rectPoly, TAU } from '/engine/geom.mjs';
 import { createMotion } from '/motion.js';
 import { chains } from '/map.js';
@@ -857,13 +858,14 @@ export function createWalk(container, onSelect, onNote) {
     scenery.delete(key);
   }
 
-  function bridge(A, B) {
-    const len = Math.hypot(B[0] - A[0], B[1] - A[1]), angle = Math.atan2(B[1] - A[1], B[0] - A[0]);
+  // A stretch of deck runs on to the bank at the ends of the span and overlaps its neighbour where two meet.
+  function bridge({ A, B, len, ux, uy, from, to }) {
+    const start = from === 0 ? -0.4 : from, end = to === len ? len + 0.4 : to, middle = (start + end) / 2, deck = end - start;
     const span = new THREE.Group();
-    span.position.set((A[0] + B[0]) / 2, 0.2, (A[1] + B[1]) / 2); span.rotation.y = -angle;
-    span.add(box(len + 0.8, 0.1, 1.3, '#a98c63', 0, 0, 0), box(len + 0.8, 0.07, 0.07, '#6b5a43', 0, 0.36, 0.62), box(len + 0.8, 0.07, 0.07, '#6b5a43', 0, 0.36, -0.62));
-    for (const x of [-len / 2, -len / 6, len / 6, len / 2]) {
-      for (const z of [0.62, -0.62]) span.add(box(0.09, 1.1, 0.09, '#6b5a43', x, -0.15, z));
+    span.position.set(A[0] + ux * middle, 0.2, A[1] + uy * middle); span.rotation.y = -Math.atan2(B[1] - A[1], B[0] - A[0]);
+    span.add(box(deck, 0.1, 1.3, '#a98c63', 0, 0, 0), box(deck, 0.07, 0.07, '#6b5a43', 0, 0.36, 0.62), box(deck, 0.07, 0.07, '#6b5a43', 0, 0.36, -0.62));
+    for (const along of [0, len / 3, len * 2 / 3, len]) {
+      for (const z of [0.62, -0.62]) span.add(box(0.09, 1.1, 0.09, '#6b5a43', along - middle, -0.15, z));
     }
     return span;
   }
@@ -931,10 +933,8 @@ export function createWalk(container, onSelect, onNote) {
       reuse('way:' + id, { pts, kind }, () => ({ object: ribbon(pts, WIDTH[kind], kind === 'road' ? '#dccaa2' : kind === 'lane' ? '#d6c39b' : '#cbbb92',
         kind === 'road' ? 0.022 : kind === 'lane' ? 0.02 : 0.016) }));
     }
-    for (const [a, b, kind] of map.edges) {
-      if (kind !== 'bridge') continue;
-      const A = map.nodes[a], B = map.nodes[b];
-      reuse('bridge:' + a + ':' + b, [A, B], () => ({ object: bridge(A, B) }));
+    for (const deck of bridgeDecks(map)) {
+      reuse('bridge:' + deck.a + ':' + deck.b, [deck.A, deck.B, deck.from, deck.to], () => ({ object: bridge(deck) }));
     }
     for (const p of map.places) {
       const { green, field, wheel } = reuse('place:' + p.id, p, () => placeScenery(p));

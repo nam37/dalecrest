@@ -29,7 +29,7 @@ import { familiar, fade, warm } from './engine/bonds.mjs';
 import { addStock, cottageBatches, foodMix, nextFreshExpiry, produceFoods, spoilCottageProduce, spoilFreshFood, takeFoodBatches, takeStock } from './engine/fresh-food.mjs';
 import { HUNGER, HUNGRY_AT_DAWN, foodReserve, hungerPerMinute, mealRecord, relieveHunger } from './engine/nutrition.mjs';
 import { dawnSmallholding, farmJobs, farmOutput, normalizeSmallholding } from './engine/smallholding.mjs';
-import { dawnPets, normalizePets } from './engine/pets.mjs';
+import { PET_COMPANY, dawnPets, normalizePets, petAtHome } from './engine/pets.mjs';
 import { walkingFatigue } from './engine/footwear.mjs';
 
 export const FOCUSES = ['work', 'social', 'rest', 'food'];
@@ -859,7 +859,7 @@ function stepMinute(state, events, externalActions, records, pilot, songDrafts) 
     // Nobody sleeps well in a house without a fire.
     n.fatigue = clamp(n.fatigue + (resting ? recovery * (actor.illness ? 0.7 : 1) : (action.kind === 'work' ? 0.074 : 0.043) * (actor.illness ? 1.5 : 1)));
     n.cold = clamp(n.cold + (!bite ? -0.25 : warm ? -0.4 : bite * (indoors(action) ? 0.07 : sky.rain || sky.snow ? 0.15 : 0.11)));
-    n.loneliness = clamp(n.loneliness + (resting ? 0.006 : 0.043));
+    n.loneliness = clamp(n.loneliness + (resting ? 0.006 : 0.043 * (petAtHome(world, actors, actor) ? PET_COMPANY : 1)));
     if (action.remaining <= 0) {
       if (externalActions) atBoundary(actor, state, records, pilot);
       else choose(actor, state);
