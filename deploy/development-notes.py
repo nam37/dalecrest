@@ -27,14 +27,15 @@ TOPICS = [(name, re.compile(pattern, re.I)) for name, pattern in (
     ("Village decisions", r"\b(?:moots?|ballots?|promises?|goals?|choices?|decisions?)\b"),
 )]
 PAST_TENSE = {
-    "add": "added", "allow": "allowed", "bring": "brought", "enable": "enabled", "expand": "expanded",
+    "add": "added", "allow": "allowed", "ask": "asked", "bring": "brought", "enable": "enabled", "expand": "expanded",
     "fix": "fixed", "give": "gave", "group": "grouped", "improve": "improved", "keep": "kept", "land": "landed", "let": "let",
     "make": "made", "move": "moved", "open": "opened", "publish": "published", "record": "recorded",
-    "remove": "removed", "restore": "restored", "schedule": "scheduled", "show": "showed", "store": "stored",
+    "remove": "removed", "restore": "restored", "schedule": "scheduled", "show": "showed", "slim": "slimmed", "store": "stored",
     "summarize": "summarized", "support": "added support for", "turn": "turned", "update": "updated",
 }
 MAX_HIGHLIGHTS = 3
-COMPOUND_START = re.compile(r", and ([a-z]+)\b")
+# A later verb in a commit subject follows a comma, with or without "and": "Store X, slim Y, ask Z".
+LATER_VERB = re.compile(r", (and )?([a-z]+)\b")
 REVISION = re.compile(r"[0-9a-f]{40}")
 
 
@@ -100,6 +101,17 @@ def group_topics(changes):
     return groups
 
 
+def later_verbs(rest):
+    """Put each listed verb after a comma in the past tense, and join the last of them with "and"."""
+    hits = [match for match in LATER_VERB.finditer(rest) if match[2] in PAST_TENSE]
+    parts, last = [], 0
+    for index, match in enumerate(hits):
+        joiner = " and " if match[1] or index == len(hits) - 1 else ", "
+        parts += [rest[last:match.start()], joiner, PAST_TENSE[match[2]]]
+        last = match.end()
+    return "".join(parts) + rest[last:], bool(hits)
+
+
 def release_summary(groups):
     # Cover each highlighted topic before using the remaining space for related changes.
     topics = list(groups)[:MAX_HIGHLIGHTS]
@@ -115,9 +127,8 @@ def release_summary(groups):
         for title in titles[:take]:
             verb, _, rest = title.partition(" ")
             if rest and verb.lower() in PAST_TENSE:
-                readable = COMPOUND_START.sub(lambda match: " and " + PAST_TENSE[match[1]]
-                                              if match[1] in PAST_TENSE else match[0], rest)
-                has_compound |= readable != rest
+                readable, compound = later_verbs(rest)
+                has_compound |= compound
                 clauses.append(f"{PAST_TENSE[verb.lower()]} {readable}")
             else:
                 other.append(title + ".")

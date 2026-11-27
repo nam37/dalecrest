@@ -83,6 +83,18 @@ class DevelopmentNotesTest(unittest.TestCase):
         for change in changes:
             self.assertIn(notes.COMMIT_URL + change["sha"], html)
 
+    def test_every_listed_verb_in_a_subject_is_put_in_the_past_tense(self):
+        def summary(title):
+            return notes.release_summary(notes.group_topics([{"sha": "1" * 40, "title": title}]))[1]
+
+        self.assertEqual(summary("Store residents in two parts, slim the visitor feed, ask the planner less"),
+                         "Dalecrest stored residents in two parts, slimmed the visitor feed and asked the planner less.")
+        self.assertEqual(summary("Let pets keep residents company, and land the bridge on its banks"),
+                         "Dalecrest let pets keep residents company and landed the bridge on its banks.")
+        self.assertEqual(summary("Show worn roofs, trodden grass, peas, lambs and ricks"),
+                         "Dalecrest showed worn roofs, trodden grass, peas, lambs and ricks.",
+                         "a list of things is left as it is")
+
     def test_old_snapshots_recover_separate_deploys_on_the_same_day(self):
         first = {"sha": "1" * 40, "title": "Add a day dial to the map"}
         second = {"sha": "2" * 40, "title": "Show night lanterns on the map"}
