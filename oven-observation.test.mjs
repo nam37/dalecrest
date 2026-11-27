@@ -130,3 +130,41 @@ test('a baker who recounts the same stores is not offered a third count within t
   mabel.observations.ovenStores.minute = village.world.minute - 60;
   assert.ok(offered());
 });
+
+test('a baker with a recent count can set out to bake from home, and finds a shortfall at the oven', () => {
+  const village = createVillage(), mabel = resident(village, 'mabel');
+  Object.assign(village.world.supplies, { flour: 7, wood: 6 });
+  tick(village);
+  startChosen(mabel, village, 'inspect:oven', { id: '17', model: 'test' });
+  for (let n = 0; n < 200 && mabel.action.kind !== 'waiting'; n++) tick(village);
+  goHome(mabel, village);
+  assert.ok(availableActions(mabel, village).has('work:bake:oven'), 'a count within three hours is enough to set out');
+  village.world.supplies.wood = 0;
+  assert.ok(startChosen(mabel, village, 'work:bake:oven', { id: '18', model: 'test' }));
+  const events = [];
+  for (let n = 0; n < 200 && mabel.action.kind !== 'waiting'; n++) events.push(...tick(village));
+  assert.equal(events.find(e => e.type === 'work').outcome.status, 'blocked');
+  assert.equal(mabel.observations.ovenStores.wood, 0);
+  // An old count is not: she has to go and look first.
+  goHome(mabel, village);
+  Object.assign(village.world.supplies, { wood: 6 });
+  Object.assign(mabel.observations.ovenStores, { wood: 6, minute: village.world.minute - 180 });
+  assert.equal(availableActions(mabel, village).has('work:bake:oven'), false);
+  assert.ok(availableActions(mabel, village).has('inspect:oven'));
+});
+
+test('others count the oven once a day unless a request they are party to is open', () => {
+  const village = createVillage(), hugh = resident(village, 'hugh');
+  tick(village);
+  const offered = () => availableActions(hugh, village).has('inspect:oven');
+  assert.ok(offered(), 'someone who has never counted it may');
+  hugh.observations = { ovenStores: { source: 'oven inspection', site: 'oven', place: 'Common oven', minute: village.world.minute - 300, flour: 4, wood: 4 } };
+  assert.equal(offered(), false);
+  hugh.helpBook = { r1: { id: 'r1', askerId: 'hugh', helperId: 'oswin', status: 'accepted', item: 'wood',
+    since: village.world.minute, due: village.world.minute + 600 } };
+  assert.ok(offered(), 'a requester checks on promised work');
+  hugh.helpBook.r1.status = 'kept';
+  assert.equal(offered(), false);
+  hugh.observations.ovenStores.minute = village.world.minute - 1440;
+  assert.ok(offered(), 'a day-old count may be renewed');
+});

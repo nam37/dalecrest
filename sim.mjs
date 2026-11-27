@@ -11,6 +11,7 @@ import { lessonOffer, prepareChildren, teachMinute, tickChildren } from './engin
 import { dawnLives, finishLifeConversation, lifeChoices, lifeVerbs, maybeCourt, normalizeLife, tickLives, tooIll } from './engine/lives.mjs';
 import * as standing from './engine/standing.mjs';
 import { atOven, inspectOven, observeGrain } from './engine/observations.mjs';
+import { requestIsOpen } from './engine/request-review.mjs';
 import { appointReporter, reportingGoal, offerReporting, takeFieldNotes } from './engine/reporting.mjs';
 import { finishSongSession, offerSongwriting, prepareSongwriter } from './engine/songwriting.mjs';
 import { bedConversationChoices, canContact, conversationChoices, finishConversation, missedConversation, recordPrivateReview, requestReviewMenu, knownStores, noteWork, settleHelp, expireHelp } from './engine/exchanges.mjs';
@@ -34,6 +35,8 @@ import { walkingFatigue } from './engine/footwear.mjs';
 
 export const FOCUSES = ['work', 'social', 'rest', 'food'];
 export const DEFAULT_SEED = 26111;
+// How long a baker's own count of the oven stores lets her set out to bake without counting again.
+const BAKE_FROM_COUNT = 180;
 
 // The last column of places a household started at is its workplace; 'cottages' means the resident's own home.
 const households = [
@@ -232,8 +235,12 @@ function jobCandidate(actor, key, state, perceived, daylight) {
   if (!site) return job.at === 'field'
     ? { status: 'no_ripe_barley', note: 'There is no strip ready to reap.' }
     : { status: 'no_site', note: 'There is no place ready for my trade.' };
-  if (key === 'bake' && (!atOven(actor, place(state.map, site)) || actor.observations?.ovenStores?.site !== site)) {
-    return { status: 'oven_check', note: 'I need to be at the oven and check its flour and firewood before I can bake.' };
+  // A baker who counted this oven's stores lately can set out to bake from anywhere. The stores are
+  // checked again on arrival, and a shortfall found there ends the shift with a fresh count.
+  const counted = actor.observations?.ovenStores;
+  if (key === 'bake' && (counted?.site !== site ||
+      (!atOven(actor, place(state.map, site)) && perceived.minute - counted.minute >= BAKE_FROM_COUNT))) {
+    return { status: 'oven_check', note: 'I need to go to the oven and check its flour and firewood before I can bake.' };
   }
   return { status: 'available', site };
 }
@@ -346,8 +353,13 @@ function choose(actor, state, menu, diagnostics) {
   // third tells nothing new: a baker with nothing to bake once counted again and again and spent her
   // hour's tokens. A single recount, such as a requester checking on promised work, is still offered.
   const countedTwice = seen?.site === oven?.id && seen.recount && world.minute - seen.minute < 60;
-  if (oven && !countedTwice) {
-    const needsCheck = !atOven(actor, oven) || seen?.site !== oven.id || world.minute - seen.minute >= 180;
+  // Anyone else counts the oven once a day at most, unless a request they are party to is open: then a
+  // count is how a requester learns whether promised work arrived.
+  const party = Object.values(actor.helpBook || {}).some(r => (r.askerId === actor.id || r.helperId === actor.id) && requestIsOpen(r));
+  const curious = actor.trade === 'bake' || party || seen?.site !== oven?.id || world.minute - seen.minute >= 1440;
+  if (oven && !countedTwice && curious) {
+    const canBake = jobsHere.some(job => job.key === 'bake');
+    const needsCheck = seen?.site !== oven.id || world.minute - seen.minute >= BAKE_FROM_COUNT || (!atOven(actor, oven) && !canBake);
     const score = actor.trade === 'bake' && needsCheck ? 60 - weary : 6;
     offer('inspect', 'Checking the oven for flour and firewood', oven.id, 3, score, 'I can go to the oven and count what is on hand.');
   }
