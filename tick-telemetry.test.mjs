@@ -2,7 +2,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { setTimeout as wait } from 'node:timers/promises';
 import pg from 'pg';
 import { tickTimer } from './tick-telemetry.mjs';
 
@@ -42,7 +41,13 @@ test('PostgreSQL keeps tick timings and table sizes, and the health report reads
     // Hold the storage table while the background worker samples it. The clock must still commit.
     const locked = await pool.connect();
     const started = Promise.withResolvers(), finished = Promise.withResolvers();
-    const deadline = message => wait(12000, undefined, { ref: false }).then(() => { throw new Error(message); });
+    // Each limit is cleared once its race is settled. A timer left running would reject later, unhandled,
+    // and fail whichever test was running when it fired, which under a full suite is a slow one.
+    const within = (promise, message) => {
+      let timer;
+      const limit = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(message)), 12000); });
+      return Promise.race([promise, limit]).finally(() => clearTimeout(timer));
+    };
     let stopSampling;
     try {
       await locked.query('BEGIN');
@@ -54,14 +59,14 @@ test('PostgreSQL keeps tick timings and table sizes, and the health report reads
         if (sql.startsWith('DELETE FROM dalecrest.tick_timings')) finished.resolve();
         return result;
       } });
-      await Promise.race([started.promise, deadline('Storage sampling did not start')]);
-      for (let i = 0; i < 3; i++) await Promise.race([tick(), deadline('The clock waited for storage sampling')]);
+      await within(started.promise, 'Storage sampling did not start');
+      for (let i = 0; i < 3; i++) await within(tick(), 'The clock waited for storage sampling');
     } finally {
       stopSampling?.();
       await locked.query('ROLLBACK');
       locked.release();
     }
-    await Promise.race([finished.promise, deadline('Storage sampling did not finish after the lock was released')]);
+    await within(finished.promise, 'Storage sampling did not finish after the lock was released');
 
     // Every tick is counted once in each phase it ran, and the commit is recorded with the tick after it.
     const { rows } = await pool.query('SELECT phase, sum(ticks)::int AS ticks FROM dalecrest.tick_timings GROUP BY phase');
