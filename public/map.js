@@ -194,7 +194,9 @@ function building(c, p, line, lodgers, snowed = color => color, toward = PLAIN_L
   c.restore();
 }
 
-function paintPaper(c, map, look, scale) {
+// With a canopy context the trees are painted there instead, on a clear sheet of their own, so that
+// what stands under them on the live map, such as a dog or a pile of wood, is drawn beneath their crowns.
+function paintPaper(c, map, look, scale, canopy = null) {
   const line = Math.max(0.085, 1.05 / scale);
   c.lineCap = 'round'; c.lineJoin = 'round';
   // The season and any lying snow change the colours the sheet is painted in.
@@ -457,64 +459,67 @@ function paintPaper(c, map, look, scale) {
     c.beginPath(); treeShade(); c.fillStyle = shade; c.fill();
     c.restore();
   }
-  for (const tree of look.woods) {
-    const [x, y, r, pine] = tree, k = hash2(map.seed, x * 10, y * 10);
-    if (pine) {
-      const star = (cx, cy, size) => { c.beginPath(); for (let i = 0; i < 16; i++) { const a = i * TAU / 16 + k, rr = i % 2 ? size * 0.72 : size; c.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); } c.closePath(); };
-      const tone = needle[Math.floor(k * 3)];
-      star(x, y, r); c.fillStyle = snowed(blend(tone, '#22382e', 0.4), 0.45); c.fill(); c.strokeStyle = '#2f4638'; c.lineWidth = line; c.stroke();
-      star(x + lx * r * 0.156, y + ly * r * 0.156, r * 0.68); c.fillStyle = snowed(tone, 0.6); c.fill();
-      disc(c, x + lx * r * 0.156, y + ly * r * 0.156, r * 0.13, '#3a5544');
-    } else {
-      // Out of leaf, a broadleaved tree is its trunk and branches. The crown thickens over them in
-      // spring, turns in autumn and thins again as it falls.
-      if (year.leaf < 0.7) {
-        c.strokeStyle = snow > 0.4 ? '#8d8672' : '#7a6e55'; c.lineWidth = line * 1.1; c.beginPath();
-        for (let i = 0; i < 6; i++) {
-          const a = i * TAU / 6 + k * 6, rr = r * (0.62 + 0.3 * hash2(map.seed + 5, x * 10 + i, y * 10));
-          c.moveTo(x, y); c.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
-          c.moveTo(x + Math.cos(a) * rr * 0.55, y + Math.sin(a) * rr * 0.55); c.lineTo(x + Math.cos(a + 0.5) * rr * 0.9, y + Math.sin(a + 0.5) * rr * 0.9);
+  const trees = c => {
+    for (const tree of look.woods) {
+      const [x, y, r, pine] = tree, k = hash2(map.seed, x * 10, y * 10);
+      if (pine) {
+        const star = (cx, cy, size) => { c.beginPath(); for (let i = 0; i < 16; i++) { const a = i * TAU / 16 + k, rr = i % 2 ? size * 0.72 : size; c.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); } c.closePath(); };
+        const tone = needle[Math.floor(k * 3)];
+        star(x, y, r); c.fillStyle = snowed(blend(tone, '#22382e', 0.4), 0.45); c.fill(); c.strokeStyle = '#2f4638'; c.lineWidth = line; c.stroke();
+        star(x + lx * r * 0.156, y + ly * r * 0.156, r * 0.68); c.fillStyle = snowed(tone, 0.6); c.fill();
+        disc(c, x + lx * r * 0.156, y + ly * r * 0.156, r * 0.13, '#3a5544');
+      } else {
+        // Out of leaf, a broadleaved tree is its trunk and branches. The crown thickens over them in
+        // spring, turns in autumn and thins again as it falls.
+        if (year.leaf < 0.7) {
+          c.strokeStyle = snow > 0.4 ? '#8d8672' : '#7a6e55'; c.lineWidth = line * 1.1; c.beginPath();
+          for (let i = 0; i < 6; i++) {
+            const a = i * TAU / 6 + k * 6, rr = r * (0.62 + 0.3 * hash2(map.seed + 5, x * 10 + i, y * 10));
+            c.moveTo(x, y); c.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+            c.moveTo(x + Math.cos(a) * rr * 0.55, y + Math.sin(a) * rr * 0.55); c.lineTo(x + Math.cos(a + 0.5) * rr * 0.9, y + Math.sin(a + 0.5) * rr * 0.9);
+          }
+          c.stroke();
+          disc(c, x, y, r * 0.13, '#6b5f49');
         }
-        c.stroke();
-        disc(c, x, y, r * 0.13, '#6b5f49');
-      }
-      if (year.leaf < 0.08) continue;
-      c.globalAlpha = Math.min(1, 0.25 + year.leaf * 0.85);
-      // Seven lobes of uneven size. The outline starts on the first lobe and ends there, so the
-      // crown closes on itself with no straight edge left over.
-      const lobe = i => { const a = (i % 7) * TAU / 7 + k * 6, rr = 0.86 + 0.16 * Math.sin((i % 7) * 2.3 + k * 9); return [a, rr]; };
-      const crown = (cx, cy, size) => {
-        const [a0, r0] = lobe(0);
-        c.beginPath(); c.moveTo(cx + Math.cos(a0) * r0 * size, cy + Math.sin(a0) * r0 * size);
-        for (let i = 1; i <= 7; i++) { const [a, rr] = lobe(i); c.quadraticCurveTo(cx + Math.cos(a - 0.45) * rr * size * 1.13, cy + Math.sin(a - 0.45) * rr * size * 1.13, cx + Math.cos(a) * rr * size, cy + Math.sin(a) * rr * size); }
-        c.closePath();
-      };
-      // Each tree turns in its own week.
-      const turned = Math.min(1, Math.max(0, year.turn * 1.5 - hash2(map.seed + 6, x * 10, y * 10) * 0.5));
-      const tone = blend(leaf[Math.floor(k * 4)], russet[Math.floor(k * 4)], turned);
-      // The shaded skirt of the crown, then its lit top, set toward the light.
-      crown(x, y, r); c.fillStyle = snowed(blend(tone, turned > 0.5 ? '#6b4a2a' : '#2b4a3a', 0.38), 0.4); c.fill();
-      c.strokeStyle = blend('#2f4638', '#6d5230', turned); c.lineWidth = line; c.stroke();
-      crown(x + lx * r * 0.184, y + ly * r * 0.184, r * 0.74); c.fillStyle = snowed(tone, 0.55); c.fill();
-      crown(x + lx * r * 0.305, y + ly * r * 0.305, r * 0.42); c.fillStyle = snowed(blend(tone, '#e9f0b8', 0.22), 0.6); c.fill();
-      // A few scallops give the foliage its grain.
-      c.strokeStyle = blend('#2f463866', '#6d523066', turned); c.lineWidth = line * 0.8; c.setLineDash([0.16, 0.14]);
-      for (let i = 0; i < 3; i++) {
-        const a = k * 9 + i * 2.2, d = r * (0.28 + 0.14 * i);
-        c.beginPath(); c.arc(x - r * 0.1 + Math.cos(a) * d * 0.5, y - r * 0.1 + Math.sin(a) * d * 0.5, r * 0.34, a + 0.4, a + 2.3); c.stroke();
-      }
-      c.setLineDash([]);
-      c.globalAlpha = 1;
-      // Apples on the orchard trees. They are kept large enough to see as red specks from far off.
-      if (look.fruit && look.orchardTrees?.has(tree)) {
-        const size = Math.min(r * 0.24, Math.max(r * 0.14 * look.fruit.size, 1.15 / scale));
-        c.fillStyle = blend('#a9b651', '#c8402c', look.fruit.red); c.strokeStyle = blend('#5f6b2c', '#74201a', look.fruit.red); c.lineWidth = Math.min(line * 0.7, size * 0.3);
-        for (const [round, out] of appleSpots(tree, map.seed, look.fruit.each)) {
-          c.beginPath(); c.arc(x + Math.cos(round) * out * r * 0.95, y + Math.sin(round) * out * r * 0.95, size, 0, TAU); c.fill(); c.stroke();
+        if (year.leaf < 0.08) continue;
+        c.globalAlpha = Math.min(1, 0.25 + year.leaf * 0.85);
+        // Seven lobes of uneven size. The outline starts on the first lobe and ends there, so the
+        // crown closes on itself with no straight edge left over.
+        const lobe = i => { const a = (i % 7) * TAU / 7 + k * 6, rr = 0.86 + 0.16 * Math.sin((i % 7) * 2.3 + k * 9); return [a, rr]; };
+        const crown = (cx, cy, size) => {
+          const [a0, r0] = lobe(0);
+          c.beginPath(); c.moveTo(cx + Math.cos(a0) * r0 * size, cy + Math.sin(a0) * r0 * size);
+          for (let i = 1; i <= 7; i++) { const [a, rr] = lobe(i); c.quadraticCurveTo(cx + Math.cos(a - 0.45) * rr * size * 1.13, cy + Math.sin(a - 0.45) * rr * size * 1.13, cx + Math.cos(a) * rr * size, cy + Math.sin(a) * rr * size); }
+          c.closePath();
+        };
+        // Each tree turns in its own week.
+        const turned = Math.min(1, Math.max(0, year.turn * 1.5 - hash2(map.seed + 6, x * 10, y * 10) * 0.5));
+        const tone = blend(leaf[Math.floor(k * 4)], russet[Math.floor(k * 4)], turned);
+        // The shaded skirt of the crown, then its lit top, set toward the light.
+        crown(x, y, r); c.fillStyle = snowed(blend(tone, turned > 0.5 ? '#6b4a2a' : '#2b4a3a', 0.38), 0.4); c.fill();
+        c.strokeStyle = blend('#2f4638', '#6d5230', turned); c.lineWidth = line; c.stroke();
+        crown(x + lx * r * 0.184, y + ly * r * 0.184, r * 0.74); c.fillStyle = snowed(tone, 0.55); c.fill();
+        crown(x + lx * r * 0.305, y + ly * r * 0.305, r * 0.42); c.fillStyle = snowed(blend(tone, '#e9f0b8', 0.22), 0.6); c.fill();
+        // A few scallops give the foliage its grain.
+        c.strokeStyle = blend('#2f463866', '#6d523066', turned); c.lineWidth = line * 0.8; c.setLineDash([0.16, 0.14]);
+        for (let i = 0; i < 3; i++) {
+          const a = k * 9 + i * 2.2, d = r * (0.28 + 0.14 * i);
+          c.beginPath(); c.arc(x - r * 0.1 + Math.cos(a) * d * 0.5, y - r * 0.1 + Math.sin(a) * d * 0.5, r * 0.34, a + 0.4, a + 2.3); c.stroke();
+        }
+        c.setLineDash([]);
+        c.globalAlpha = 1;
+        // Apples on the orchard trees. They are kept large enough to see as red specks from far off.
+        if (look.fruit && look.orchardTrees?.has(tree)) {
+          const size = Math.min(r * 0.24, Math.max(r * 0.14 * look.fruit.size, 1.15 / scale));
+          c.fillStyle = blend('#a9b651', '#c8402c', look.fruit.red); c.strokeStyle = blend('#5f6b2c', '#74201a', look.fruit.red); c.lineWidth = Math.min(line * 0.7, size * 0.3);
+          for (const [round, out] of appleSpots(tree, map.seed, look.fruit.each)) {
+            c.beginPath(); c.arc(x + Math.cos(round) * out * r * 0.95, y + Math.sin(round) * out * r * 0.95, size, 0, TAU); c.fill(); c.stroke();
+          }
         }
       }
     }
-  }
+  };
+  trees(canopy || c);
 }
 
 // Decoration that depends only on the terrain is worked out once per map.
@@ -639,7 +644,7 @@ export function createSurvey(canvas) {
 // chronicle note should say. Without them there is no card.
 export function createMap(canvas, onSelect, cards) {
   const c = canvas.getContext('2d');
-  const paper = document.createElement('canvas');
+  const paper = document.createElement('canvas'), canopy = document.createElement('canvas');
   const motion = createMotion();
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
   const compactWatch = window.matchMedia('(max-width: 690px), (max-width: 960px) and (pointer: coarse)');
@@ -1086,14 +1091,19 @@ export function createMap(canvas, onSelect, cards) {
     c.restore();
   }
 
+  // The flock crosses the parish itself, so it keeps its line over the ground as the sheet is moved
+  // or zoomed. Seen closer, the birds are drawn a little larger and further apart.
   function birds(time, sky) {
     const cycle = Math.floor(time / 47000), f = (time % 47000) / 47000;
     if (sky.bright < 0.5 || f > 0.42) return;
-    const y0 = h * (0.16 + 0.5 * hash2(map.seed, cycle, 5)), x0 = -40 + (w + 80) * (f / 0.42), dir = cycle % 2 ? -1 : 1;
-    c.strokeStyle = 'rgba(52,47,32,.62)'; c.lineWidth = 1.3; c.lineCap = 'round';
+    const dir = cycle % 2 ? -1 : 1, across = (f / 0.42) * (map.w + 24) - 12;
+    const [x0, y0] = toScreen(dir > 0 ? across : map.w - across, map.h * (0.16 + 0.5 * hash2(map.seed, cycle, 5)));
+    const k = Math.min(2.2, Math.max(1, Math.sqrt(view.scale / (whole || view.scale))));
+    if (x0 < -80 * k || x0 > w + 80 * k || y0 < -40 * k || y0 > h + 40 * k) return;
+    c.strokeStyle = 'rgba(52,47,32,.62)'; c.lineWidth = 1.3 * Math.sqrt(k); c.lineCap = 'round';
     for (let i = 0; i < 5; i++) {
-      const x = (dir > 0 ? x0 : w - x0) - dir * Math.abs(i - 2) * 13, y = y0 + (i - 2) * 8 + Math.sin(time * 0.002 + i) * 2, flap = 2.2 + Math.sin(time * 0.012 + i * 1.3) * 2.4;
-      c.beginPath(); c.moveTo(x - 4.5, y - flap); c.quadraticCurveTo(x - 1.5, y - flap * 0.2, x, y + 1); c.quadraticCurveTo(x + 1.5, y - flap * 0.2, x + 4.5, y - flap); c.stroke();
+      const x = x0 - dir * Math.abs(i - 2) * 13 * k, y = y0 + ((i - 2) * 8 + Math.sin(time * 0.002 + i) * 2) * k, flap = (2.2 + Math.sin(time * 0.012 + i * 1.3) * 2.4) * k;
+      c.beginPath(); c.moveTo(x - 4.5 * k, y - flap); c.quadraticCurveTo(x - 1.5 * k, y - flap * 0.2, x, y + k); c.quadraticCurveTo(x + 1.5 * k, y - flap * 0.2, x + 4.5 * k, y - flap); c.stroke();
     }
   }
 
@@ -1147,8 +1157,11 @@ export function createMap(canvas, onSelect, cards) {
       p.setTransform(1, 0, 0, 1, 0, 0);
       p.fillStyle = ground; p.fillRect(0, 0, paper.width, paper.height);
       const k = dpr * view.scale;
+      const t = canopy.getContext('2d');
+      t.setTransform(1, 0, 0, 1, 0, 0); t.clearRect(0, 0, canopy.width, canopy.height);
       p.setTransform(k, 0, 0, k, dpr * (w / 2 - view.x * view.scale), dpr * (h / 2 - view.y * view.scale));
-      paintPaper(p, map, look, view.scale);
+      t.setTransform(p.getTransform()); t.lineCap = 'round'; t.lineJoin = 'round';
+      paintPaper(p, map, look, view.scale, t);
     }
     const sky = light(clock), lit = hearths(map, actors, cold), still = reduced.matches ? 0 : time;
     c.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -1228,6 +1241,8 @@ export function createMap(canvas, onSelect, cards) {
     }
     for (const pet of petsAt(map, world?.pets, actors, id => drawnAt.get(id) ?? motion.at(id, time), still, sky.dark, reduced.matches ? 10 : Math.min(0.25, Math.max(0, (time - (lastPetAt || time)) / 1000)))) drawPet(c, pet, toScreen, view.scale, look.sun);
     lastPetAt = time;
+    // The trees' crowns stand over the pets, the woodpiles and whatever else waits beneath them.
+    c.drawImage(canopy, 0, 0, w, h);
     // Visitors from beyond the parish: a peddler with a pack pony, the reeve, a drover and the strays.
     const visiting = visitorsOf(map, world, reduced.matches ? clock : liveMinute(clock, tick, performance.now()), still);
     if (visiting.pitch) drawPitch(c, visiting.pitch, toScreen, view.scale, look.sun);
@@ -1493,8 +1508,8 @@ export function createMap(canvas, onSelect, cards) {
     const first = !w;
     w = rect.width; h = rect.height;
     dpr = Math.min(2, window.devicePixelRatio || 1);
-    canvas.width = paper.width = Math.max(1, Math.round(w * dpr));
-    canvas.height = paper.height = Math.max(1, Math.round(h * dpr));
+    canvas.width = paper.width = canopy.width = Math.max(1, Math.round(w * dpr));
+    canvas.height = paper.height = canopy.height = Math.max(1, Math.round(h * dpr));
     if (first || !moved) fit(); else clampView();
     if (awaiting && map) { const event = awaiting; awaiting = null; focus(event); }
     cardStale = true;
