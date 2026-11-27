@@ -9,6 +9,14 @@ const outcomes = { applying: 'Applying', verified: 'Verified', failed: 'Failed',
 const clockForm = $('clock-form'), clockMode = clockForm.elements.mode;
 const number = value => Number.isFinite(value) ? value.toLocaleString() : '—';
 const date = value => value ? new Date(value).toLocaleString() : '—';
+const ms = value => Number.isFinite(value) ? value.toLocaleString(undefined, { maximumFractionDigits: 1 }) + ' ms' : '—';
+const bytes = value => {
+  if (!Number.isFinite(value)) return '—';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let size = Math.abs(value), unit = 0;
+  while (size >= 1024 && unit < units.length - 1) { size /= 1024; unit++; }
+  return (value < 0 ? '−' : '') + size.toLocaleString(undefined, { maximumFractionDigits: size < 10 ? 1 : 0 }) + ' ' + units[unit];
+};
 let current = null, user = null, restoring, active = null, sending = false, refreshing = false, generation = 0;
 let historySignature = '';
 let chartsChecked = 0, chartsLoading = false;
@@ -77,6 +85,18 @@ function renderHealth(status) {
   say('tokens', health ? number(health.actionTokens.used) + ' / ' + number(health.actionTokens.hourlyCap) : '—');
   say('release', health?.deployment.revision?.slice(0, 12) ?? '—');
   say('backup', health?.deployment.lastBackup ? 'Last backup ' + date(health.deployment.lastBackup) : 'Backup time unavailable');
+  const ticks = health?.ticks?.lastTwoHours;
+  const slowest = Object.entries(ticks?.phases ?? {}).filter(([name]) => name !== 'total')
+    .sort(([, a], [, b]) => b.meanMs - a.meanMs)[0];
+  say('tick-time', ticks?.ticks ? ms(ticks.meanMs) + ' mean' : '—');
+  say('tick-worst', ticks?.ticks ? 'Worst ' + ms(ticks.maxMs) + ' over ' + number(ticks.ticks) + ' ticks in the last two hours' : 'No ticks timed yet');
+  say('tick-phase', slowest ? 'Slowest part: ' + slowest[0] + ', ' + ms(slowest[1].meanMs) + ' mean' : '');
+  const storage = health?.storage, largest = storage?.tables[0];
+  say('database-size', storage ? bytes(storage.databaseBytes) : '—');
+  say('database-growth', !storage ? 'Sizes not sampled yet' : storage.comparedOverDays === null ? 'Growth shows after an hour of samples'
+    : bytes(storage.databaseGrowthPerDay) + ' a day · ' + bytes(storage.logWrittenPerDay) + ' of log a day');
+  say('largest-table', largest ? 'Largest: ' + largest.name + ', ' + bytes(largest.bytes)
+    + (Number.isFinite(largest.growthPerDay) ? ' (+' + bytes(largest.growthPerDay) + ' a day)' : '') : '');
   clockSummary();
 }
 

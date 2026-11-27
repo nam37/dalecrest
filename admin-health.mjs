@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { formatDate } from './engine/calendar.mjs';
 import { clockPace } from './engine/clock.mjs';
 import { hourlyActionBudget } from './action-turns.mjs';
+import { readTickTimings, readTableSizes } from './tick-telemetry.mjs';
 
 export function effectiveMode({ world, tickMinutes, tickMs, clockPeriod }) {
   if (tickMinutes !== 1) return null;
@@ -21,6 +22,9 @@ export async function readAdminHealth(db, village, { revision, lastBackup } = {}
     FROM dalecrest.decision_traces WHERE requested_at > now()-interval '1 hour'`);
   const waiting = village.actors.filter(actor => actor.action.kind === 'waiting');
   const oldest = waiting.reduce((minute, actor) => Math.min(minute, actor.action.since ?? village.world.minute), village.world.minute);
+  // A release older than the telemetry tables, or a slow catalogue, leaves these out rather than the whole report.
+  const ticks = await readTickTimings(db).catch(() => null);
+  const storage = await readTableSizes(db).catch(() => null);
   return {
     checkedAt: new Date().toISOString(),
     clock: {
@@ -37,6 +41,8 @@ export async function readAdminHealth(db, village, { revision, lastBackup } = {}
       oldestWaitMinutes: waiting.length ? village.world.minute - oldest : null, pending: usage.pending },
     actionTokens: { used: usage.tokens, hourlyCap: hourlyActionBudget },
     deployment: { revision: revision || null, lastBackup: lastBackup || null },
+    ticks,
+    storage,
   };
 }
 

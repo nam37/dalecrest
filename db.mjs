@@ -16,6 +16,7 @@ import { historySchema, collectPresence, writePresence } from './village-history
 import { eventMootKey, recordIndexes } from './record-pages.mjs';
 import { clockPace } from './engine/clock.mjs';
 import { residentPartsSchema, readResidents, readResident, writeResident, writeResidentParts, hotState, residentJson } from './resident-store.mjs';
+import { telemetrySchema, tickTimer, writeTimings, sampleSizes } from './tick-telemetry.mjs';
 
 if (!process.env.DATABASE_URL) throw new Error('Set DATABASE_URL in .env to a PostgreSQL database before starting Dalecrest.');
 const minimumResidents = Number(process.env.VILLAGE_MIN_RESIDENTS ?? 8);
@@ -111,6 +112,7 @@ export async function initialize() {
       );
       ${residentPartsSchema}
       ${historySchema}
+      ${telemetrySchema}
       CREATE TABLE IF NOT EXISTS dalecrest.planner_limits (
         provider text PRIMARY KEY, next_request_at timestamptz NOT NULL
       );
@@ -248,11 +250,23 @@ export async function nextTickDelay() {
   return row?.delay ?? 1000;
 }
 
+// The commit is timed after it happens, and so is the hourly size sample, which runs outside the tick
+// so it never holds the clock. Both are recorded with the next tick.
+let afterTick = {};
 export async function advance() {
   // A step changes the held map in place, so a failed commit must not leave that copy behind.
-  return transaction(tick).catch(error => { held = null; throw error; });
+  const ended = await transaction(tick).catch(error => { held = null; throw error; });
+  if (ended === undefined) return;
+  afterTick.commit = performance.now() - ended;
+  const started = performance.now();
+  try {
+    if (await sampleSizes(pool)) afterTick.sizes = performance.now() - started;
+  } catch {
+    console.error('Table sizes could not be sampled.');
+  }
 }
 async function tick(db) {
+  const timer = tickTimer();
   const result = await db.query('SELECT state FROM dalecrest.world WHERE id=1 AND next_tick <= now() FOR UPDATE SKIP LOCKED');
   if (!result.rowCount) return;
   const world = result.rows[0].state;
@@ -261,6 +275,7 @@ async function tick(db) {
   const before = map.revision;
   const traces = (await db.query(`SELECT id,actor_id,until_minute,decision_since FROM dalecrest.decision_traces
       WHERE status='applied' AND ended_minute IS NULL`)).rows;
+  timer.mark('read');
   const direct = process.env.PLANNER_PROVIDER === 'openai';
   const { minutes } = clockPace(world.minute, process.env);
   const beforeMinute = world.minute;
@@ -271,16 +286,25 @@ async function tick(db) {
   const arrivals = welcomeResidents(village, minimumResidents);
   const presence = collectPresence();
   const { events, steps } = advanceWithTraces(village, minutes, traces, direct, records, presence.observe, songDrafts);
+  timer.mark('step');
   const chronicle = await recordEvents(db, [...arrivals, ...events]);
+  timer.mark('events');
   await writeGoals(db, actors);
   await writeObservations(db, actors, chronicle);
+  timer.mark('knowledge');
   await saveActors(db, actors);
-  if (map.revision !== before) await saveMap(db, map, world.minute);
+  timer.mark('residents');
+  if (map.revision !== before) {
+    await saveMap(db, map, world.minute);
+    timer.mark('map');
+  }
   await writePresence(db, presence.rows);
+  timer.mark('presence');
   await queueEditions(db, beforeMinute, world.minute);
   await writeSteps(db, steps, chronicle, traces, world.minute);
   await writeActivities(db, records);
   await queueSongDrafts(db, songDrafts);
+  timer.mark('records');
   const pace = clockPace(world.minute, process.env);
   // Anchor ordinary ticks to the previous deadline so sub-second intervals and incidental delays
   // do not accumulate. After a whole missed interval, schedule from now instead of racing to catch up.
@@ -289,6 +313,10 @@ async function tick(db) {
     next_tick=CASE WHEN next_tick+make_interval(secs=>$2) > statement_timestamp()
       THEN next_tick+make_interval(secs=>$2)
       ELSE statement_timestamp()+make_interval(secs=>$2) END WHERE id=1`, [world, pace.seconds, pace]);
+  timer.mark('clock');
+  await writeTimings(db, { ...timer.phases, total: timer.total(), ...afterTick });
+  afterTick = {};
+  return performance.now();
 }
 
 // Observers only see committed maps. Capture one map and its residents in the same database snapshot.

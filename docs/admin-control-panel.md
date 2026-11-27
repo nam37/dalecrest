@@ -61,7 +61,9 @@ sudo systemctl restart dalecrest-admin.service
 
 ## Agent URL
 
-Send `GET /admin/api/agent` with the issued key in the header `Authorization: Bearer <name>.<key>`. The response contains village health, the active change if any, and the last 30 clock changes. Agent keys are read-only. Operator sign-in is required for clock changes. [Live agent endpoint](https://dalecrest.trinsicstudios.com/admin/api/agent)
+Send `GET /admin/api/agent` with the issued key in the header `Authorization: Bearer <name>.<key>`. The response contains village health, the active change if any, and the last 30 clock changes. Agent keys are read-only.
+
+Village health includes `ticks` and `storage`. `ticks.lastTwoHours` and `ticks.lastDay` give the number of ticks and the mean and worst milliseconds for the whole tick and for each part of it: `read`, `step`, `events`, `knowledge`, `residents`, `map`, `presence`, `records`, `clock`, `sizes` and `commit`. `total` covers the tick up to the clock update. The commit and the hourly size sample, which runs after the commit so it never holds the clock, are timed after they happen and recorded with the next tick. `storage` is the latest hourly sample: the database size, every table's size and estimated rows, and growth per day against the oldest sample in the last week. `logWrittenPerDay` is how much write-ahead log the database writes in a day. Growth reads `null` until two samples are an hour apart. Timings are kept 30 days and size samples 35. Both are missing from a release older than 27 November 2026. Operator sign-in is required for clock changes. [Live agent endpoint](https://dalecrest.trinsicstudios.com/admin/api/agent)
 
 Send `GET /admin/api/agent/metrics` with the same header for the chart data described under [Village trends](#village-trends) and the decision reports below. The panel reads the village at most once a minute, so agents calling more often receive the same figures. Without a key the address answers 401 with `An agent key is required.`
 
