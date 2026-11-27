@@ -1,6 +1,7 @@
 import http from 'node:http';
 import { createHash } from 'node:crypto';
 import { readFile, readdir } from 'node:fs/promises';
+import pg from 'pg';
 import { initialize, advance, nextTickDelay, snapshot, currentMap, pool, recentEvents, reviewGoalsOnce, draftSongOnce, publishCivicAccountOnce, listenForVillageChanges } from './db.mjs';
 import { planOnce, plannerStatus, plannerPollMs } from './planner.mjs';
 import { locationsOf } from './sim.mjs';
@@ -14,6 +15,7 @@ import { recordPage } from './record-pages.mjs';
 import { recordPath } from './public/record-links.js';
 import { FEED_PARTS, publicVillage } from './village-feed.mjs';
 import { readResident } from './resident-store.mjs';
+import { startStorageSampling } from './tick-telemetry.mjs';
 
 const host = process.env.HOST || '127.0.0.1';
 const port = Number(process.env.PORT || 4173);
@@ -141,7 +143,10 @@ const server = http.createServer(async (req, res) => {
     } else { res.writeHead(404).end(); }
   } catch { res.writeHead(503, { 'Content-Type': 'text/plain' }).end('Dalecrest is temporarily unavailable.'); }
 });
-let clock, stopping = false;
+let clock, stopStorageSampling, stopping = false;
+const storagePool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 1,
+  connectionTimeoutMillis: 5000, statement_timeout: 5000 });
+storagePool.on('error', () => console.error('A storage sampling connection closed.'));
 async function runClock() {
   let delay = 1000;
   try {
@@ -188,15 +193,18 @@ const songs = setInterval(async () => {
 server.listen(port, host, () => {
   console.log('Dalecrest is listening at http://' + host + ':' + port);
   runClock();
+  stopStorageSampling = startStorageSampling(storagePool);
   plan();
   editDaily();
 });
 function shutdown() {
+  if (stopping) return;
   stopping = true;
   clearTimeout(clock); clearInterval(planner); clearInterval(press); clearInterval(reviews); clearInterval(accounts); clearInterval(songs);
   stopListening();
+  stopStorageSampling?.();
   stream.close();
-  server.close(() => pool.end());
+  server.close(() => Promise.all([pool.end(), storagePool.end()]));
 }
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);

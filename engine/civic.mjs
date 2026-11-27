@@ -339,8 +339,12 @@ export function tick(state, emit, random, onMootInterruption, { externalBallots 
       minute >= moot.at + 100)) closeMoot(state, emit, random);
 }
 
+export function mootAttendanceOpen(moot, minute) {
+  return Boolean(moot && minute >= moot.at - 40 && minute <= moot.at + 25);
+}
+
 export function canAttendMoot(actor, { world: { moot, minute }, map }) {
-  if (!moot || minute < moot.at - 40 || minute > moot.at + 25 || moot.attendees?.includes(actor.id)) return false;
+  if (!mootAttendanceOpen(moot, minute) || moot.attendees?.includes(actor.id)) return false;
   const path = route(map, [actor.position.x, actor.position.y], 'hall');
   // Enrollment runs before movement, so even the last arrival needs one more tick to be counted.
   const walkingMinutes = moot.at + attendanceWindow - minute - 1;

@@ -529,11 +529,11 @@ export function startChosen(actor, state, id, trace, pilot = standing.PILOT) {
   const menu = availableActions(actor, state), action = menu.get(id);
   if (!action) return null;
   const minute = state.world.minute, { since, why, previous, blockedVisit } = actor.action;
-  // A choice made with the moot on offer has weighed it, whatever was chosen.
-  if (state.world.moot && [...menu.values()].some(a => a.kind === 'meeting')) actor.mootWeighed = state.world.moot.at;
   // The reply and ballot are committed together, even if this is the last minute of voting.
   const ballot = action.kind === 'ballot' && civic.recordBallot(actor, state, action, { source: 'decisions', traceId: trace.id });
   if (action.kind === 'ballot' && !ballot) return null;
+  // Immediate choices use the current menu. A delayed reply carries the offer the model actually saw.
+  if (state.world.moot && (trace.mootWasOffered ?? menu.has('meeting:hall'))) actor.mootWeighed = state.world.moot.at;
   if (action.update) actor.helpBook[action.requestId].consideredFact = action.update.factId;
   let visitChange = blockedVisit;
   // The friend may have started somewhere else while the resident was waiting for the decision.

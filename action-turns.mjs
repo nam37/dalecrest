@@ -2,7 +2,7 @@ import { DECISIONS_MODEL, DECISIONS_URL, actionBody, actionDescription, recalled
 import { activeGoals, goalKey } from './engine/goals.mjs';
 import { memoryKey } from './engine/memory.mjs';
 import { civicObservationKeys } from './engine/civic-news.mjs';
-import { ballotOffers } from './engine/civic.mjs';
+import { ballotOffers, mootAttendanceOpen } from './engine/civic.mjs';
 import { availableActions, startChosen, locationsOf } from './sim.mjs';
 import { residentState, writeActivities } from './decision-trace.mjs';
 import { weatherAt } from './engine/seasons.mjs';
@@ -86,11 +86,15 @@ export async function startChosenAction(db, trace, choice, village, recordEvents
   if (!actor) return { status: 'actor_missing' };
   if (actor.action.kind !== 'waiting' || actor.action.since !== Number(trace.decision_since)) return { status: 'superseded' };
   const action = availableActions(actor, village).get(choice);
-  const offered = JSON.parse(trace.request_body).questions[0].choices.find(option => option.value === choice);
+  const choices = JSON.parse(trace.request_body).questions[0].choices;
+  const offered = choices.find(option => option.value === choice);
   if (!offered || !action || !sameOffer(actionDescription(action, locationsOf(village.map, village.actors)), offered.description)) return { status: 'unavailable' };
   const minute = village.world.minute;
   const state = residentState(actor);
-  const started = startChosen(actor, village, choice, { id: trace.id, model: trace.model });
+  // The request's minute also distinguishes the current moot from an earlier one.
+  const mootWasOffered = mootAttendanceOpen(village.world.moot, Number(trace.observed_minute))
+    && choices.some(option => option.value === 'meeting:hall');
+  const started = startChosen(actor, village, choice, { id: trace.id, model: trace.model, mootWasOffered });
   if (!started) return { status: 'unavailable' };
   await db.query(`UPDATE dalecrest.decision_traces SET ended_minute=$2,end_reason='replaced'
     WHERE actor_id=$1 AND status='applied' AND ended_minute IS NULL`, [actor.id, minute]);

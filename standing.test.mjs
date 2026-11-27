@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { createVillage, stepVillage, availableActions, startChosen, locationsOf } from './sim.mjs';
 import { consider, keep, PILOT } from './engine/standing.mjs';
 import { actionBody } from './decisions.mjs';
+import { startChosenAction } from './action-turns.mjs';
 import { placesOf } from './engine/roads.mjs';
 
 const isNight = minute => { const t = minute % 1440; return t >= 1260 || t < 340; };
@@ -147,6 +148,36 @@ test('a stale instruction is dropped with its reason and never followed', () => 
     assert.equal(actor.action.why, 'instruction ' + reason);
     assert.deepEqual(records.find(r => r.basis === 'instruction_ended' && r.actorId === actor.id), { actorId: actor.id, minute: village.world.minute - 1, basis: 'instruction_ended', routine: 'sleep', reason, traceId: '41' });
     assert.equal(actor.instructions.sleep, undefined);
+  }
+});
+
+test('a delayed reply weighs only the moot offered in its recorded menu', async () => {
+  const mootAt = 1440 + 19 * 60;
+  for (const scenario of [
+    { lead: 41, shift: 0, sawMoot: false, weighsMoot: false },
+    { lead: 40, shift: 0, sawMoot: true, weighsMoot: true },
+    { lead: 40, shift: 1440, sawMoot: true, weighsMoot: false },
+  ]) {
+    const village = createVillage(), actor = village.actors[0];
+    const observed = mootAt - scenario.lead, currentMoot = mootAt + scenario.shift;
+    village.world.minute = observed;
+    village.world.moot = { at: mootAt, tries: 0 };
+    actor.action = { kind: 'waiting', phase: 'waiting', label: 'Choosing the next activity', remaining: 0, since: observed };
+    const menu = availableActions(actor, village), names = locationsOf(village.map, village.actors);
+    assert.equal(menu.has('meeting:hall'), scenario.sawMoot);
+    const trace = { id: '1', model: 'script', actor_id: actor.id, decision_since: observed, observed_minute: observed,
+      request_body: actionBody(actor, village.world, menu, names) };
+
+    village.world.minute = currentMoot - 39;
+    village.world.moot = { at: currentMoot, tries: Number(Boolean(scenario.shift)) };
+    assert.ok(availableActions(actor, village).has('meeting:hall'));
+    const result = await startChosenAction({ query: async () => ({ rows: [] }) }, trace, 'leisure:green', village,
+      async (_db, events) => events.map(event => ({ ...event, id: 1 })));
+    assert.equal(result.status, 'applied');
+    assert.equal(actor.mootWeighed === currentMoot, scenario.weighsMoot);
+    const next = consider(actor, village, availableActions(actor, village), actor.action);
+    if (scenario.weighsMoot) assert.equal(next.follow?.routine, 'again:leisure:green');
+    else assert.equal(next.fresh, 'would run into the moot');
   }
 });
 

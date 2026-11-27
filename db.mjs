@@ -16,7 +16,7 @@ import { historySchema, collectPresence, writePresence } from './village-history
 import { eventMootKey, recordIndexes } from './record-pages.mjs';
 import { clockPace } from './engine/clock.mjs';
 import { residentPartsSchema, readResidents, readResident, writeResident, writeResidentParts, hotState, residentJson } from './resident-store.mjs';
-import { telemetrySchema, tickTimer, writeTimings, sampleSizes } from './tick-telemetry.mjs';
+import { telemetrySchema, tickTimer, writeTimings } from './tick-telemetry.mjs';
 
 if (!process.env.DATABASE_URL) throw new Error('Set DATABASE_URL in .env to a PostgreSQL database before starting Dalecrest.');
 const minimumResidents = Number(process.env.VILLAGE_MIN_RESIDENTS ?? 8);
@@ -250,20 +250,12 @@ export async function nextTickDelay() {
   return row?.delay ?? 1000;
 }
 
-// The commit is timed after it happens, and so is the hourly size sample, which runs outside the tick
-// so it never holds the clock. Both are recorded with the next tick.
-let afterTick = {};
+// The commit is timed after it happens and recorded with the next tick.
+let commitMs;
 export async function advance() {
   // A step changes the held map in place, so a failed commit must not leave that copy behind.
   const ended = await transaction(tick).catch(error => { held = null; throw error; });
-  if (ended === undefined) return;
-  afterTick.commit = performance.now() - ended;
-  const started = performance.now();
-  try {
-    if (await sampleSizes(pool)) afterTick.sizes = performance.now() - started;
-  } catch {
-    console.error('Table sizes could not be sampled.');
-  }
+  if (ended !== undefined) commitMs = performance.now() - ended;
 }
 async function tick(db) {
   const timer = tickTimer();
@@ -314,8 +306,7 @@ async function tick(db) {
       THEN next_tick+make_interval(secs=>$2)
       ELSE statement_timestamp()+make_interval(secs=>$2) END WHERE id=1`, [world, pace.seconds, pace]);
   timer.mark('clock');
-  await writeTimings(db, { ...timer.phases, total: timer.total(), ...afterTick });
-  afterTick = {};
+  await writeTimings(db, { ...timer.phases, total: timer.total(), commit: commitMs });
   return performance.now();
 }
 

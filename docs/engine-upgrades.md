@@ -51,7 +51,7 @@ The engine was already fast: one simulated minute takes about 0.2 ms. Almost all
 **Why.** In one live day 183 fresh decisions were made because a standing instruction would have run into the moot, and 183 because a reply could not start.
 
 **What changed.**
-- `engine/standing.mjs` `consider()` no longer sends a routine back to the model because the moot is near. It asks again only when the menu actually offers the meeting and this resident has not yet chosen with this moot on offer. `startChosen` in `sim.mjs` sets `actor.mootWeighed = world.moot.at` when it starts a choice made with the meeting on the menu. The call 35 minutes before the moot still stops whoever is busy.
+- `consider()` in `engine/standing.mjs` asks again when the meeting becomes available and the resident has yet to weigh it. When a delayed reply starts an action, `startChosenAction()` checks the stored request’s menu and village minute before recording that the resident weighed the current moot. The call 35 minutes before the moot still stops whoever is busy.
 - `sameOffer` in `action-turns.mjs`: a reply whose activity is still offered, but for a different number of minutes, now starts instead of being sent back.
 - The request to the planner states when the moot meets (`mootMeets` in `decisions.mjs`).
 
@@ -81,8 +81,8 @@ Stage 6 wants an archive of every day, so what must be kept whole is decided fir
   - `dalecrest.table_sizes(measured_at, name, bytes, row_estimate)` holds an hourly sample of every table in the schema, plus `(database)` for the database size and `(log written)` for the write-ahead log position.
 - `tick()` in `db.mjs` marks the end of each phase:
   - `read`, `step`, `events`, `knowledge` (goals and observations), `residents`, `map` (only when the map changed), `presence`, `records` (editions, decision steps, activities, song drafts), `clock`, and `total`.
-  - `advance()` times the commit and the size sample after they happen, and the next tick records them as `commit` and `sizes`.
-  - The size sample runs after the commit because it took about 0.7 s locally, and it must never hold the clock.
+  - `advance()` measures `commit` and the next tick records it.
+- The storage sampler checks on startup and every ten minutes on its own database connection, with a five-second statement timeout. It records a new sample once the last one is at least an hour old.
   - Timings are kept 30 days and samples 35.
 - `admin-health.mjs` adds `ticks` and `storage` to village health:
   - `ticks.lastTwoHours` and `ticks.lastDay` give counts, the mean and worst milliseconds overall, and the same per phase.

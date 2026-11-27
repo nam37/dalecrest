@@ -2,6 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { setTimeout as wait } from 'node:timers/promises';
 import pg from 'pg';
 import { tickTimer } from './tick-telemetry.mjs';
 
@@ -20,7 +21,7 @@ const adminUrl = process.env.DALECREST_TEST_ADMIN_URL;
 test('PostgreSQL keeps tick timings and table sizes, and the health report reads them', { skip: !adminUrl }, async () => {
   const admin = new pg.Client({ connectionString: adminUrl });
   const name = 'dalecrest_telemetry_' + randomUUID().replaceAll('-', '');
-  let db, created = false;
+  let db, sampler, created = false;
   await admin.connect();
   try {
     await admin.query('CREATE DATABASE ' + name);
@@ -35,7 +36,32 @@ test('PostgreSQL keeps tick timings and table sizes, and the health report reads
     await db.initialize();
     const { pool } = db;
     const tick = async () => { await pool.query('UPDATE dalecrest.world SET next_tick=now()'); await db.advance(); };
-    for (let i = 0; i < 3; i++) await tick();
+    sampler = new pg.Client({ connectionString: url.href });
+    await sampler.connect();
+
+    // Hold the storage table while the background worker samples it. The clock must still commit.
+    const locked = await pool.connect();
+    const started = Promise.withResolvers(), finished = Promise.withResolvers();
+    const deadline = message => wait(12000, undefined, { ref: false }).then(() => { throw new Error(message); });
+    let stopSampling;
+    try {
+      await locked.query('BEGIN');
+      await locked.query('LOCK TABLE dalecrest.table_sizes IN ACCESS EXCLUSIVE MODE');
+      stopSampling = telemetry.startStorageSampling({ async query(sql, params) {
+        const pending = sampler.query(sql, params);
+        if (sql.startsWith('INSERT INTO dalecrest.table_sizes')) started.resolve();
+        const result = await pending;
+        if (sql.startsWith('DELETE FROM dalecrest.tick_timings')) finished.resolve();
+        return result;
+      } });
+      await Promise.race([started.promise, deadline('Storage sampling did not start')]);
+      for (let i = 0; i < 3; i++) await Promise.race([tick(), deadline('The clock waited for storage sampling')]);
+    } finally {
+      stopSampling?.();
+      await locked.query('ROLLBACK');
+      locked.release();
+    }
+    await Promise.race([finished.promise, deadline('Storage sampling did not finish after the lock was released')]);
 
     // Every tick is counted once in each phase it ran, and the commit is recorded with the tick after it.
     const { rows } = await pool.query('SELECT phase, sum(ticks)::int AS ticks FROM dalecrest.tick_timings GROUP BY phase');
@@ -46,7 +72,7 @@ test('PostgreSQL keeps tick timings and table sizes, and the health report reads
     await db.advance();
     assert.equal((await pool.query("SELECT sum(ticks)::int AS n FROM dalecrest.tick_timings WHERE phase='total'")).rows[0].n, 3);
 
-    // The first tick took a size sample. Another within the hour is skipped unless forced.
+    // The background worker took a size sample. Another within the hour is skipped unless forced.
     assert.equal((await pool.query('SELECT count(DISTINCT measured_at)::int AS n FROM dalecrest.table_sizes')).rows[0].n, 1);
     assert.equal(await telemetry.sampleSizes(pool, { force: false }), false);
     let storage = await telemetry.readTableSizes(pool);
@@ -67,14 +93,17 @@ test('PostgreSQL keeps tick timings and table sizes, and the health report reads
     assert.equal(await telemetry.sampleSizes(pool, { force: true }), true);
     assert.equal((await pool.query("SELECT count(*)::int AS n FROM dalecrest.table_sizes WHERE measured_at < now() - interval '35 days'")).rows[0].n, 0);
 
+    await telemetry.writeTimings(pool, { sizes: 1234 }); // Older releases recorded size sampling as a tick phase.
     const health = await readAdminHealth(pool, { ...await db.snapshot({ withMap: true }), planner: { state: 'ready' } });
     assert.equal(health.ticks.lastTwoHours.ticks, 3);
     assert.ok(health.ticks.lastTwoHours.meanMs > 0);
     assert.ok(health.ticks.lastTwoHours.phases.residents.maxMs >= health.ticks.lastTwoHours.phases.residents.meanMs);
     assert.equal(health.ticks.lastDay.ticks, 3);
+    assert.equal(health.ticks.lastTwoHours.phases.sizes, undefined);
     assert.ok(health.storage.tables.length > 10);
     assert.equal(typeof health.storage.logWrittenPerDay, 'number');
   } finally {
+    if (sampler) await sampler.end();
     if (db) await db.pool.end();
     await admin.end().catch(() => {});
     if (created) {

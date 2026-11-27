@@ -1,5 +1,4 @@
-// How long each part of a tick takes, and how big each table is and how fast it grows. The tick records
-// both. The health report reads them, so a change that makes ticks heavier or a table grow faster shows up.
+// Tick timings come from the clock. Storage sizes come from a separate sampler. The health report reads both.
 
 export const TIMING_DAYS = 30;
 export const SIZE_DAYS = 35;
@@ -43,13 +42,8 @@ export async function writeTimings(db, phases) {
       max_ms = greatest(dalecrest.tick_timings.max_ms, excluded.max_ms)`, [JSON.stringify(rows)]);
 }
 
-// The tick asks at most every ten minutes. The database takes a sample only when the last one is an hour old,
-// so restarts and several processes do not crowd the record. The database size and the write-ahead log
-// position are kept beside the tables: the log position's growth is what the database writes in a day.
-let askedAt = 0;
+// Keep hourly samples across restarts. The database size and write-ahead log position are kept beside the tables.
 export async function sampleSizes(db, { force = false } = {}) {
-  if (!force && Date.now() - askedAt < SAMPLE_EVERY_MS) return false;
-  askedAt = Date.now();
   const { rowCount } = await db.query(`INSERT INTO dalecrest.table_sizes(measured_at, name, bytes, row_estimate)
     SELECT statement_timestamp(), s.name, s.bytes, s.row_estimate FROM (
       SELECT c.relname::text AS name, pg_total_relation_size(c.oid) AS bytes, greatest(c.reltuples, 0)::bigint AS row_estimate
@@ -61,6 +55,17 @@ export async function sampleSizes(db, { force = false } = {}) {
   await db.query(`DELETE FROM dalecrest.table_sizes WHERE measured_at < statement_timestamp() - make_interval(days => $1)`, [SIZE_DAYS]);
   await db.query(`DELETE FROM dalecrest.tick_timings WHERE hour < statement_timestamp() - make_interval(days => $1)`, [TIMING_DAYS]);
   return true;
+}
+
+export function startStorageSampling(db) {
+  let timer, stopped = false;
+  async function sample() {
+    try { await sampleSizes(db); }
+    catch { console.error('Table sizes could not be sampled.'); }
+    if (!stopped) timer = setTimeout(sample, SAMPLE_EVERY_MS);
+  }
+  sample();
+  return () => { stopped = true; clearTimeout(timer); };
 }
 
 const round = value => Number.isFinite(value) ? Math.round(value * 10) / 10 : null;
@@ -75,7 +80,7 @@ function summarize(rows) {
 export async function readTickTimings(db) {
   const { rows } = await db.query(`SELECT phase, recent, sum(ticks)::int AS ticks, sum(total_ms)::float8 AS total_ms, max(max_ms)::float8 AS max_ms
     FROM (SELECT *, hour >= date_trunc('hour', statement_timestamp()) - interval '1 hour' AS recent FROM dalecrest.tick_timings
-      WHERE hour >= date_trunc('hour', statement_timestamp()) - interval '23 hours') t
+      WHERE phase <> 'sizes' AND hour >= date_trunc('hour', statement_timestamp()) - interval '23 hours') t
     GROUP BY GROUPING SETS ((phase, recent), (phase))`);
   return {
     lastTwoHours: summarize(rows.filter(row => row.recent === true)),
