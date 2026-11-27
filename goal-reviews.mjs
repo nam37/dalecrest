@@ -13,6 +13,11 @@ import { r2 } from './engine/geom.mjs';
 
 export const goalModel = process.env.DALECREST_GOAL_MODEL?.trim() || 'claude-haiku-5-5';
 export const goalBudget = Number(process.env.GOAL_REVIEW_TOKENS_PER_HOUR || 30000);
+// A review is reserved at the most it can cost, so the provider's count, which replaces the reservation
+// when the reply arrives, never takes the hour over its cap. The reply is at most its token limit. A
+// review's JSON runs about a quarter more tokens than a third of its bytes, so half its bytes covers it.
+export const REVIEW_REPLY_TOKENS = 4096;
+export const reviewReserve = body => Math.ceil(Buffer.byteLength(body) / 2) + REVIEW_REPLY_TOKENS;
 const MESSAGES_URL = 'https://api.anthropic.com/v1/messages';
 
 const condition = {
@@ -109,10 +114,10 @@ export async function claimReview(db, village, { budget = goalBudget, model = go
       evening, canStartFrom: villageTime(startsAt), lastStartBefore: villageTime(expiresAt),
     }));
     const offered = [...recalled.map(m => memoryKey(actor, m)), ...input.evidence.map(e => e.key)];
-    const body = JSON.stringify({ model, max_tokens: 4096, system: reviewInstructions + (planOffer ? eveningPlanInstructions : ''),
+    const body = JSON.stringify({ model, max_tokens: REVIEW_REPLY_TOKENS, system: reviewInstructions + (planOffer ? eveningPlanInstructions : ''),
       messages: [{ role: 'user', content: JSON.stringify(input) }],
       output_config: { format: { type: 'json_schema', schema: planOffer ? eveningPlanSchema : reviewSchema } } });
-    const estimate = Math.ceil(Buffer.byteLength(body) / 3) + 600;
+    const estimate = reviewReserve(body);
     if (spend.spent + estimate > budget) return { budgetLimited: true };
     const { rows: [made] } = await db.query(`INSERT INTO dalecrest.goal_reviews(actor_id,observed_minute,why,model,request_body,offered,token_charge)
       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`, [actor.id, village.world.minute, actor.reviewDue.why, model, body, offered, estimate]);

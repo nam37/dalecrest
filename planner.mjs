@@ -5,6 +5,7 @@ import { snapshot, savePlan, claimAction, recordReply, recordTransportFailure, p
 import { sendDecision, DECISIONS_MODEL } from './decisions.mjs';
 import { hourlyActionBudget } from './action-turns.mjs';
 import { setTimeout as delay } from 'node:timers/promises';
+import { createLanes } from './planner-lanes.mjs';
 
 const decisions = process.env.PLANNER_PROVIDER === 'openai';
 const model = decisions ? DECISIONS_MODEL : process.env.OLLAMA_MODEL?.trim();
@@ -25,32 +26,44 @@ async function finishDecision(id) {
   if (result?.status === 'applied') plannerStatus.state = 'connected';
 }
 
+const failedStatus = error => (decisions && /^OpenAI HTTP \d{3}$/.test(error.message) ? error.message : 'offline') + ' · residents waiting';
+
+// One waiting resident, or one recorded reply, at a time. Applying a reply locks the village and
+// checks the reply is still unapplied, so two lanes never apply the same one.
+async function decideOnce(open) {
+  const pending = await pendingDecision();
+  if (pending) { await finishDecision(pending); return 'done'; }
+  if (!key) return false;
+  const ticket = await claimAction(hourlyActionBudget);
+  if (!ticket) return false;
+  if (ticket.budgetLimited) { plannerStatus.state = 'waiting for token budget'; return false; }
+  // Someone else may be waiting too. They need not wait for this reply, unless the provider has just
+  // failed, when one request at a time is enough to find out whether it is back.
+  if (plannerStatus.state === 'connected') open();
+  const { id, body } = ticket;
+  let reply;
+  try { reply = await sendDecision(body, key); }
+  catch (error) { await recordTransportFailure(id); throw error; }
+  // Retry saving the same reply after a transient database disconnect.
+  for (let attempt = 1; ; attempt++) {
+    try { await recordReply(id, reply); break; }
+    catch (error) {
+      if (attempt === 3) throw error;
+      await delay(attempt * 1000);
+    }
+  }
+  await finishDecision(id);
+  return 'sent';
+}
+const lanes = createLanes(decideOnce, { failed: error => { plannerStatus.state = failedStatus(error); } });
+
 export async function planOnce() {
-  if (!model || inFlight) return;
+  if (!model) return;
+  // The poll opens one lane when none is running. Lanes it opens in turn run on their own.
+  if (decisions) { await lanes.open(); return; }
+  if (inFlight) return;
   inFlight = true;
   try {
-    if (decisions) {
-      const pending = await pendingDecision();
-      if (pending) { await finishDecision(pending); return; }
-      if (!key) return;
-      const ticket = await claimAction(hourlyActionBudget);
-      if (!ticket) return;
-      if (ticket.budgetLimited) { plannerStatus.state = 'waiting for token budget'; return; }
-      const { id, body } = ticket;
-      let reply;
-      try { reply = await sendDecision(body, key); }
-      catch (error) { await recordTransportFailure(id); throw error; }
-      // Retry saving the same reply after a transient database disconnect.
-      for (let attempt = 1; ; attempt++) {
-        try { await recordReply(id, reply); break; }
-        catch (error) {
-          if (attempt === 3) throw error;
-          await delay(attempt * 1000);
-        }
-      }
-      await finishDecision(id);
-      return;
-    }
     const { world, actors } = await snapshot();
     const actor = actors.filter(a => a.plan?.model !== model || a.plan.until <= world.minute)
       .sort((a, b) => (a.lastModelPlanAt ?? -1) - (b.lastModelPlanAt ?? -1))[0];
@@ -76,8 +89,7 @@ export async function planOnce() {
     if (!FOCUSES.includes(result.focus) || typeof result.reason !== 'string' || !result.reason.trim()) throw new Error('Invalid plan');
     await savePlan(actor.id, world.minute, result.focus, result.reason.trim().slice(0, 320), model);
     plannerStatus.state = 'connected';
-  } catch (error) {
-    const status = decisions && /^OpenAI HTTP \d{3}$/.test(error.message) ? error.message : 'offline';
-    plannerStatus.state = status + (decisions ? ' · residents waiting' : ' · local rules active');
+  } catch {
+    plannerStatus.state = 'offline · local rules active';
   } finally { inFlight = false; }
 }

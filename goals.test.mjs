@@ -7,7 +7,7 @@ import { recall, memoryKey, remember, MEMORY_HOLDS } from './engine/memory.mjs';
 import { trustOf, warmthOf } from './engine/bonds.mjs';
 import { knownStores } from './engine/exchanges.mjs';
 import { actionBody } from './decisions.mjs';
-import { readReply, reviewSchema } from './goal-reviews.mjs';
+import { readReply, reviewSchema, reviewReserve, REVIEW_REPLY_TOKENS } from './goal-reviews.mjs';
 import { consider } from './engine/standing.mjs';
 
 const DAY = 1440;
@@ -161,4 +161,14 @@ test('the goal model’s reply is read for its review, its cost and any refusal'
   // Every object in the schema is closed, as structured outputs require.
   const closed = s => s.type !== 'object' || (s.additionalProperties === false && Object.values(s.properties).every(p => closed(p.items || p)));
   assert.ok(closed(reviewSchema));
+});
+
+test('a goal review is reserved at the most it can cost, so the hour never runs over its cap', () => {
+  // Measured live on 27 November 2026 over 111 reviews: a 9,300-byte request was charged about 3,900
+  // input tokens, and replies ran to 1,790 tokens. The old reservation of a third of the bytes plus 600
+  // fell short by up to 1,987 tokens, which took one rolling hour to 31,217 against a cap of 30,000.
+  const body = JSON.stringify({ max_tokens: REVIEW_REPLY_TOKENS, text: 'x'.repeat(9300) });
+  const reserved = reviewReserve(body);
+  assert.ok(reserved >= Math.ceil(Buffer.byteLength(body) / 3 * 1.3) + REVIEW_REPLY_TOKENS, reserved + ' tokens reserved');
+  assert.ok(reserved > 3908 + 1790, 'more than the largest review seen');
 });
