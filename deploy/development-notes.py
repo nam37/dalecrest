@@ -30,7 +30,7 @@ PAST_TENSE = {
     "add": "added", "allow": "allowed", "bring": "brought", "enable": "enabled", "expand": "expanded",
     "fix": "fixed", "give": "gave", "group": "grouped", "improve": "improved", "keep": "kept", "land": "landed", "let": "let",
     "make": "made", "move": "moved", "open": "opened", "publish": "published", "record": "recorded",
-    "remove": "removed", "restore": "restored", "schedule": "scheduled", "show": "showed",
+    "remove": "removed", "restore": "restored", "schedule": "scheduled", "show": "showed", "store": "stored",
     "summarize": "summarized", "support": "added support for", "turn": "turned", "update": "updated",
 }
 MAX_HIGHLIGHTS = 3
