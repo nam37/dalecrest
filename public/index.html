@@ -27,7 +27,7 @@
         <article class="map-panel">
           <div class="map-area"><canvas id="map" aria-label="Map of Dalecrest. Select a villager on the map or in the village register."></canvas>
             <div id="walk" hidden aria-label="Dalecrest at eye level, following the selected resident."></div>
-            <div class="plate-clock" id="plate-clock"></div>
+            <div class="plate-clock" id="plate-clock"><div class="plate-count" id="map-count"></div></div>
             <div class="plate-tools">
               <div class="view-switch" role="group" aria-label="How to view the village"><button type="button" data-view="plan" aria-pressed="true">Map</button><button type="button" data-view="walk" aria-pressed="false">Walk</button></div>
               <button class="view-toggle" id="watch" type="button" aria-pressed="false" title="Let the view go to whoever is in the middle of something.">Watch</button>
@@ -47,9 +47,9 @@
               <button type="button" id="map-watch-cards" aria-pressed="true" aria-label="Resident cards while watching" title="Resident cards while watching">
                 <span class="watch-card-icon" aria-hidden="true"></span>
               </button>
+              <button type="button" id="map-help" aria-haspopup="dialog" aria-label="Map key and controls" title="Map key and controls">?</button>
             </div>
             <div id="caption" class="scene-caption" hidden aria-live="polite"><div class="eyebrow" id="caption-kicker"></div><p id="caption-line"></p><p id="caption-why" class="reason"></p><button type="button" id="caption-back" class="where" hidden></button></div>
-          <div class="map-key"><span id="map-count"></span><button type="button" id="map-help" class="map-help" aria-haspopup="dialog" aria-label="Map key and controls" title="Map key and controls">?</button></div>
             <dialog id="map-help-dialog" class="daily-search-dialog map-help-dialog" aria-labelledby="map-help-heading">
               <header class="daily-search-dialog-header">
                 <h2 id="map-help-heading">Reading the map</h2>

@@ -267,7 +267,7 @@ html:has(.map-area.map-expanded) { overflow: hidden; }
 .watch-card-icon::before { content: ''; width: 6px; height: 1px; background: currentColor; box-shadow: 0 -3px currentColor, 0 3px currentColor; }
 .fullscreen-exit, .map-area:is(:fullscreen, .map-expanded) .fullscreen-enter { display: none; }
 .map-area:is(:fullscreen, .map-expanded) .fullscreen-exit { display: inline; }
-#map[hidden] ~ .map-zoom > button:not(#map-fullscreen),
+#map[hidden] ~ .map-zoom > button:not(#map-fullscreen, #map-help),
 .map-area:not(:is(:fullscreen, .map-expanded)) #map[hidden] ~ .map-zoom { display: none; }
 #map[hidden] ~ .map-zoom > #map-fullscreen { border-top: 0; }
 /* A plate too narrow for the clock card and one row of buttons, at any window size, takes the buttons in
@@ -282,9 +282,10 @@ html:has(.map-area.map-expanded) { overflow: hidden; }
 }
 .map-key { left: 18px; bottom: 16px; display: flex; align-items: center; gap: 10px; max-width: calc(100% - 150px); padding: 4px 6px 4px 12px; background: #f9f2dcd9; border: 1px solid #a99a7299; font-size: .84rem; font-style: italic; color: var(--ink-soft); backdrop-filter: blur(2px); }
 .map-key span { display: flex; align-items: center; gap: 6px; }
-.map-help { display: inline-grid; place-items: center; width: 22px; height: 22px; padding: 0; border: 1px solid #8f8264; border-radius: 50%; background: #fffdf2; font: 700 .8rem/1 Georgia, serif; font-style: normal; color: var(--ink-soft); cursor: pointer; }
-.map-help:hover, .map-help:focus-visible { color: var(--rust); border-color: var(--rust); }
-/* The key and the controls are kept in a dialog, so the plate shows only the village's numbers. */
+/* The village's numbers close the clock card, under a rule. The key and the controls are kept in a
+   dialog opened from the foot of the button column. */
+.plate-count { margin-top: 6px; padding-top: 5px; border-top: 1px solid #a99a7288; font: .8rem/1.2 var(--caps); letter-spacing: .1em; text-transform: lowercase; color: var(--muted); white-space: nowrap; }
+.plate-count:empty { display: none; }
 .map-help-dialog { width: min(32rem, calc(100% - 2rem)); max-height: calc(100% - 2rem); overflow-y: auto; }
 .map-help-dialog h3 { margin: 14px 0 6px; font-family: var(--caps); font-size: .86rem; font-weight: normal; letter-spacing: .1em; color: var(--ink-soft); }
 .map-help-dialog ul { margin: 0; padding: 0; list-style: none; }
@@ -567,6 +568,10 @@ footer { display: flex; justify-content: space-between; gap: 14px; flex-wrap: wr
   .village-record .record-share { justify-items: start; }
   .growth-plate { height: clamp(260px, 43vh, 370px); }
   .plate-clock { left: 10px; top: 10px; padding: 5px 7px 4px; }
+  /* Beside the buttons there is no room for the count on one line, so residents and children stand one above the other. */
+  .plate-count { margin-top: 3px; padding-top: 3px; font-size: .74rem; letter-spacing: .08em; }
+  .plate-count .pop-word, .plate-count .pop-sep { display: none; }
+  .plate-count .pop-part { display: block; }
   .clock strong { font-size: 1.2rem; }
   /* On a narrow plate the card stands beside the view buttons, so it is kept to two lines: the dial,
      the hour and the speed, then the date. The dial's sun, moon and cloud stand in for the weather. */

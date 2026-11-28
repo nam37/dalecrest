@@ -550,7 +550,6 @@ function render() {
   if(route==='village'){
     const actor=villagePeople.find(a=>a.id===selected)||villagePeople[0]; selected=actor?.id;
     $('watch').setAttribute('aria-pressed',String(watching)); $('watch').textContent=watching?'Watching':'Watch';
-    document.querySelector('.map-key').hidden=viewMode!=='plan'||watching;
     extras.watchCards = fullscreenMap && viewMode === 'plan' && watching && watchCards && scene?.kind === 'resident';
     const motionMs = frozen ? 0 : Math.max(1, state.tickDueAt - performance.now());
     if (state.tickMs > 0 && state.tickMinutes > 0) {
@@ -568,7 +567,8 @@ function render() {
     } else if(!loadingWalk) caption(watching&&scene?narration():null);
     renderProfile(actor);renderAffairs();
     const kids = villagePeople.length - actors.length;
-    $('map-count').textContent='Pop. '+actors.length+' residents'+(kids ? ' · '+kids+(kids === 1 ? ' child' : ' children') : '');
+    const part=(className,textContent)=>Object.assign(document.createElement('span'),{className,textContent});
+    $('map-count').replaceChildren(part('pop-word','Pop. '),part('pop-part',actors.length+' residents'),...(kids ? [part('pop-sep',' · '),part('pop-part',kids+(kids === 1 ? ' child' : ' children'))] : []));
     const notable=shown(events,'highlights');
     journal($('recent-events'),(notable.length?notable:events).slice(0,5));
     const stocked = [...Object.entries(stores), ...Object.entries(hallStores).filter(([key]) => world.supplies[key] > 0)];
@@ -625,7 +625,7 @@ function navigate(){
     if(link.hash==='#'+route)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');
   }
   walk?.setActive(route==='village' && viewMode==='walk');
-  (route==='village' ? $('plate-clock') : $('title-clock')).append($('clock'));
+  (route==='village' ? $('plate-clock') : $('title-clock')).prepend($('clock'));
   $('page-title').hidden=route==='village' && Boolean(state);
   render();
 }
