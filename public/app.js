@@ -517,7 +517,7 @@ function roster() {
 }
 function render() {
   if(!state)return;
-  const {world,actors,events,planner}=state;
+  const {world,actors,events}=state;
   $('title').textContent=names[route];
   $('summary').textContent={village:actors.length+' residents living and working in a medieval parish.',residents:'The people, trades, and households of Dalecrest.',chronicle:'What has happened lately: the latest 100 notable entries in the village records. Choose a kind to see routine as well.'}[route];
   // The clock gives the date in full, with its weekday where there is room.
@@ -546,7 +546,6 @@ function render() {
   const extras = { world, coldHearths:world.coldHearths||[], events:shown(events,'highlights').filter(e=>e.place&&world.minute-e.minute<=90).slice(0,12)};
   // In the village the map is the page. Its title gives way and the clock moves onto the plate.
   $('page-title').hidden=route==='village';
-  $('planner-status').textContent=planner.configured?'Village decisions · '+planner.state:'Village decisions · local rules';
   if(route==='village'){
     const actor=villagePeople.find(a=>a.id===selected)||villagePeople[0]; selected=actor?.id;
     $('watch').setAttribute('aria-pressed',String(watching)); $('watch').textContent=watching?'Watching':'Watch';
