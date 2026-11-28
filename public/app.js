@@ -698,6 +698,11 @@ for(const btn of document.querySelectorAll('[data-tab]'))btn.addEventListener('c
 });
 for(const btn of document.querySelectorAll('[data-view]'))btn.addEventListener('click',()=>show(btn.dataset.view));
 $('map-help').addEventListener('click',()=>$('map-help-dialog').showModal());
+// A click on the dimmed page around the help closes it, as Esc and the cross do.
+$('map-help-dialog').addEventListener('click',e=>{
+  const r=e.currentTarget.getBoundingClientRect();
+  if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)e.currentTarget.close();
+});
 $('zoom-in').addEventListener('click',()=>map.zoom(1.4));
 $('zoom-out').addEventListener('click',()=>map.zoom(1/1.4));
 $('zoom-home').addEventListener('click',()=>map.home());
